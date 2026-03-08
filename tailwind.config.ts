@@ -13,6 +13,9 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ['"DM Sans"', 'system-ui', 'sans-serif'],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -47,6 +50,24 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        solar: {
+          DEFAULT: "hsl(var(--solar))",
+          foreground: "hsl(var(--solar-foreground))",
+        },
+        ev: {
+          DEFAULT: "hsl(var(--ev))",
+          foreground: "hsl(var(--ev-foreground))",
+        },
+        battery: {
+          DEFAULT: "hsl(var(--battery))",
+          foreground: "hsl(var(--battery-foreground))",
+        },
+        grid: {
+          DEFAULT: "hsl(var(--grid))",
+          foreground: "hsl(var(--grid-foreground))",
+        },
+        savings: "hsl(var(--savings))",
+        earnings: "hsl(var(--earnings))",
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
