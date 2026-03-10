@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Sun, Zap, Battery, ArrowUpRight, PoundSterling, TrendingUp, RefreshCw, Wifi, WifiOff, ChevronRight, AlertCircle } from "lucide-react";
+import GridlySetup from "./GridlySetup";
 
 // ── SANDBOX DATA (replace with real API keys when ready) ──────────────────
 const SANDBOX = {
