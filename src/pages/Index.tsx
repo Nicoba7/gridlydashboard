@@ -33,13 +33,7 @@ interface Rate {
 }
 
 async function fetchAgileRates(): Promise<Rate[]> {
-  const now = new Date();
-  const from = new Date(now);
-  from.setHours(0, 0, 0, 0);
-  const to = new Date(now);
-  to.setHours(23, 59, 59, 0);
-
-  const url = `https://api.octopus.energy/v1/products/AGILE-FLEX-22-11-25/electricity-tariffs/E-1R-AGILE-FLEX-22-11-25-C/standard-unit-rates/?period_from=${from.toISOString()}&period_to=${to.toISOString()}&page_size=50`;
+  const url = `https://corsproxy.io/?https://api.octopus.energy/v1/products/AGILE-FLEX-22-11-25/electricity-tariffs/E-1R-AGILE-FLEX-22-11-25-C/standard-unit-rates/?page_size=50`;
 
   const res = await fetch(url);
   if (!res.ok) throw new Error("Octopus API error");
