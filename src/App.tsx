@@ -8,6 +8,9 @@ import HowItWorks from "./pages/HowItWorks";
 import CustomerValue from "./pages/CustomerValue";
 import NetworkGrowth from "./pages/NetworkGrowth";
 import MarketOpportunity from "./pages/MarketOpportunity";
+import Onboarding from "./pages/Onboarding";
+import SimplifiedDashboard from "./pages/SimplifiedDashboard";
+import DeviceManagement from "./pages/DeviceManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -18,8 +21,11 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
+       <Routes>
           <Route path="/" element={<Index />} />
+          <Route path="/onboarding" element={<Onboarding />} />
+          <Route path="/dashboard" element={<SimplifiedDashboard />} />
+          <Route path="/devices" element={<DeviceManagement />} />
           <Route path="/how-it-works" element={<HowItWorks />} />
           <Route path="/customer-value" element={<CustomerValue />} />
           <Route path="/network-growth" element={<NetworkGrowth />} />
