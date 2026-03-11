@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Sun, Battery, Zap, Grid3X3, TrendingUp, ChevronRight, AlertCircle, PoundSterling } from "lucide-react";
+import EnergyFlow from "./EnergyFlow";
 
 const ALL_DEVICES = [
   { id: "solar", name: "Solar Inverter", status: "2.8kW generating", monthlyValue: 35, icon: Sun, color: "#F59E0B" },
@@ -186,6 +187,11 @@ export default function SimplifiedDashboard() {
         </div>
       </div>
 
+      {/* Energy flow */}
+      <div style={{ margin: "0 20px" }}>
+        <EnergyFlow />
+      </div>
+      
       {/* Agile chart */}
       <div style={{ margin: "0 20px" }}>
         <AgileChart />
