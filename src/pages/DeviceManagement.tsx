@@ -1,74 +1,86 @@
-import { Sun, Battery, Zap, Grid3X3, CheckCircle2, ExternalLink, AlertCircle } from "lucide-react";
+import { Sun, Battery, Zap, CheckCircle2, ChevronRight, ChevronLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
-interface DeviceStatus {
+interface Device {
   id: string;
   name: string;
-  category: string;
   connected: boolean;
-  connectedAt?: Date;
-  brand?: string;
   icon: React.ElementType;
   color: string;
   monthlyValue: number;
+  description: string;
 }
 
-const DEVICES_STATUS: DeviceStatus[] = [
-  { id: "solar", name: "Solar Inverter", category: "Generation", connected: true, connectedAt: new Date("2024-01-15"), brand: "GivEnergy", icon: Sun, color: "#F59E0B", monthlyValue: 35 },
-  { id: "battery", name: "Home Battery", category: "Storage", connected: true, connectedAt: new Date("2024-01-15"), brand: "GivEnergy", icon: Battery, color: "#16A34A", monthlyValue: 32 },
-  { id: "ev", name: "EV Charger", category: "Transport", connected: false, icon: Zap, color: "#38BDF8", monthlyValue: 26 },
-  { id: "grid", name: "Smart Pricing", category: "Grid", connected: false, icon: Grid3X3, color: "#A78BFA", monthlyValue: 15 },
+const DEVICES: Device[] = [
+  { id: "solar", name: "Solar Inverter", connected: true, icon: Sun, color: "#F59E0B", monthlyValue: 35, description: "Generating and using your own electricity" },
+  { id: "battery", name: "Home Battery", connected: true, icon: Battery, color: "#16A34A", monthlyValue: 32, description: "Storing cheap electricity for peak hours" },
+  { id: "ev", name: "EV Charger", connected: false, icon: Zap, color: "#38BDF8", monthlyValue: 26, description: "Charging your car when electricity is cheapest" },
 ];
 
 export default function DeviceManagement() {
-  const connectedCount = DEVICES_STATUS.filter((d) => d.connected).length;
-  const totalValue = DEVICES_STATUS.filter((d) => d.connected).reduce((sum, d) => sum + d.monthlyValue, 0);
-  const potentialValue = DEVICES_STATUS.reduce((sum, d) => sum + d.monthlyValue, 0);
+  const navigate = useNavigate();
+  const connected = DEVICES.filter(d => d.connected);
+  const available = DEVICES.filter(d => !d.connected);
+  const currentMonthly = connected.reduce((s, d) => s + d.monthlyValue, 0);
+  const potentialMonthly = DEVICES.reduce((s, d) => s + d.monthlyValue, 0);
 
   return (
-    <div style={{ background: "linear-gradient(135deg, #111827 0%, #0F1419 100%)", minHeight: "100vh", padding: "20px", color: "#F9FAFB", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto" }}>
-      <div style={{ marginBottom: 24, marginTop: 12 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8, letterSpacing: -0.5 }}>Your Devices</h1>
-        <p style={{ fontSize: 14, color: "#9CA3AF" }}>Manage your energy system</p>
-      </div>
-
-      <div style={{ background: "#1F2937", border: "1px solid #374151", borderRadius: 12, padding: "16px", marginBottom: 24 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-          <div>
-            <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 4 }}>Connected</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: "#22C55E" }}>{connectedCount}/{DEVICES_STATUS.length}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 4 }}>Current Value</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: "#16A34A" }}>£{totalValue}</div>
-            <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2 }}>per month</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 4 }}>Full Potential</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: "#F59E0B" }}>£{potentialValue}</div>
-            <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2 }}>per month</div>
-          </div>
+    <div style={{
+      minHeight: "100vh", background: "#030712",
+      fontFamily: "'DM Sans', 'Segoe UI', system-ui, sans-serif",
+      color: "#F9FAFB", maxWidth: 420, margin: "0 auto", paddingBottom: 40,
+    }}>
+      {/* Header */}
+      <div style={{ padding: "48px 20px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+        <button onClick={() => navigate("/")} style={{
+          background: "#111827", border: "1px solid #1F2937", borderRadius: 10, padding: 8, cursor: "pointer", display: "flex"
+        }}>
+          <ChevronLeft size={18} color="#9CA3AF" />
+        </button>
+        <div>
+          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>Your Devices</div>
+          <div style={{ fontSize: 13, color: "#9CA3AF" }}>{connected.length} connected · saving £{currentMonthly}/month</div>
         </div>
       </div>
 
-      <div style={{ marginBottom: 28 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#9CA3AF", marginBottom: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>Connected</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
-          {DEVICES_STATUS.filter((d) => d.connected).map((device) => {
+      {/* Summary */}
+      <div style={{ margin: "0 20px 20px", background: "#0D1F14", border: "1px solid #16A34A40", borderRadius: 16, padding: 20, display: "flex", justifyContent: "space-around", textAlign: "center" }}>
+        <div>
+          <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 4 }}>You're saving</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: "#22C55E" }}>£{currentMonthly}</div>
+          <div style={{ fontSize: 11, color: "#6B7280" }}>per month</div>
+        </div>
+        <div style={{ width: 1, background: "#16A34A30" }} />
+        <div>
+          <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 4 }}>Full potential</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: "#F59E0B" }}>£{potentialMonthly}</div>
+          <div style={{ fontSize: 11, color: "#6B7280" }}>per month</div>
+        </div>
+      </div>
+
+      {/* Connected */}
+      <div style={{ margin: "0 20px 24px" }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "#4B5563", letterSpacing: 1, marginBottom: 10, textTransform: "uppercase" }}>Connected</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {connected.map(device => {
             const Icon = device.icon;
             return (
-              <div key={device.id} style={{ background: "#1F2937", border: `1px solid ${device.color}40`, borderRadius: 10, padding: "14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div key={device.id} style={{
+                background: "#111827", border: `1px solid ${device.color}30`, borderRadius: 14,
+                padding: "16px", display: "flex", alignItems: "center", justifyContent: "space-between"
+              }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{ background: `${device.color}20`, borderRadius: 8, padding: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div style={{ background: `${device.color}20`, borderRadius: 10, padding: 8 }}>
                     <Icon size={20} color={device.color} />
                   </div>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "#F9FAFB", marginBottom: 2 }}>{device.name}</div>
-                    <div style={{ fontSize: 11, color: "#6B7280" }}>{device.brand} · Connected {device.connectedAt?.toLocaleDateString()}</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#F9FAFB", marginBottom: 2 }}>{device.name}</div>
+                    <div style={{ fontSize: 12, color: "#9CA3AF" }}>{device.description}</div>
                   </div>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: device.color }}>+£{device.monthlyValue}</div>
-                  <CheckCircle2 size={20} color={device.color} />
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 14, fontWeight: 800, color: "#22C55E" }}>+£{device.monthlyValue}</span>
+                  <CheckCircle2 size={18} color="#22C55E" />
                 </div>
               </div>
             );
@@ -76,24 +88,30 @@ export default function DeviceManagement() {
         </div>
       </div>
 
-      {DEVICES_STATUS.filter((d) => !d.connected).length > 0 && (
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#9CA3AF", marginBottom: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>Available to Connect</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
-            {DEVICES_STATUS.filter((d) => !d.connected).map((device) => {
+      {/* Available to connect */}
+      {available.length > 0 && (
+        <div style={{ margin: "0 20px 24px" }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#4B5563", letterSpacing: 1, marginBottom: 10, textTransform: "uppercase" }}>Unlock more savings</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {available.map(device => {
               const Icon = device.icon;
               return (
-                <button key={device.id} style={{ background: "#1F2937", border: "1px solid #374151", borderRadius: 10, padding: "14px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
+                <button key={device.id} style={{
+                  background: `${device.color}08`, border: `2px solid ${device.color}30`, borderRadius: 14,
+                  padding: "16px", display: "flex", alignItems: "center", justifyContent: "space-between",
+                  cursor: "pointer", width: "100%", textAlign: "left"
+                }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <div style={{ background: `${device.color}20`, borderRadius: 8, padding: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <div style={{ background: `${device.color}20`, borderRadius: 10, padding: 8 }}>
                       <Icon size={20} color={device.color} />
                     </div>
-                    <div style={{ textAlign: "left" }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: "#F9FAFB", marginBottom: 2 }}>{device.name}</div>
-                      <div style={{ fontSize: 11, color: "#9CA3AF" }}>Unlock +£{device.monthlyValue}/month</div>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "#F9FAFB", marginBottom: 2 }}>Add {device.name}</div>
+                      <div style={{ fontSize: 12, color: "#9CA3AF" }}>{device.description}</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: device.color, marginTop: 4 }}>Worth +£{device.monthlyValue}/month</div>
                     </div>
                   </div>
-                  <ExternalLink size={18} color={device.color} style={{ opacity: 0.6 }} />
+                  <ChevronRight size={20} color={device.color} />
                 </button>
               );
             })}
@@ -101,20 +119,17 @@ export default function DeviceManagement() {
         </div>
       )}
 
-      <div style={{ background: "#0D1F14", border: "1px solid #16A34A40", borderRadius: 12, padding: "16px" }}>
-        <div style={{ fontSize: 10, color: "#16A34A", fontWeight: 700, letterSpacing: 1.2, marginBottom: 12, textTransform: "uppercase" }}>Your Roadmap</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
+      {/* Projected savings */}
+      <div style={{ margin: "0 20px", background: "#0D1F14", border: "1px solid #16A34A40", borderRadius: 16, padding: 20 }}>
+        <div style={{ fontSize: 10, color: "#16A34A", fontWeight: 700, letterSpacing: 1.5, marginBottom: 8 }}>ANNUAL PROJECTION</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "#22C55E", marginBottom: 8 }}>Phase 1: Foundation</div>
-            <div style={{ fontSize: 12, color: "#9CA3AF", lineHeight: 1.6 }}>You've set up solar + battery. Next step: connect your EV charger for peak-rate management and smart charging from solar or cheap grid hours.</div>
+            <div style={{ fontSize: 32, fontWeight: 800, color: "#22C55E", letterSpacing: -1 }}>£{potentialMonthly * 12}</div>
+            <div style={{ fontSize: 12, color: "#9CA3AF" }}>with all devices connected</div>
           </div>
-          <div style={{ paddingTop: 12, borderTop: "1px solid #16A34A20" }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "#F59E0B", marginBottom: 8 }}>Phase 2: Optimization</div>
-            <div style={{ fontSize: 12, color: "#9CA3AF", lineHeight: 1.6 }}>Full system active. Your home is now avoiding peak pricing, capturing arbitrage, and exporting at peak rates.</div>
-          </div>
-          <div style={{ paddingTop: 12, borderTop: "1px solid #16A34A20" }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "#A78BFA", marginBottom: 8 }}>Phase 3: Grid Services (Coming 2025)</div>
-            <div style={{ fontSize: 12, color: "#9CA3AF", lineHeight: 1.6 }}>Your system joins the National Grid's flexibility market for additional revenue streams.</div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 11, color: "#6B7280" }}>Current</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "#22C55E" }}>£{currentMonthly * 12}/yr</div>
           </div>
         </div>
       </div>
