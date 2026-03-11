@@ -1,9 +1,7 @@
-import SavingsHistory from "./SavingsHistory";
-import NightlyPlan from "./NightlyPlan";
 import { useState, useEffect } from "react";
-import { Sun, Battery, Zap, Grid3X3, TrendingUp, ChevronRight, AlertCircle, PoundSterling } from "lucide-react";
-import EnergyFlow from "./EnergyFlow";
+import { Sun, Battery, Zap, Grid3X3, TrendingUp, Home, Calendar, Clock } from "lucide-react";
 
+// ── DEVICE CONFIG ─────────────────────────────────────────────────────────
 const ALL_DEVICES = [
   { id: "solar", name: "Solar Inverter", status: "2.8kW generating", monthlyValue: 35, icon: Sun, color: "#F59E0B" },
   { id: "battery", name: "Home Battery", status: "62% charged", monthlyValue: 32, icon: Battery, color: "#16A34A" },
@@ -11,11 +9,33 @@ const ALL_DEVICES = [
   { id: "grid", name: "Smart Meter", status: "Live pricing", monthlyValue: 15, icon: Grid3X3, color: "#A78BFA" },
 ];
 
+// ── SANDBOX DATA ──────────────────────────────────────────────────────────
 const SANDBOX = {
-  todaySolarKwh: 12.0,
-  todayExportKwh: 4.2,
+  savedToday: 3.76,
+  earnedToday: 1.52,
+  allTime: 713.67,
+  allTimeSince: "March 2024",
+  solar: { w: 2840, batteryPct: 62, gridW: -420, homeW: 1200 },
+  history: [
+    { day: "Mon", saved: 2.14, earned: 0.63 },
+    { day: "Tue", saved: 3.42, earned: 1.21 },
+    { day: "Wed", saved: 1.87, earned: 0.44 },
+    { day: "Thu", saved: 4.11, earned: 1.84 },
+    { day: "Fri", saved: 2.93, earned: 0.97 },
+    { day: "Sat", saved: 5.24, earned: 2.31 },
+    { day: "Sun", saved: 3.76, earned: 1.52 },
+  ],
+  plan: [
+    { time: "11:30pm", action: "CHARGE", title: "Charging your battery", reason: "Cheapest rate of the night", price: 4.8, color: "#22C55E" },
+    { time: "2:00am",  action: "HOLD",   title: "Resting overnight",     reason: "Nothing to do — battery full", price: 5.1, color: "#6B7280" },
+    { time: "8:00am",  action: "EXPORT", title: "Selling to the grid",   reason: "High price — earning for you", price: 31.2, color: "#F59E0B" },
+    { time: "11:00am", action: "SOLAR",  title: "Solar powering your home", reason: "Free electricity from your panels", price: 9.6, color: "#F59E0B" },
+    { time: "5:30pm",  action: "EXPORT", title: "Peak earnings window",  reason: "Best price of the day", price: 38.6, color: "#F59E0B" },
+    { time: "8:00pm",  action: "CHARGE", title: "Topping up for tomorrow", reason: "Price dropping — refilling now", price: 11.8, color: "#22C55E" },
+  ],
 };
 
+// ── AGILE RATES ───────────────────────────────────────────────────────────
 const AGILE_RATES = [
   { time: "00:00", pence: 7.2 }, { time: "00:30", pence: 6.8 },
   { time: "01:00", pence: 6.1 }, { time: "01:30", pence: 5.9 },
@@ -29,8 +49,8 @@ const AGILE_RATES = [
   { time: "09:00", pence: 24.1 }, { time: "09:30", pence: 19.8 },
   { time: "10:00", pence: 16.2 }, { time: "10:30", pence: 13.4 },
   { time: "11:00", pence: 11.8 }, { time: "11:30", pence: 10.2 },
-  { time: "12:00", pence: 9.6 }, { time: "12:30", pence: 8.9 },
-  { time: "13:00", pence: 9.1 }, { time: "13:30", pence: 10.4 },
+  { time: "12:00", pence: 9.6 },  { time: "12:30", pence: 8.9 },
+  { time: "13:00", pence: 9.1 },  { time: "13:30", pence: 10.4 },
   { time: "14:00", pence: 11.2 }, { time: "14:30", pence: 12.8 },
   { time: "15:00", pence: 14.6 }, { time: "15:30", pence: 17.3 },
   { time: "16:00", pence: 22.1 }, { time: "16:30", pence: 27.8 },
@@ -39,8 +59,8 @@ const AGILE_RATES = [
   { time: "19:00", pence: 22.3 }, { time: "19:30", pence: 17.6 },
   { time: "20:00", pence: 14.2 }, { time: "20:30", pence: 11.8 },
   { time: "21:00", pence: 10.1 }, { time: "21:30", pence: 9.4 },
-  { time: "22:00", pence: 8.7 }, { time: "22:30", pence: 8.1 },
-  { time: "23:00", pence: 7.6 }, { time: "23:30", pence: 7.1 },
+  { time: "22:00", pence: 8.7 },  { time: "22:30", pence: 8.1 },
+  { time: "23:00", pence: 7.6 },  { time: "23:30", pence: 7.1 },
 ];
 
 function getCurrentSlotIndex() {
@@ -48,191 +68,120 @@ function getCurrentSlotIndex() {
   return Math.min(Math.floor((now.getHours() * 60 + now.getMinutes()) / 30), 47);
 }
 
-function getBarColor(pence: number) {
-  if (pence < 0) return "#A78BFA";
-  if (pence < 10) return "#22C55E";
-  if (pence < 20) return "#F59E0B";
-  if (pence < 30) return "#F97316";
+function getBarColor(p: number) {
+  if (p < 10) return "#22C55E";
+  if (p < 20) return "#F59E0B";
+  if (p < 30) return "#F97316";
   return "#EF4444";
 }
 
-function AgileChart() {
-  const currentSlot = getCurrentSlotIndex();
-  const maxPence = Math.max(...AGILE_RATES.map(r => r.pence));
-  const [hovered, setHovered] = useState<number | null>(null);
-  
+// ── ENERGY FLOW DOTS ──────────────────────────────────────────────────────
+function FlowDot({ active, color }: { active: boolean; color: string }) {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    const t = setInterval(() => setTick(n => (n + 1) % 3), 500);
+    return () => clearInterval(t);
+  }, [active]);
   return (
-    <div style={{ background: "#0D1117", border: "1px solid #1F2937", borderRadius: 12, padding: "14px", marginBottom: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", letterSpacing: 1, marginBottom: 2 }}>OCTOPUS AGILE — TODAY</div>
-          <div style={{ fontSize: 12, color: "#9CA3AF" }}>
-            Now: <span style={{ color: getBarColor(AGILE_RATES[currentSlot]?.pence), fontWeight: 700 }}>{AGILE_RATES[currentSlot]?.pence}p/kWh</span>
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 8, fontSize: 10 }}>
-          <span style={{ color: "#22C55E" }}>● cheap</span>
-          <span style={{ color: "#F59E0B" }}>● mid</span>
-          <span style={{ color: "#EF4444" }}>● peak</span>
-        </div>
-      </div>
-
-      {hovered !== null && (
-        <div style={{ background: "#1F2937", border: "1px solid #374151", borderRadius: 6, padding: "4px 8px", fontSize: 11, color: "#F9FAFB", marginBottom: 6, display: "inline-block" }}>
-          {AGILE_RATES[hovered].time} — <span style={{ color: getBarColor(AGILE_RATES[hovered].pence), fontWeight: 700 }}>{AGILE_RATES[hovered].pence}p</span>
-          {hovered === currentSlot && " ← now"}
-        </div>
-      )}
-
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 80 }}>
-        {AGILE_RATES.map((rate, i) => {
-          const height = Math.max(2, (rate.pence / maxPence) * 80);
-          const isCurrent = i === currentSlot;
-          const color = getBarColor(rate.pence);
-          return (
-            <div key={i} onMouseEnter={() => setHovered(i)} onMouseLeave={() => setHovered(null)}
-              style={{ flex: 1, display: "flex", alignItems: "flex-end", height: "100%", cursor: "pointer" }}>
-              <div style={{ width: "100%", height, background: isCurrent ? "#FFFFFF" : color, opacity: hovered !== null && hovered !== i ? 0.4 : 1, borderRadius: "2px 2px 0 0", transition: "opacity 0.15s ease", boxShadow: isCurrent ? `0 0 6px ${color}` : "none" }} />
-            </div>
-          );
-        })}
-      </div>
-
-      <div style={{ display: "flex", marginTop: 4 }}>
-        {AGILE_RATES.map((rate, i) => (
-          <div key={i} style={{ flex: 1, textAlign: "center", fontSize: 8, color: i === currentSlot ? "#F9FAFB" : "#4B5563" }}>
-            {i % 4 === 0 ? rate.time.replace(":00", "").replace(":30", "") : ""}
-          </div>
-        ))}
-      </div>
+    <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
+      {[0, 1, 2].map(i => (
+        <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: active && i === tick ? color : `${color}25`, transition: "background 0.2s" }} />
+      ))}
     </div>
   );
 }
 
-export default function SimplifiedDashboard() {
-  const [now, setNow] = useState(new Date());
-
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 60000);
-    return () => clearInterval(t);
-  }, []);
-
-  // Read selected device IDs from URL param
-  const params = new URLSearchParams(window.location.search);
-  const selectedIds = params.get("devices")?.split(",").filter(Boolean) || ["solar", "battery"];
-
-  const connectedDevices = ALL_DEVICES.filter(d => selectedIds.includes(d.id));
-  const unconnectedDevices = ALL_DEVICES.filter(d => !selectedIds.includes(d.id));
-  const nextDevice = unconnectedDevices[0] || null;
-  const monthlyTotal = connectedDevices.reduce((s, d) => s + d.monthlyValue, 0);
-
-  // Adjust sandbox figures based on what's connected
-  const hasSolar = selectedIds.includes("solar");
-  const savedToday = hasSolar ? (SANDBOX.todayExportKwh * 0.15 + SANDBOX.todaySolarKwh * 0.28).toFixed(2) : "0.00";
-  const earnedToday = hasSolar ? (SANDBOX.todayExportKwh * 0.15).toFixed(2) : "0.00";
-
-  const currentSlot = AGILE_RATES[getCurrentSlotIndex()];
+// ── HOME TAB ──────────────────────────────────────────────────────────────
+function HomeTab({ connectedDevices, now }: { connectedDevices: typeof ALL_DEVICES; now: Date }) {
   const hour = now.getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const currentSlot = AGILE_RATES[getCurrentSlotIndex()];
 
   return (
-    <div style={{ background: "#030712", minHeight: "100vh", padding: "0 0 40px", color: "#F9FAFB", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto", maxWidth: 480, margin: "0 auto" }}>
+    <div>
+      {/* Greeting */}
+      <div style={{ padding: "44px 24px 20px" }}>
+        <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.8, marginBottom: 2 }}>{greeting}</div>
+        <div style={{ fontSize: 13, color: "#6B7280" }}>
+          {now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
+        </div>
+      </div>
 
-     {/* Header */}
-      <div style={{ padding: "48px 20px 16px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      {/* All-time counter */}
+      <div style={{ margin: "0 20px 16px", background: "linear-gradient(135deg, #0a0a0a, #111827)", border: "1px solid #1F2937", borderRadius: 20, padding: "20px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
-          <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: -0.5 }}>{greeting} 👋</div>
-          <div style={{ fontSize: 13, color: "#9CA3AF", marginTop: 2 }}>
-            {connectedDevices.length} device{connectedDevices.length !== 1 ? "s" : ""} connected · optimising now
-          </div>
+          <div style={{ fontSize: 11, color: "#4B5563", letterSpacing: 1, fontWeight: 700, marginBottom: 6 }}>ALL TIME</div>
+          <div style={{ fontSize: 40, fontWeight: 900, color: "#22C55E", letterSpacing: -2, lineHeight: 1 }}>+£{SANDBOX.allTime}</div>
+          <div style={{ fontSize: 11, color: "#4B5563", marginTop: 6 }}>since {SANDBOX.allTimeSince}</div>
         </div>
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#F9FAFB" }}>
-            {now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
-          </div>
-          <div style={{ fontSize: 11, color: "#6B7280" }}>
-            {now.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
-          </div>
-          <div style={{ fontSize: 10, color: "#22C55E", fontWeight: 700, marginTop: 2 }}>● LIVE</div>
+          <div style={{ fontSize: 11, color: "#4B5563", marginBottom: 4 }}>Today</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "#22C55E" }}>+£{SANDBOX.savedToday}</div>
+          <div style={{ fontSize: 11, color: "#F59E0B", marginTop: 2 }}>£{SANDBOX.earnedToday} exported</div>
         </div>
       </div>
 
-      {/* Saved + Earned hero */}
-      <div style={{ margin: "0 20px 16px", background: "linear-gradient(135deg, #0D1F14 0%, #071510 100%)", border: "1px solid #16A34A40", borderRadius: 20, padding: "22px 20px" }}>
-        <div style={{ display: "flex", gap: 16, marginBottom: 16 }}>
-          <div style={{ flex: 1, textAlign: "center" }}>
-            <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 4 }}>Saved today</div>
-            <div style={{ fontSize: 36, fontWeight: 800, color: "#22C55E", letterSpacing: -1, lineHeight: 1 }}>£{savedToday}</div>
-            <div style={{ fontSize: 10, color: "#4B5563", marginTop: 4 }}>{hasSolar ? `${SANDBOX.todaySolarKwh} kWh solar` : "No solar connected"}</div>
-          </div>
-          <div style={{ width: 1, background: "#1F2937" }} />
-          <div style={{ flex: 1, textAlign: "center" }}>
-            <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 4 }}>Earned today</div>
-            <div style={{ fontSize: 36, fontWeight: 800, color: "#F59E0B", letterSpacing: -1, lineHeight: 1 }}>£{earnedToday}</div>
-            <div style={{ fontSize: 10, color: "#4B5563", marginTop: 4 }}>{hasSolar ? `${SANDBOX.todayExportKwh} kWh exported` : "Connect solar to earn"}</div>
-          </div>
-        </div>
-        <div style={{ borderTop: "1px solid #1F2937", paddingTop: 14, display: "flex", gap: 16, justifyContent: "center" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <PoundSterling size={13} color="#16A34A" />
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 800, color: "#F9FAFB" }}>£{monthlyTotal}</div>
-              <div style={{ fontSize: 10, color: "#6B7280" }}>this month</div>
-            </div>
-          </div>
-          <div style={{ width: 1, background: "#1F2937" }} />
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <TrendingUp size={13} color="#F59E0B" />
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 800, color: "#F9FAFB" }}>£{monthlyTotal * 12}</div>
-              <div style={{ fontSize: 10, color: "#6B7280" }}>projected/yr</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div style={{ margin: "0 20px" }}>
-      <SavingsHistory />
-      </div>
-      
       {/* Gridly decision */}
-      <div style={{ margin: "0 20px 16px", background: "#111827", border: "1px solid #16A34A40", borderRadius: 16, padding: "12px 16px" }}>
-        <div style={{ fontSize: 10, color: "#16A34A", fontWeight: 700, letterSpacing: 1.2, marginBottom: 4 }}>GRIDLY DECISION</div>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "#22C55E", marginBottom: 3, letterSpacing: -0.5 }}>HOLDING</div>
-        <div style={{ fontSize: 12, color: "#9CA3AF" }}>
-          Price {currentSlot?.pence}p — waiting for cheaper slot at 03:00 (4.8p). Saving {(currentSlot?.pence - 4.8).toFixed(1)}p/kWh
+      <div style={{ margin: "0 20px 16px", background: "#0D1F14", border: "1px solid #16A34A30", borderRadius: 16, padding: "16px 20px" }}>
+        <div style={{ fontSize: 10, color: "#16A34A", fontWeight: 700, letterSpacing: 1.5, marginBottom: 8 }}>RIGHT NOW</div>
+        <div style={{ fontSize: 22, fontWeight: 900, color: "#22C55E", letterSpacing: -0.5, marginBottom: 4 }}>HOLDING</div>
+        <div style={{ fontSize: 13, color: "#9CA3AF", lineHeight: 1.5 }}>
+          Price is {currentSlot?.pence}p — cheaper electricity coming at 03:00 (4.8p). Waiting to charge then.
         </div>
       </div>
 
       {/* Energy flow */}
-      <div style={{ margin: "0 20px" }}>
-        <EnergyFlow />
+      <div style={{ margin: "0 20px 16px", background: "#0D1117", border: "1px solid #1F2937", borderRadius: 16, padding: "20px" }}>
+        <div style={{ fontSize: 10, color: "#4B5563", fontWeight: 700, letterSpacing: 1, marginBottom: 20 }}>LIVE ENERGY FLOW</div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ width: 52, height: 52, background: "#F59E0B15", border: "1.5px solid #F59E0B30", borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 6px" }}>
+              <Sun size={22} color="#F59E0B" />
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#F9FAFB" }}>2.8kW</div>
+            <div style={{ fontSize: 10, color: "#6B7280" }}>Solar</div>
+          </div>
+          <FlowDot active={true} color="#F59E0B" />
+          <div style={{ textAlign: "center" }}>
+            <div style={{ width: 52, height: 52, background: "#ffffff10", border: "1.5px solid #ffffff20", borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 6px" }}>
+              <Home size={22} color="#E5E7EB" />
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#F9FAFB" }}>1.2kW</div>
+            <div style={{ fontSize: 10, color: "#6B7280" }}>Home</div>
+          </div>
+          <FlowDot active={true} color="#16A34A" />
+          <div style={{ textAlign: "center" }}>
+            <div style={{ width: 52, height: 52, background: "#16A34A15", border: "1.5px solid #16A34A30", borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 6px" }}>
+              <Battery size={22} color="#22C55E" />
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#F9FAFB" }}>62%</div>
+            <div style={{ fontSize: 10, color: "#6B7280" }}>Battery</div>
+          </div>
+          <FlowDot active={true} color="#F59E0B" />
+          <div style={{ textAlign: "center" }}>
+            <div style={{ width: 52, height: 52, background: "#F59E0B15", border: "1.5px solid #F59E0B30", borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 6px" }}>
+              <TrendingUp size={22} color="#F59E0B" />
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#F59E0B" }}>0.4kW</div>
+            <div style={{ fontSize: 10, color: "#6B7280" }}>Exporting</div>
+          </div>
+        </div>
       </div>
-      
-      {/* Agile chart */}
-      <div style={{ margin: "0 20px" }}>
-        <AgileChart />
-      </div>
-      
-      <div style={{ margin: "0 20px" }}>
-      <NightlyPlan />
-      </div>
-      
+
       {/* Connected devices */}
-      <div style={{ margin: "0 20px 16px" }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: "#4B5563", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.8 }}>Connected Devices</div>
+      <div style={{ margin: "0 20px" }}>
+        <div style={{ fontSize: 10, color: "#4B5563", fontWeight: 700, letterSpacing: 1, marginBottom: 10 }}>CONNECTED</div>
         <div style={{ display: "grid", gap: 8 }}>
           {connectedDevices.map(device => {
             const Icon = device.icon;
             return (
-              <div key={device.id} style={{ background: "#111827", borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", border: "1px solid #1F2937" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ background: `${device.color}20`, borderRadius: 8, padding: 8 }}>
-                    <Icon size={18} color={device.color} />
-                  </div>
+              <div key={device.id} style={{ background: "#111827", borderRadius: 12, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", border: "1px solid #1F2937" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <Icon size={16} color={device.color} />
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "#F9FAFB", marginBottom: 2 }}>{device.name}</div>
-                    <div style={{ fontSize: 11, color: "#6B7280" }}>{device.status}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#F9FAFB" }}>{device.name}</div>
+                    <div style={{ fontSize: 11, color: "#4B5563" }}>{device.status}</div>
                   </div>
                 </div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: device.color }}>+£{device.monthlyValue}/mo</div>
@@ -240,28 +189,215 @@ export default function SimplifiedDashboard() {
             );
           })}
         </div>
+        <button
+          onClick={() => window.location.href = '/onboarding'}
+          style={{ width: "100%", marginTop: 10, background: "none", border: "1px dashed #374151", borderRadius: 12, padding: "12px 16px", color: "#4B5563", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+        >
+          + Add another device
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── PLAN TAB ──────────────────────────────────────────────────────────────
+function PlanTab() {
+  const currentSlot = getCurrentSlotIndex();
+  const maxPence = Math.max(...AGILE_RATES.map(r => r.pence));
+  const [hovered, setHovered] = useState<number | null>(null);
+  const projectedValue = "2.84";
+
+  return (
+    <div style={{ padding: "44px 0 0" }}>
+      <div style={{ padding: "0 24px 20px" }}>
+        <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.8, marginBottom: 2 }}>Tonight's plan</div>
+        <div style={{ fontSize: 13, color: "#6B7280" }}>Already sorted — nothing you need to do</div>
       </div>
 
-      {/* Unlock next device */}
-      {nextDevice && (
-        <div style={{ margin: "0 20px" }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#4B5563", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.8 }}>Unlock More</div>
-          <button style={{ width: "100%", background: `${nextDevice.color}10`, border: `2px solid ${nextDevice.color}40`, borderRadius: 10, padding: "14px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ background: `${nextDevice.color}30`, borderRadius: 8, padding: 8 }}>
-                <AlertCircle size={18} color={nextDevice.color} />
+      <div style={{ margin: "0 20px 16px", background: "#0D1F14", border: "1px solid #16A34A30", borderRadius: 16, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontSize: 13, color: "#9CA3AF" }}>Projected value tonight</div>
+        <div style={{ fontSize: 22, fontWeight: 900, color: "#22C55E" }}>+£{projectedValue}</div>
+      </div>
+
+      <div style={{ margin: "0 20px 16px", background: "#0D1117", border: "1px solid #1F2937", borderRadius: 16, padding: "16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <div style={{ fontSize: 10, color: "#4B5563", fontWeight: 700, letterSpacing: 1 }}>PRICES TODAY</div>
+          <div style={{ fontSize: 12, color: "#9CA3AF" }}>Now: <span style={{ color: getBarColor(AGILE_RATES[currentSlot].pence), fontWeight: 700 }}>{AGILE_RATES[currentSlot].pence}p</span></div>
+        </div>
+        {hovered !== null && (
+          <div style={{ fontSize: 11, color: "#F9FAFB", background: "#1F2937", borderRadius: 6, padding: "3px 8px", display: "inline-block", marginBottom: 6 }}>
+            {AGILE_RATES[hovered].time} · <span style={{ color: getBarColor(AGILE_RATES[hovered].pence), fontWeight: 700 }}>{AGILE_RATES[hovered].pence}p</span>
+          </div>
+        )}
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 72 }}>
+          {AGILE_RATES.map((r, i) => (
+            <div key={i} onMouseEnter={() => setHovered(i)} onMouseLeave={() => setHovered(null)}
+              style={{ flex: 1, height: "100%", display: "flex", alignItems: "flex-end", cursor: "pointer" }}>
+              <div style={{ width: "100%", height: Math.max(2, (r.pence / maxPence) * 72), background: i === currentSlot ? "#fff" : getBarColor(r.pence), opacity: hovered !== null && hovered !== i ? 0.3 : 1, borderRadius: "2px 2px 0 0", transition: "opacity 0.1s" }} />
+            </div>
+          ))}
+        </div>
+        <div style={{ display: "flex", marginTop: 4 }}>
+          {AGILE_RATES.map((r, i) => (
+            <div key={i} style={{ flex: 1, fontSize: 8, textAlign: "center", color: i === currentSlot ? "#fff" : "#374151" }}>
+              {i % 4 === 0 ? r.time.split(":")[0] : ""}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ margin: "0 20px" }}>
+        <div style={{ fontSize: 10, color: "#4B5563", fontWeight: 700, letterSpacing: 1, marginBottom: 12 }}>GRIDLY'S SCHEDULE</div>
+        {SANDBOX.plan.map((slot, i) => {
+          const isLast = i === SANDBOX.plan.length - 1;
+          const isExport = slot.action === "EXPORT";
+          const isCharge = slot.action === "CHARGE";
+          return (
+            <div key={i} style={{ display: "flex", gap: 14, position: "relative" }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 36, flexShrink: 0 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 10, background: `${slot.color}15`, border: `1.5px solid ${slot.color}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>
+                  {isCharge ? "⚡" : isExport ? "💰" : slot.action === "SOLAR" ? "☀️" : "•"}
+                </div>
+                {!isLast && <div style={{ width: 1.5, flex: 1, background: "#1F2937", minHeight: 20 }} />}
               </div>
-              <div style={{ textAlign: "left" }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#F9FAFB", marginBottom: 2 }}>Add {nextDevice.name}</div>
-                <div style={{ fontSize: 11, color: "#9CA3AF" }}>Unlock +£{nextDevice.monthlyValue}/month</div>
+              <div style={{ flex: 1, paddingBottom: isLast ? 0 : 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#F9FAFB", marginBottom: 2 }}>{slot.title}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: slot.color, flexShrink: 0, marginLeft: 8 }}>{slot.price}p</div>
+                </div>
+                <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 2 }}>{slot.reason}</div>
+                <div style={{ fontSize: 10, color: "#374151" }}>{slot.time}</div>
               </div>
             </div>
-            <ChevronRight size={20} color={nextDevice.color} />
-          </button>
-        </div>
-      )}
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
-      <div style={{ textAlign: "center", marginTop: 24, fontSize: 10, color: "#374151" }}>Gridly · Live</div>
+// ── HISTORY TAB ───────────────────────────────────────────────────────────
+function HistoryTab() {
+  const [view, setView] = useState<"saved" | "earned" | "net">("saved");
+  const values = SANDBOX.history.map(d =>
+    view === "saved" ? d.saved : view === "earned" ? d.earned : d.saved + d.earned
+  );
+  const maxVal = Math.max(...values);
+  const total = values.reduce((s, v) => s + v, 0).toFixed(2);
+  const color = view === "saved" ? "#22C55E" : view === "earned" ? "#F59E0B" : "#A78BFA";
+  const weekTotal = SANDBOX.history.reduce((s, d) => s + d.saved + d.earned, 0).toFixed(2);
+
+  return (
+    <div style={{ padding: "44px 0 0" }}>
+      <div style={{ padding: "0 24px 20px" }}>
+        <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.8, marginBottom: 2 }}>Your savings</div>
+        <div style={{ fontSize: 13, color: "#6B7280" }}>Every penny Gridly has made you</div>
+      </div>
+
+      <div style={{ margin: "0 20px 16px", background: "linear-gradient(135deg, #0a0a0a, #111827)", border: "1px solid #1F2937", borderRadius: 20, padding: "24px", textAlign: "center" }}>
+        <div style={{ fontSize: 11, color: "#4B5563", letterSpacing: 1, fontWeight: 700, marginBottom: 8 }}>ALL TIME</div>
+        <div style={{ fontSize: 52, fontWeight: 900, color: "#22C55E", letterSpacing: -3, lineHeight: 1 }}>+£{SANDBOX.allTime}</div>
+        <div style={{ fontSize: 12, color: "#4B5563", marginTop: 8 }}>since {SANDBOX.allTimeSince}</div>
+      </div>
+
+      <div style={{ margin: "0 20px 16px", background: "#0D1117", border: "1px solid #1F2937", borderRadius: 16, padding: "16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 10, color: "#4B5563", fontWeight: 700, letterSpacing: 1, marginBottom: 4 }}>THIS WEEK</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color, letterSpacing: -0.5 }}>
+              £{total}
+              <span style={{ fontSize: 12, color: "#6B7280", fontWeight: 500, marginLeft: 6 }}>{view}</span>
+            </div>
+          </div>
+          <div style={{ display: "flex", background: "#111827", borderRadius: 8, padding: 3, gap: 2 }}>
+            {(["saved", "earned", "net"] as const).map(v => (
+              <button key={v} onClick={() => setView(v)} style={{ padding: "5px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontFamily: "inherit", background: view === v ? (v === "saved" ? "#22C55E" : v === "earned" ? "#F59E0B" : "#A78BFA") : "transparent", color: view === v ? "#111827" : "#6B7280", fontSize: 11, fontWeight: 700 }}>
+                {v.charAt(0).toUpperCase() + v.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 6, alignItems: "flex-end", height: 72, marginBottom: 8 }}>
+          {SANDBOX.history.map((d, i) => {
+            const val = values[i];
+            const h = Math.max(4, (val / maxVal) * 72);
+            const isToday = i === SANDBOX.history.length - 1;
+            return (
+              <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
+                {isToday && <div style={{ fontSize: 9, color, fontWeight: 700, marginBottom: 2 }}>£{val.toFixed(2)}</div>}
+                <div style={{ width: "100%", height: h, background: isToday ? color : `${color}40`, borderRadius: "3px 3px 0 0" }} />
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ display: "flex", gap: 6 }}>
+          {SANDBOX.history.map((d, i) => (
+            <div key={i} style={{ flex: 1, textAlign: "center", fontSize: 10, color: i === SANDBOX.history.length - 1 ? "#F9FAFB" : "#4B5563", fontWeight: i === SANDBOX.history.length - 1 ? 700 : 400 }}>
+              {i === SANDBOX.history.length - 1 ? "Today" : d.day}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ margin: "0 20px", background: "#111827", border: "1px solid #1F2937", borderRadius: 16, padding: "16px 20px", display: "flex", justifyContent: "space-around" }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: "#22C55E" }}>£{SANDBOX.history.reduce((s, d) => s + d.saved, 0).toFixed(2)}</div>
+          <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2 }}>saved</div>
+        </div>
+        <div style={{ width: 1, background: "#1F2937" }} />
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: "#F59E0B" }}>£{SANDBOX.history.reduce((s, d) => s + d.earned, 0).toFixed(2)}</div>
+          <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2 }}>earned</div>
+        </div>
+        <div style={{ width: 1, background: "#1F2937" }} />
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: "#A78BFA" }}>£{weekTotal}</div>
+          <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2 }}>total</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── MAIN ──────────────────────────────────────────────────────────────────
+export default function SimplifiedDashboard() {
+  const [tab, setTab] = useState<"home" | "plan" | "history">("home");
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(t);
+  }, []);
+
+  const params = new URLSearchParams(window.location.search);
+  const selectedIds = params.get("devices")?.split(",").filter(Boolean) || ["solar", "battery"];
+  const connectedDevices = ALL_DEVICES.filter(d => selectedIds.includes(d.id));
+
+  const tabs = [
+    { id: "home", label: "Home", icon: Home },
+    { id: "plan", label: "Plan", icon: Calendar },
+    { id: "history", label: "History", icon: Clock },
+  ] as const;
+
+  return (
+    <div style={{ background: "#030712", minHeight: "100vh", color: "#F9FAFB", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto", maxWidth: 480, margin: "0 auto", paddingBottom: 80 }}>
+      {tab === "home" && <HomeTab connectedDevices={connectedDevices} now={now} />}
+      {tab === "plan" && <PlanTab />}
+      {tab === "history" && <HistoryTab />}
+
+      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, background: "#030712", borderTop: "1px solid #111827", padding: "10px 0 20px", display: "flex", justifyContent: "space-around" }}>
+        {tabs.map(t => {
+          const Icon = t.icon;
+          const active = tab === t.id;
+          return (
+            <button key={t.id} onClick={() => setTab(t.id)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: "4px 24px" }}>
+              <Icon size={22} color={active ? "#22C55E" : "#374151"} />
+              <span style={{ fontSize: 10, fontWeight: 700, color: active ? "#22C55E" : "#374151", letterSpacing: 0.5 }}>{t.label}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
