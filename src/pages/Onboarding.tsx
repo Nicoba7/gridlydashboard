@@ -111,7 +111,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
   const handleComplete = () => {
     if (onComplete) onComplete(selected, { octopusCreds, solarCreds, evCreds });
-    navigate("/dashboard");
+    navigate(`/dashboard?devices=${selected.join(",")}`);
   };
 
   return (
