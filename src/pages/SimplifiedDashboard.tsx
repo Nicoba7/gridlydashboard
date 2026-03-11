@@ -64,7 +64,7 @@ const AGILE_RATES = [
   { time: "23:00", pence: 7.6 },  { time: "23:30", pence: 7.1 },
 ];
 
-// ── ENGINE FUNCTIONS ──────────────────────────────────────────────────────
+// ── INTELLIGENCE ENGINE ───────────────────────────────────────────────────
 function getCurrentSlotIndex() {
   const now = new Date();
   return Math.min(Math.floor((now.getHours() * 60 + now.getMinutes()) / 30), 47);
@@ -72,23 +72,22 @@ function getCurrentSlotIndex() {
 
 function getBestChargeSlot() {
   return AGILE_RATES.reduce(
-    (min, r, i) => (r.pence < min.price ? { index: i, price: r.pence, time: r.time } : min),
+    (min, r, i) => r.pence < min.price ? { index: i, price: r.pence, time: r.time } : min,
     { index: 0, price: AGILE_RATES[0].pence, time: AGILE_RATES[0].time }
   );
 }
 
-function getGridlyMode(pence: number): "CHARGE" | "EXPORT" | "HOLD" | "SOLAR" {
+function getGridlyMode(pence: number) {
   if (pence < 8) return "CHARGE";
   if (pence > 30) return "EXPORT";
-  if (SANDBOX.solar.w > 1000) return "SOLAR";
   return "HOLD";
 }
 
-function calculateProjectedValue() {
-  const peak = Math.max(...AGILE_RATES.map(r => r.pence));
-  const cheap = Math.min(...AGILE_RATES.map(r => r.pence));
+function calculateSavings() {
+  const peak = 38.6;
+  const charge = 4.8;
   const batterySize = 10;
-  return (((peak - cheap) / 100) * batterySize).toFixed(2);
+  return ((peak - charge) / 100 * batterySize).toFixed(2);
 }
 
 function getBarColor(p: number) {
@@ -99,13 +98,12 @@ function getBarColor(p: number) {
 }
 
 const MODE_CONFIG = {
-  CHARGE: { icon: "⚡", label: "CHARGING",  color: "#22C55E", bg: "#0D1F14", border: "#16A34A30", description: (best: string, cheap: number, current: number) => `Buying cheap electricity now at ${current}p — saving ${(cheap > 0 ? (current - cheap) : 0).toFixed(1)}p/kWh versus peak.` },
-  EXPORT: { icon: "💰", label: "EXPORTING", color: "#F59E0B", bg: "#1A1200",  border: "#F59E0B30", description: (best: string, cheap: number, current: number) => `Selling to the grid at ${current}p — peak earnings window. Battery holding for more.` },
-  HOLD:   { icon: "⏸", label: "HOLDING",   color: "#9CA3AF", bg: "#0D1117",  border: "#37415130", description: (best: string, cheap: number, current: number) => `Price is ${current}p — waiting for cheaper slot at ${best} (${cheap}p). Saving battery.` },
-  SOLAR:  { icon: "☀️", label: "SOLAR",     color: "#F59E0B", bg: "#1A1000",  border: "#F59E0B25", description: (best: string, cheap: number, current: number) => `Solar covering your home right now. Storing surplus in battery for tonight.` },
+  CHARGE: { icon: "⚡", label: "CHARGING", color: "#22C55E", bg: "#0D1F14", border: "#16A34A30", description: (best: { time: string; price: number }, current: number) => `Buying at ${current}p — filling your battery now while prices are low.` },
+  EXPORT: { icon: "💰", label: "EXPORTING", color: "#F59E0B", bg: "#1A1200", border: "#F59E0B30", description: (best: { time: string; price: number }, current: number) => `Selling to the grid at ${current}p — peak price, earning for you now.` },
+  HOLD:   { icon: "⏸", label: "HOLDING",   color: "#9CA3AF", bg: "#0D1117", border: "#1F2937",   description: (best: { time: string; price: number }, current: number) => `Price is ${current}p — waiting for cheaper slot at ${best.time} (${best.price}p).` },
 };
 
-// ── ENERGY FLOW DOTS ──────────────────────────────────────────────────────
+// ── FLOW DOTS ─────────────────────────────────────────────────────────────
 function FlowDot({ active, color }: { active: boolean; color: string }) {
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -126,11 +124,14 @@ function FlowDot({ active, color }: { active: boolean; color: string }) {
 function HomeTab({ connectedDevices, now }: { connectedDevices: typeof ALL_DEVICES; now: Date }) {
   const hour = now.getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-  const currentSlot = AGILE_RATES[getCurrentSlotIndex()];
-  const bestSlot = getBestChargeSlot();
-  const mode = getGridlyMode(currentSlot.pence);
+  const slotIndex = getCurrentSlotIndex();
+  const currentPence = AGILE_RATES[slotIndex].pence;
+  const mode = getGridlyMode(currentPence);
+  const best = getBestChargeSlot();
   const cfg = MODE_CONFIG[mode];
   const s = SANDBOX.solar;
+  const isExporting = s.gridW > 0;
+  const isCharging = mode === "CHARGE";
 
   return (
     <div>
@@ -158,16 +159,16 @@ function HomeTab({ connectedDevices, now }: { connectedDevices: typeof ALL_DEVIC
 
       {/* Dynamic Gridly decision */}
       <div style={{ margin: "0 20px 16px", background: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: 16, padding: "16px 20px" }}>
-        <div style={{ fontSize: 10, color: cfg.color, fontWeight: 700, letterSpacing: 1.5, marginBottom: 8, opacity: 0.7 }}>RIGHT NOW</div>
-        <div style={{ fontSize: 26, fontWeight: 900, color: cfg.color, letterSpacing: -0.5, marginBottom: 6 }}>
+        <div style={{ fontSize: 10, color: cfg.color, fontWeight: 700, letterSpacing: 1.5, marginBottom: 8 }}>RIGHT NOW</div>
+        <div style={{ fontSize: 22, fontWeight: 900, color: cfg.color, letterSpacing: -0.5, marginBottom: 4 }}>
           {cfg.icon} {cfg.label}
         </div>
-        <div style={{ fontSize: 13, color: "#9CA3AF", lineHeight: 1.6 }}>
-          {cfg.description(bestSlot.time, bestSlot.price, currentSlot.pence)}
+        <div style={{ fontSize: 13, color: "#9CA3AF", lineHeight: 1.5 }}>
+          {cfg.description(best, currentPence)}
         </div>
       </div>
 
-      {/* Energy flow */}
+      {/* Energy flow — data driven */}
       <div style={{ margin: "0 20px 16px", background: "#0D1117", border: "1px solid #1F2937", borderRadius: 16, padding: "20px" }}>
         <div style={{ fontSize: 10, color: "#4B5563", fontWeight: 700, letterSpacing: 1, marginBottom: 20 }}>LIVE ENERGY FLOW</div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -186,7 +187,7 @@ function HomeTab({ connectedDevices, now }: { connectedDevices: typeof ALL_DEVIC
             <div style={{ fontSize: 13, fontWeight: 800, color: "#F9FAFB" }}>{(s.homeW / 1000).toFixed(1)}kW</div>
             <div style={{ fontSize: 10, color: "#6B7280" }}>Home</div>
           </div>
-          <FlowDot active={s.batteryPct < 100} color="#16A34A" />
+          <FlowDot active={isCharging} color="#16A34A" />
           <div style={{ textAlign: "center" }}>
             <div style={{ width: 52, height: 52, background: "#16A34A15", border: "1.5px solid #16A34A30", borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 6px" }}>
               <Battery size={22} color="#22C55E" />
@@ -194,15 +195,15 @@ function HomeTab({ connectedDevices, now }: { connectedDevices: typeof ALL_DEVIC
             <div style={{ fontSize: 13, fontWeight: 800, color: "#F9FAFB" }}>{s.batteryPct}%</div>
             <div style={{ fontSize: 10, color: "#6B7280" }}>Battery</div>
           </div>
-          <FlowDot active={s.gridW > 0} color="#F59E0B" />
+          <FlowDot active={isExporting} color="#F59E0B" />
           <div style={{ textAlign: "center" }}>
-            <div style={{ width: 52, height: 52, background: "#F59E0B15", border: "1.5px solid #F59E0B30", borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 6px" }}>
-              <TrendingUp size={22} color="#F59E0B" />
+            <div style={{ width: 52, height: 52, background: isExporting ? "#F59E0B15" : "#ffffff05", border: `1.5px solid ${isExporting ? "#F59E0B30" : "#ffffff10"}`, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 6px" }}>
+              <TrendingUp size={22} color={isExporting ? "#F59E0B" : "#374151"} />
             </div>
-            <div style={{ fontSize: 13, fontWeight: 800, color: s.gridW > 0 ? "#F59E0B" : "#9CA3AF" }}>
-              {(s.gridW / 1000).toFixed(1)}kW
+            <div style={{ fontSize: 13, fontWeight: 800, color: isExporting ? "#F59E0B" : "#374151" }}>
+              {isExporting ? `${(s.gridW / 1000).toFixed(1)}kW` : "—"}
             </div>
-            <div style={{ fontSize: 10, color: "#6B7280" }}>{s.gridW > 0 ? "Exporting" : "Importing"}</div>
+            <div style={{ fontSize: 10, color: "#6B7280" }}>{isExporting ? "Exporting" : "Grid"}</div>
           </div>
         </div>
       </div>
@@ -244,7 +245,7 @@ function PlanTab() {
   const maxPence = Math.max(...AGILE_RATES.map(r => r.pence));
   const minPence = Math.min(...AGILE_RATES.map(r => r.pence));
   const [hovered, setHovered] = useState<number | null>(null);
-  const projectedValue = calculateProjectedValue();
+  const projectedValue = calculateSavings();
 
   return (
     <div style={{ padding: "44px 0 0" }}>
@@ -253,22 +254,23 @@ function PlanTab() {
         <div style={{ fontSize: 13, color: "#6B7280" }}>Already sorted — nothing you need to do</div>
       </div>
 
+      <div style={{ margin: "0 20px 16px", background: "#0D1F14", border: "1px solid #16A34A30", borderRadius: 16, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontSize: 13, color: "#9CA3AF" }}>Projected value tonight</div>
+        <div style={{ fontSize: 22, fontWeight: 900, color: "#22C55E" }}>+£{projectedValue}</div>
+      </div>
+
       {/* Tomorrow forecast */}
       <div style={{ margin: "0 20px" }}>
         <TomorrowForecast />
       </div>
 
-      {/* Projected value */}
-      <div style={{ margin: "0 20px 16px", background: "#0D1F14", border: "1px solid #16A34A30", borderRadius: 16, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ fontSize: 13, color: "#9CA3AF" }}>Projected value today</div>
-        <div style={{ fontSize: 22, fontWeight: 900, color: "#22C55E" }}>+£{projectedValue}</div>
-      </div>
-
-      {/* Price chart */}
+      {/* Price chart with cheapest window highlight */}
       <div style={{ margin: "0 20px 16px", background: "#0D1117", border: "1px solid #1F2937", borderRadius: 16, padding: "16px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div style={{ fontSize: 10, color: "#4B5563", fontWeight: 700, letterSpacing: 1 }}>PRICES TODAY</div>
-          <div style={{ fontSize: 12, color: "#9CA3AF" }}>Now: <span style={{ color: getBarColor(AGILE_RATES[currentSlot].pence), fontWeight: 700 }}>{AGILE_RATES[currentSlot].pence}p</span></div>
+          <div style={{ fontSize: 12, color: "#9CA3AF" }}>
+            Now: <span style={{ color: getBarColor(AGILE_RATES[currentSlot].pence), fontWeight: 700 }}>{AGILE_RATES[currentSlot].pence}p</span>
+          </div>
         </div>
         {hovered !== null && (
           <div style={{ fontSize: 11, color: "#F9FAFB", background: "#1F2937", borderRadius: 6, padding: "3px 8px", display: "inline-block", marginBottom: 6 }}>
@@ -297,9 +299,9 @@ function PlanTab() {
             </div>
           ))}
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 11, color: "#6B7280" }}>
-          <span>Cheapest: <span style={{ color: "#22C55E", fontWeight: 700 }}>{minPence}p</span></span>
-          <span>Peak: <span style={{ color: "#EF4444", fontWeight: 700 }}>{maxPence}p</span></span>
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 10, color: "#4B5563" }}>
+          <span>🟢 Cheapest: <span style={{ color: "#22C55E", fontWeight: 700 }}>{minPence}p</span></span>
+          <span>🔴 Peak: <span style={{ color: "#EF4444", fontWeight: 700 }}>{maxPence}p</span></span>
         </div>
       </div>
 
