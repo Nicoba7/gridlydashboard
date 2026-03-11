@@ -1,3 +1,4 @@
+import NightlyPlan from "./NightlyPlan";
 import { useState, useEffect } from "react";
 import { Sun, Battery, Zap, Grid3X3, TrendingUp, ChevronRight, AlertCircle, PoundSterling } from "lucide-react";
 import EnergyFlow from "./EnergyFlow";
