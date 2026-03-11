@@ -59,7 +59,7 @@ function AgileChart() {
   const currentSlot = getCurrentSlotIndex();
   const maxPence = Math.max(...AGILE_RATES.map(r => r.pence));
   const [hovered, setHovered] = useState<number | null>(null);
-
+  
   return (
     <div style={{ background: "#0D1117", border: "1px solid #1F2937", borderRadius: 12, padding: "14px", marginBottom: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
@@ -208,7 +208,11 @@ export default function SimplifiedDashboard() {
       <div style={{ margin: "0 20px" }}>
         <AgileChart />
       </div>
-
+      
+      <div style={{ margin: "0 20px" }}>
+      <NightlyPlan />
+      </div>
+      
       {/* Connected devices */}
       <div style={{ margin: "0 20px 16px" }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: "#4B5563", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.8 }}>Connected Devices</div>
