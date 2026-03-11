@@ -27,12 +27,12 @@ const SANDBOX = {
     { day: "Sun", solar: 2.18, battery: 1.52, ev: 1.52, grid: 0.34 },
   ],
   plan: [
-    { time: "11:30pm", action: "CHARGE", title: "Charging your battery",    reason: "Cheapest rate of the night",         price: 4.8,  color: "#22C55E" },
-    { time: "2:00am",  action: "HOLD",   title: "Resting overnight",        reason: "Nothing to do — battery full",       price: 5.1,  color: "#6B7280" },
-    { time: "8:00am",  action: "EXPORT", title: "Selling to the grid",      reason: "High price — earning for you",       price: 31.2, color: "#F59E0B" },
-    { time: "11:00am", action: "SOLAR",  title: "Solar powering your home", reason: "Free electricity from your panels",  price: 9.6,  color: "#F59E0B" },
-    { time: "5:30pm",  action: "EXPORT", title: "Peak earnings window",     reason: "Best price of the day",              price: 38.6, color: "#F59E0B" },
-    { time: "8:00pm",  action: "CHARGE", title: "Topping up for tomorrow",  reason: "Price dropping — refilling now",     price: 11.8, color: "#22C55E" },
+    { time: "11:30pm", action: "CHARGE", title: "Charging your battery",    reason: "Cheapest rate of the night",        price: 4.8,  color: "#22C55E", requires: ["battery"] },
+    { time: "2:00am",  action: "HOLD",   title: "Resting overnight",        reason: "Nothing to do — holding steady",    price: 5.1,  color: "#6B7280", requires: [] },
+    { time: "8:00am",  action: "EXPORT", title: "Selling to the grid",      reason: "High price — earning for you",      price: 31.2, color: "#F59E0B", requires: ["battery", "grid"] },
+    { time: "11:00am", action: "SOLAR",  title: "Solar powering your home", reason: "Free electricity from your panels", price: 9.6,  color: "#F59E0B", requires: ["solar"] },
+    { time: "5:30pm",  action: "EXPORT", title: "Peak earnings window",     reason: "Best price of the day",             price: 38.6, color: "#F59E0B", requires: ["battery", "grid"] },
+    { time: "8:00pm",  action: "CHARGE", title: "Topping up for tomorrow",  reason: "Price dropping — refilling now",    price: 11.8, color: "#22C55E", requires: ["battery"] },
   ],
 };
 
@@ -165,26 +165,18 @@ function HomeTab({ connectedDevices, now }: { connectedDevices: typeof ALL_DEVIC
         </div>
       </div>
 
-     {/* Energy flow — only connected devices */}
+      {/* Energy flow */}
       <div style={{ margin: "0 20px 16px", background: "#0D1117", border: "1px solid #1F2937", borderRadius: 16, padding: "20px" }}>
         <div style={{ fontSize: 10, color: "#4B5563", fontWeight: 700, letterSpacing: 1, marginBottom: 20 }}>LIVE ENERGY FLOW</div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-
-          {/* Solar — always show as source */}
-          {connectedDevices.some(d => d.id === "solar") && (
-            <>
-              <div style={{ textAlign: "center" }}>
-                <div style={{ width: 52, height: 52, background: "#F59E0B15", border: "1.5px solid #F59E0B30", borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 6px" }}>
-                  <Sun size={22} color="#F59E0B" />
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#F9FAFB" }}>{(s.w / 1000).toFixed(1)}kW</div>
-                <div style={{ fontSize: 10, color: "#6B7280" }}>Solar</div>
-              </div>
-              <FlowDot active={s.w > 0} color="#F59E0B" />
-            </>
-          )}
-
-          {/* Home — always show */}
+          <div style={{ textAlign: "center" }}>
+            <div style={{ width: 52, height: 52, background: "#F59E0B15", border: "1.5px solid #F59E0B30", borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 6px" }}>
+              <Sun size={22} color="#F59E0B" />
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#F9FAFB" }}>{(s.w / 1000).toFixed(1)}kW</div>
+            <div style={{ fontSize: 10, color: "#6B7280" }}>Solar</div>
+          </div>
+          <FlowDot active={s.w > 0} color="#F59E0B" />
           <div style={{ textAlign: "center" }}>
             <div style={{ width: 52, height: 52, background: "#ffffff10", border: "1.5px solid #ffffff20", borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 6px" }}>
               <Home size={22} color="#E5E7EB" />
@@ -192,54 +184,27 @@ function HomeTab({ connectedDevices, now }: { connectedDevices: typeof ALL_DEVIC
             <div style={{ fontSize: 13, fontWeight: 800, color: "#F9FAFB" }}>{(s.homeW / 1000).toFixed(1)}kW</div>
             <div style={{ fontSize: 10, color: "#6B7280" }}>Home</div>
           </div>
-
-          {/* Battery */}
-          {connectedDevices.some(d => d.id === "battery") && (
-            <>
-              <FlowDot active={isCharging} color="#16A34A" />
-              <div style={{ textAlign: "center" }}>
-                <div style={{ width: 52, height: 52, background: "#16A34A15", border: "1.5px solid #16A34A30", borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 6px" }}>
-                  <Battery size={22} color="#22C55E" />
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#F9FAFB" }}>{s.batteryPct}%</div>
-                <div style={{ fontSize: 10, color: "#6B7280" }}>Battery</div>
-              </div>
-            </>
-          )}
-
-          {/* EV */}
-          {connectedDevices.some(d => d.id === "ev") && (
-            <>
-              <FlowDot active={isCharging} color="#38BDF8" />
-              <div style={{ textAlign: "center" }}>
-                <div style={{ width: 52, height: 52, background: "#38BDF815", border: "1.5px solid #38BDF830", borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 6px" }}>
-                  <Zap size={22} color="#38BDF8" />
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#38BDF8" }}>Charging</div>
-                <div style={{ fontSize: 10, color: "#6B7280" }}>EV</div>
-              </div>
-            </>
-          )}
-
-          {/* Grid export */}
-          {connectedDevices.some(d => d.id === "grid") && (
-            <>
-              <FlowDot active={isExporting} color="#F59E0B" />
-              <div style={{ textAlign: "center" }}>
-                <div style={{ width: 52, height: 52, background: isExporting ? "#F59E0B15" : "#ffffff05", border: `1.5px solid ${isExporting ? "#F59E0B30" : "#ffffff10"}`, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 6px" }}>
-                  <TrendingUp size={22} color={isExporting ? "#F59E0B" : "#374151"} />
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 800, color: isExporting ? "#F59E0B" : "#374151" }}>
-                  {isExporting ? `${(s.gridW / 1000).toFixed(1)}kW` : "—"}
-                </div>
-                <div style={{ fontSize: 10, color: "#6B7280" }}>{isExporting ? "Exporting" : "Grid"}</div>
-              </div>
-            </>
-          )}
-
+          <FlowDot active={isCharging} color="#16A34A" />
+          <div style={{ textAlign: "center" }}>
+            <div style={{ width: 52, height: 52, background: "#16A34A15", border: "1.5px solid #16A34A30", borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 6px" }}>
+              <Battery size={22} color="#22C55E" />
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#F9FAFB" }}>{s.batteryPct}%</div>
+            <div style={{ fontSize: 10, color: "#6B7280" }}>Battery</div>
+          </div>
+          <FlowDot active={isExporting} color="#F59E0B" />
+          <div style={{ textAlign: "center" }}>
+            <div style={{ width: 52, height: 52, background: isExporting ? "#F59E0B15" : "#ffffff05", border: `1.5px solid ${isExporting ? "#F59E0B30" : "#ffffff10"}`, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 6px" }}>
+              <TrendingUp size={22} color={isExporting ? "#F59E0B" : "#374151"} />
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: isExporting ? "#F59E0B" : "#374151" }}>
+              {isExporting ? `${(s.gridW / 1000).toFixed(1)}kW` : "—"}
+            </div>
+            <div style={{ fontSize: 10, color: "#6B7280" }}>{isExporting ? "Exporting" : "Grid"}</div>
+          </div>
         </div>
       </div>
-      
+
       {/* Connected devices */}
       <div style={{ margin: "0 20px" }}>
         <div style={{ fontSize: 10, color: "#4B5563", fontWeight: 700, letterSpacing: 1, marginBottom: 10 }}>CONNECTED</div>
@@ -272,7 +237,7 @@ function HomeTab({ connectedDevices, now }: { connectedDevices: typeof ALL_DEVIC
 }
 
 // ── PLAN TAB ──────────────────────────────────────────────────────────────
-function PlanTab() {
+function PlanTab({ connectedDevices }: { connectedDevices: typeof ALL_DEVICES }) {
   const currentSlot = getCurrentSlotIndex();
   const maxPence = Math.max(...AGILE_RATES.map(r => r.pence));
   const minPence = Math.min(...AGILE_RATES.map(r => r.pence));
@@ -332,7 +297,9 @@ function PlanTab() {
       {/* Plan timeline */}
       <div style={{ margin: "0 20px" }}>
         <div style={{ fontSize: 10, color: "#4B5563", fontWeight: 700, letterSpacing: 1, marginBottom: 12 }}>GRIDLY'S SCHEDULE</div>
-        {SANDBOX.plan.map((slot, i) => {
+        {SANDBOX.plan
+          .filter(slot => slot.requires.length === 0 || slot.requires.some(r => connectedDevices.some(d => d.id === r)))
+          .map((slot, i) => {
           const isLast = i === SANDBOX.plan.length - 1;
           return (
             <div key={i} style={{ display: "flex", gap: 14 }}>
@@ -515,7 +482,7 @@ export default function SimplifiedDashboard() {
   return (
     <div style={{ background: "#030712", minHeight: "100vh", color: "#F9FAFB", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto", maxWidth: 480, margin: "0 auto", paddingBottom: 80 }}>
       {tab === "home"    && <HomeTab connectedDevices={connectedDevices} now={now} />}
-      {tab === "plan"    && <PlanTab />}
+      {tab === "plan"    && <PlanTab connectedDevices={connectedDevices} />}
       {tab === "history" && <HistoryTab connectedDevices={connectedDevices} />}
 
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, background: "#030712", borderTop: "1px solid #111827", padding: "10px 0 20px", display: "flex", justifyContent: "space-around" }}>
