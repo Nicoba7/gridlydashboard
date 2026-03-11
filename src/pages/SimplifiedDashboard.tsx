@@ -136,11 +136,22 @@ export default function SimplifiedDashboard() {
   return (
     <div style={{ background: "#030712", minHeight: "100vh", padding: "0 0 40px", color: "#F9FAFB", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto", maxWidth: 480, margin: "0 auto" }}>
 
-      {/* Header */}
-      <div style={{ padding: "48px 20px 16px" }}>
-        <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: -0.5 }}>{greeting} 👋</div>
-        <div style={{ fontSize: 13, color: "#9CA3AF", marginTop: 2 }}>
-          {connectedDevices.length} device{connectedDevices.length !== 1 ? "s" : ""} connected · optimising now
+     {/* Header */}
+      <div style={{ padding: "48px 20px 16px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: -0.5 }}>{greeting} 👋</div>
+          <div style={{ fontSize: 13, color: "#9CA3AF", marginTop: 2 }}>
+            {connectedDevices.length} device{connectedDevices.length !== 1 ? "s" : ""} connected · optimising now
+          </div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#F9FAFB" }}>
+            {now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+          </div>
+          <div style={{ fontSize: 11, color: "#6B7280" }}>
+            {now.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+          </div>
+          <div style={{ fontSize: 10, color: "#22C55E", fontWeight: 700, marginTop: 2 }}>● LIVE</div>
         </div>
       </div>
 
