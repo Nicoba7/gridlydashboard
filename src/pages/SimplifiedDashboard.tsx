@@ -1,4 +1,4 @@
-import { getGridlyMode } from "../lib/gridlyEngine";
+import { getGridlyMode, getModeDescription } from "../lib/gridlyEngine";
 import { buildGridlyPlan } from "../lib/gridlyPlan";
 import { useState, useEffect, useMemo } from "react";
 import { Sun, Battery, Zap, Grid3X3, TrendingUp, Home, Calendar, Clock, ChevronDown, ChevronUp } from "lucide-react";
@@ -156,14 +156,49 @@ function getBarColor(p: number) {
 }
 
 const MODE_CONFIG = {
-  CHARGE: { icon: "⚡", label: "CHARGING", color: "#22C55E", bg: "#0D1F14", border: "#16A34A30",
-    description: (_: any, current: number) => `Buying at ${current}p — filling your battery now while prices are low.` },
-  EXPORT: { icon: "💰", label: "EXPORTING", color: "#F59E0B", bg: "#1A1200", border: "#F59E0B30",
-    description: (_: any, current: number) => `Selling to the grid at ${current}p — peak price, earning for you now.` },
-  HOLD:   { icon: "⏸", label: "HOLDING",   color: "#9CA3AF", bg: "#0D1117", border: "#1F2937",
-    description: (best: any, current: number) => `Price is ${current}p — waiting for cheaper slot at ${best.time} (${best.price}p).` },
-};
-
+  CHARGE: {
+    icon: "⚡",
+    label: "CHARGING BATTERY",
+    color: "#22C55E",
+    bg: "#0D1F14",
+    border: "#16A34A30",
+  },
+  EV_CHARGE: {
+    icon: "🚗",
+    label: "CHARGING EV",
+    color: "#38BDF8",
+    bg: "#0D1521",
+    border: "#38BDF830",
+  },
+  SPLIT_CHARGE: {
+    icon: "⚡🚗",
+    label: "SPLIT CHARGING",
+    color: "#F59E0B",
+    bg: "#1A1200",
+    border: "#F59E0B30",
+  },
+  EXPORT: {
+    icon: "💰",
+    label: "EXPORTING",
+    color: "#F59E0B",
+    bg: "#1A1200",
+    border: "#F59E0B30",
+  },
+  SOLAR: {
+    icon: "☀️",
+    label: "SOLAR POWER",
+    color: "#FCD34D",
+    bg: "#17120A",
+    border: "#F59E0B30",
+  },
+  HOLD: {
+    icon: "⏸",
+    label: "HOLDING",
+    color: "#9CA3AF",
+    bg: "#0D1117",
+    border: "#1F2937",
+  },
+} as const;
 // ── FLOW DOTS ─────────────────────────────────────────────────────────────
 function FlowDot({ active, color }: { active: boolean; color: string }) {
   const [tick, setTick] = useState(0);
@@ -715,6 +750,21 @@ function HomeTab({ connectedDevices, now }: { connectedDevices: typeof ALL_DEVIC
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const slotIndex = getCurrentSlotIndex();
   const currentPence = AGILE_RATES[slotIndex].pence;
+  const best = getBestChargeSlot();
+  const s = SANDBOX.solar;
+
+  const hasBattery = connectedDevices.some(d => d.id === "battery");
+  const hasEV = connectedDevices.some(d => d.id === "ev");
+  const hasSolar = connectedDevices.some(d => d.id === "solar");
+  const hasGrid = connectedDevices.some(d => d.id === "grid");
+
+  const evState = {
+    connected: hasEV,
+    pct: 38,
+    targetPct: 80,
+    readyByHour: 7,
+  };
+
   const mode = getGridlyMode({
     price: currentPence,
     solarW: s.w,
@@ -722,16 +772,22 @@ function HomeTab({ connectedDevices, now }: { connectedDevices: typeof ALL_DEVIC
     hasBattery,
     hasSolar,
     hasEV,
-    hasGrid: connectedDevices.some(d => d.id === "grid"),
+    hasGrid,
+    evConnected: evState.connected,
+    evPct: evState.pct,
+    evTargetPct: evState.targetPct,
+    readyByHour: evState.readyByHour,
   });
-  const best = getBestChargeSlot();
+
   const cfg = MODE_CONFIG[mode];
-  const s = SANDBOX.solar;
-  const isExporting = s.gridW > 0;
-  const isCharging = mode === "CHARGE";
-  const hasBattery = connectedDevices.some(d => d.id === "battery");
-  const hasEV = connectedDevices.some(d => d.id === "ev");
-  const hasSolar = connectedDevices.some(d => d.id === "solar");
+  const isExporting = mode === "EXPORT" || s.gridW > 0;
+  const isCharging =
+    mode === "CHARGE" ||
+    mode === "EV_CHARGE" ||
+    mode === "SPLIT_CHARGE";
+
+  return (
+    <div>
 
   return (
     <div>
@@ -766,7 +822,21 @@ function HomeTab({ connectedDevices, now }: { connectedDevices: typeof ALL_DEVIC
       <div style={{ margin: "0 20px 16px", background: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: 16, padding: "16px 20px" }}>
         <div style={{ fontSize: 10, color: cfg.color, fontWeight: 700, letterSpacing: 1.5, marginBottom: 8 }}>RIGHT NOW</div>
         <div style={{ fontSize: 22, fontWeight: 900, color: cfg.color, letterSpacing: -0.5, marginBottom: 4 }}>{cfg.icon} {cfg.label}</div>
-        <div style={{ fontSize: 13, color: "#9CA3AF", lineHeight: 1.5 }}>{cfg.description(best, currentPence)}</div>
+        <div style={{ fontSize: 13, color: "#9CA3AF", lineHeight: 1.5 }}>
+          {getModeDescription(mode, {
+            price: currentPence,
+            solarW: s.w,
+            batteryPct: s.batteryPct,
+            hasBattery,
+            hasSolar,
+            hasEV,
+            hasGrid,
+            evConnected: evState.connected,
+            evPct: evState.pct,
+            evTargetPct: evState.targetPct,
+            readyByHour: evState.readyByHour,
+          })}
+        </div>
       </div>
 
       {/* Manual override */}
