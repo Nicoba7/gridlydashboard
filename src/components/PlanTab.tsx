@@ -1,6 +1,7 @@
+import { useAgileRates } from "../hooks/useAgileRates";
 import { useState } from "react";
 import TomorrowForecast from "../pages/TomorrowForecast";
-import { AGILE_RATES, SANDBOX, DeviceConfig } from "../pages/SimplifiedDashboard";
+import { SANDBOX, DeviceConfig } from "../pages/SimplifiedDashboard";
 import { buildGridlyPlan } from "../lib/gridlyPlan";
 
 
@@ -17,13 +18,13 @@ function getBarColor(p: number) {
 }
 
 export default function PlanTab({ connectedDevices }: { connectedDevices: DeviceConfig[] }) {
+  const { rates, error } = useAgileRates();
   const currentSlot = getCurrentSlotIndex();
-  const maxPence = Math.max(...AGILE_RATES.map(r => r.pence));
-  const minPence = Math.min(...AGILE_RATES.map(r => r.pence));
+  const maxPence = Math.max(...rates.map(r => r.pence));
+  const minPence = Math.min(...rates.map(r => r.pence));
   const [hovered, setHovered] = useState<number | null>(null);
 
-
-  const hasRates = Array.isArray(AGILE_RATES) && AGILE_RATES.length > 0;
+  const hasRates = Array.isArray(rates) && rates.length > 0;
   const forecastKwh = SANDBOX?.solarForecast?.kwh ?? 0;
 
   if (!hasRates) {
@@ -36,7 +37,7 @@ export default function PlanTab({ connectedDevices }: { connectedDevices: Device
 
   const connectedDeviceIds = connectedDevices.map(d => d.id) as ("solar" | "battery" | "ev" | "grid")[];
   const { plan, summary } = buildGridlyPlan(
-    AGILE_RATES,
+    rates,
     connectedDeviceIds,
     forecastKwh
   );
@@ -48,6 +49,12 @@ export default function PlanTab({ connectedDevices }: { connectedDevices: Device
         <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.8, marginBottom: 2 }}>Tonight's plan</div>
         <div style={{ fontSize: 13, color: "#6B7280" }}>Already sorted — nothing you need to do</div>
       </div>
+
+      {error && (
+        <div style={{ margin: "0 20px 12px", fontSize: 11, color: "#6B7280", textAlign: "center" }}>
+          {error}
+        </div>
+      )}
 
       <div style={{ margin: "0 20px 16px", background: "#0D1F14", border: "1px solid #16A34A30", borderRadius: 16, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ fontSize: 13, color: "#9CA3AF" }}>Projected value tonight</div>
@@ -62,18 +69,18 @@ export default function PlanTab({ connectedDevices }: { connectedDevices: Device
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div style={{ fontSize: 10, color: "#4B5563", fontWeight: 700, letterSpacing: 1 }}>ENERGY PRICES RIGHT NOW</div>
           <div style={{ fontSize: 12, color: "#9CA3AF" }}>
-            Now: <span style={{ color: getBarColor(AGILE_RATES[currentSlot].pence), fontWeight: 700 }}>{AGILE_RATES[currentSlot].pence}p</span>
+            Now: <span style={{ color: getBarColor(rates[currentSlot]?.pence ?? 0), fontWeight: 700 }}>{rates[currentSlot]?.pence ?? "—"}p</span>
           </div>
         </div>
 
         {hovered !== null && (
           <div style={{ fontSize: 11, color: "#F9FAFB", background: "#1F2937", borderRadius: 6, padding: "3px 8px", display: "inline-block", marginBottom: 6 }}>
-            {AGILE_RATES[hovered].time} · <span style={{ color: getBarColor(AGILE_RATES[hovered].pence), fontWeight: 700 }}>{AGILE_RATES[hovered].pence}p</span>
+            {rates[hovered].time} · <span style={{ color: getBarColor(rates[hovered].pence), fontWeight: 700 }}>{rates[hovered].pence}p</span>
           </div>
         )}
 
         <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 72 }}>
-          {AGILE_RATES.map((r, i) => (
+          {rates.map((r, i) => (
             <div
               key={i}
               onMouseEnter={() => setHovered(i)}
@@ -95,7 +102,7 @@ export default function PlanTab({ connectedDevices }: { connectedDevices: Device
         </div>
 
         <div style={{ display: "flex", marginTop: 4 }}>
-          {AGILE_RATES.map((r, i) => (
+          {rates.map((r, i) => (
             <div key={i} style={{ flex: 1, fontSize: 8, textAlign: "center", color: i === currentSlot ? "#fff" : "#374151" }}>
               {i % 4 === 0 ? r.time.split(":")[0] : ""}
             </div>
