@@ -419,6 +419,3 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     </div>
   );
 }
-    </div>
-  );
-}
