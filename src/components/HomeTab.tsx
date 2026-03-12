@@ -2,7 +2,6 @@ import FlowDot from "./FlowDot";
 import { getGridlyMode, getModeDescription } from "../lib/gridlyEngine";
 import { Battery, Home, Sun, TrendingUp, Zap } from "lucide-react";
 import TomorrowForecast from "../pages/TomorrowForecast";
-import { buildOptimizationActions } from "../lib/optimizationCoach";
 import {
   AGILE_RATES,
   SANDBOX,
@@ -65,15 +64,6 @@ export default function HomeTab({ connectedDevices, now }: { connectedDevices: D
     mode === "EV_CHARGE" ||
     mode === "SPLIT_CHARGE";
 
-  const optimizationActions = buildOptimizationActions({
-    connectedDevices,
-    currentPence,
-    bestSlotPrice: best.price,
-    solarKw: s.w / 1000,
-    gridExportW: s.gridW,
-  });
-  const monthlyPotential = optimizationActions.reduce((sum, action) => sum + action.impactMonthly, 0);
-
   return (
     <div>
       <div style={{ padding: "44px 24px 20px" }}>
@@ -124,26 +114,6 @@ export default function HomeTab({ connectedDevices, now }: { connectedDevices: D
         </div>
       </div>
 
-
-      {optimizationActions.length > 0 && (
-        <div style={{ margin: "0 20px 16px", background: "#101826", border: "1px solid #1E3A8A40", borderRadius: 16, padding: "16px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <div style={{ fontSize: 10, color: "#60A5FA", fontWeight: 700, letterSpacing: 1 }}>OPTIMISATION COACH</div>
-            <div style={{ fontSize: 12, fontWeight: 800, color: "#22C55E" }}>+£{monthlyPotential.toFixed(2)}/mo</div>
-          </div>
-          <div style={{ display: "grid", gap: 8 }}>
-            {optimizationActions.map(action => (
-              <div key={action.title} style={{ background: "#0D1117", border: "1px solid #1F2937", borderRadius: 10, padding: "10px 12px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#F9FAFB" }}>{action.title}</div>
-                  <div style={{ fontSize: 12, fontWeight: 800, color: action.type === "earning" ? "#F59E0B" : "#22C55E", flexShrink: 0 }}>+£{action.impactMonthly.toFixed(2)}</div>
-                </div>
-                <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4, lineHeight: 1.5 }}>{action.detail}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
       {/* Manual override */}
       {/* Boost button — prominent single-tap charge */}
       <BoostButton connectedDevices={connectedDevices} currentPence={currentPence} />
