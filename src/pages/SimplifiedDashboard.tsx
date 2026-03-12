@@ -1,22 +1,23 @@
-import FlowDot from "../components/FlowDot";
 import HistoryTab from "../components/HistoryTab";
+import HomeTab from "../components/HomeTab";
 import PlanTab from "../components/PlanTab";
-import { getGridlyMode, getModeDescription } from "../lib/gridlyEngine";
 import { buildGridlyPlan } from "../lib/gridlyPlan";
+import { importTariffsFromApi, type TariffRecord } from "../lib/tariffApi";
 import { useState, useEffect, useMemo } from "react";
-import { Sun, Battery, Zap, Grid3X3, TrendingUp, Home, Calendar, Clock, ChevronDown, ChevronUp } from "lucide-react";
-import TomorrowForecast from "./TomorrowForecast";
+import { Sun, Battery, Zap, Grid3X3, Home, Calendar, Clock, ChevronDown, ChevronUp } from "lucide-react";
 
 // ── DEVICE CONFIG ─────────────────────────────────────────────────────────
-const ALL_DEVICES = [
+export const ALL_DEVICES = [
   { id: "solar",   name: "Solar Inverter", status: "2.8kW generating", monthlyValue: 35, icon: Sun,      color: "#F59E0B", historyColor: "#F59E0B" },
   { id: "battery", name: "Home Battery",   status: "62% charged",      monthlyValue: 32, icon: Battery,  color: "#22C55E", historyColor: "#22C55E" },
   { id: "ev",      name: "EV Charger",     status: "Connected",        monthlyValue: 26, icon: Zap,      color: "#38BDF8", historyColor: "#38BDF8" },
   { id: "grid",    name: "Smart Meter",    status: "Live pricing",     monthlyValue: 15, icon: Grid3X3,  color: "#A78BFA", historyColor: "#A78BFA" },
 ];
 
+export type DeviceConfig = (typeof ALL_DEVICES)[number];
+
 // ── SANDBOX DATA ──────────────────────────────────────────────────────────
-const SANDBOX = {
+export const SANDBOX = {
   savedToday: 3.76,
   earnedToday: 1.52,
   allTime: 713.67,
@@ -79,7 +80,7 @@ const SANDBOX = {
 };
 
 // ── AGILE RATES ───────────────────────────────────────────────────────────
-const AGILE_RATES = [
+export const AGILE_RATES = [
   { time: "00:00", pence: 7.2 }, { time: "00:30", pence: 6.8 },
   { time: "01:00", pence: 6.1 }, { time: "01:30", pence: 5.9 },
   { time: "02:00", pence: 5.4 }, { time: "02:30", pence: 5.1 },
@@ -107,12 +108,12 @@ const AGILE_RATES = [
 ];
 
 // ── INTELLIGENCE ENGINE ───────────────────────────────────────────────────
-function getCurrentSlotIndex() {
+export function getCurrentSlotIndex() {
   const now = new Date();
   return Math.min(Math.floor((now.getHours() * 60 + now.getMinutes()) / 30), 47);
 }
 
-function getBestChargeSlot() {
+export function getBestChargeSlot() {
   return AGILE_RATES.reduce(
     (min, r, i) => r.pence < min.price ? { index: i, price: r.pence, time: r.time } : min,
     { index: 0, price: AGILE_RATES[0].pence, time: AGILE_RATES[0].time }
@@ -158,7 +159,7 @@ function getBarColor(p: number) {
   return "#EF4444";
 }
 
-const MODE_CONFIG = {
+export const MODE_CONFIG = {
   CHARGE: {
     icon: "⚡",
     label: "CHARGING BATTERY",
@@ -204,7 +205,7 @@ const MODE_CONFIG = {
 } as const;
 
 // ── MANUAL OVERRIDE ───────────────────────────────────────────────────────
-function ManualOverride({ currentPence, connectedDevices }: { currentPence: number; connectedDevices: typeof ALL_DEVICES }) {
+export function ManualOverride({ currentPence, connectedDevices }: { currentPence: number; connectedDevices: DeviceConfig[] }) {
   const [override, setOverride] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const hasBattery = connectedDevices.some(d => d.id === "battery");
@@ -274,12 +275,16 @@ function ManualOverride({ currentPence, connectedDevices }: { currentPence: numb
 }
 
 // ── EV READY-BY ───────────────────────────────────────────────────────────
-function EVReadyBy() {
+export function EVReadyBy() {
   const [targetPct, setTargetPct] = useState(80);
   const [readyByHour, setReadyByHour] = useState(7);
+  const [chargingPowerKw, setChargingPowerKw] = useState(7.4);
+  const [maxBudget, setMaxBudget] = useState(5);
   const [expanded, setExpanded] = useState(false);
   const plan = calcEVPlan(targetPct, readyByHour);
   const hours = [1,2,3,4,5,6,7,8,9,10,11,12];
+  const overBudget = plan.cost > maxBudget;
+  const adjustedPlanCost = Number((plan.cost * (7.4 / chargingPowerKw)).toFixed(2));
 
   return (
     <div style={{ margin: "0 20px 16px", background: "#0D1521", border: "1px solid #38BDF820", borderRadius: 16, overflow: "hidden" }}>
@@ -287,7 +292,7 @@ function EVReadyBy() {
         <div style={{ textAlign: "left" }}>
           <div style={{ fontSize: 11, color: "#38BDF8", fontWeight: 700, letterSpacing: 1, marginBottom: 3 }}>EV READY-BY</div>
           <div style={{ fontSize: 14, fontWeight: 700, color: "#F9FAFB" }}>
-            🚗 {targetPct}% by {readyByHour}:00am · <span style={{ color: "#22C55E" }}>£{plan.cost.toFixed(2)}</span>
+            🚗 {targetPct}% by {readyByHour}:00am · <span style={{ color: overBudget ? "#F59E0B" : "#22C55E" }}>£{adjustedPlanCost.toFixed(2)}</span>
           </div>
         </div>
         {expanded ? <ChevronUp size={16} color="#6B7280" /> : <ChevronDown size={16} color="#6B7280" />}
@@ -314,10 +319,29 @@ function EVReadyBy() {
               ))}
             </div>
           </div>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+              <span style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700 }}>CHARGER POWER</span>
+              <span style={{ fontSize: 12, color: "#38BDF8", fontWeight: 700 }}>{chargingPowerKw.toFixed(1)} kW</span>
+            </div>
+            <input type="range" min={3.6} max={11} step={0.2} value={chargingPowerKw} onChange={e => setChargingPowerKw(Number(e.target.value))} style={{ width: "100%", accentColor: "#38BDF8", cursor: "pointer" }} />
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+              <span style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700 }}>MAX COST TONIGHT</span>
+              <span style={{ fontSize: 12, color: overBudget ? "#F59E0B" : "#22C55E", fontWeight: 700 }}>£{maxBudget.toFixed(2)}</span>
+            </div>
+            <input type="range" min={1} max={10} step={0.5} value={maxBudget} onChange={e => setMaxBudget(Number(e.target.value))} style={{ width: "100%", accentColor: overBudget ? "#F59E0B" : "#22C55E", cursor: "pointer" }} />
+            {overBudget && (
+              <div style={{ marginTop: 6, fontSize: 11, color: "#F59E0B" }}>
+                Current settings estimate £{adjustedPlanCost.toFixed(2)}. Try lowering target, increasing ready-by time, or increasing max budget.
+              </div>
+            )}
+          </div>
           <div style={{ background: "#111827", borderRadius: 10, padding: "10px 14px" }}>
             <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 4 }}>Gridly's plan</div>
             <div style={{ fontSize: 13, color: "#F9FAFB", lineHeight: 1.6 }}>
-              Charge during the <span style={{ color: "#22C55E", fontWeight: 700 }}>{plan.slots.length} cheapest slots</span> overnight. Done by <span style={{ color: "#38BDF8", fontWeight: 700 }}>{plan.finishTime}</span>. Cost: <span style={{ color: "#22C55E", fontWeight: 700 }}>£{plan.cost.toFixed(2)}</span>.
+              Charge during the <span style={{ color: "#22C55E", fontWeight: 700 }}>{plan.slots.length} cheapest slots</span> overnight. Done by <span style={{ color: "#38BDF8", fontWeight: 700 }}>{plan.finishTime}</span>. Estimated: <span style={{ color: overBudget ? "#F59E0B" : "#22C55E", fontWeight: 700 }}>£{adjustedPlanCost.toFixed(2)}</span>.
             </div>
           </div>
         </div>
@@ -327,7 +351,7 @@ function EVReadyBy() {
 }
 
 // ── BATTERY RESERVE ───────────────────────────────────────────────────────
-function BatteryReserve() {
+export function BatteryReserve() {
   const [reserve, setReserve] = useState(20);
   const [expanded, setExpanded] = useState(false);
 
@@ -370,7 +394,7 @@ function BatteryReserve() {
 }
 
 // ── SOLAR FORECAST CARD ───────────────────────────────────────────────────
-function SolarForecastCard() {
+export function SolarForecastCard() {
   const f = SANDBOX.solarForecast;
   const advice = f.kwh > 15
     ? "Good solar tomorrow — Gridly will export more today and charge less overnight. Free energy incoming."
@@ -400,7 +424,7 @@ function SolarForecastCard() {
 
 
 // ── CROSS-DEVICE COORDINATION ─────────────────────────────────────────────
-function CrossDeviceCoordination({ connectedDevices, currentPence }: { connectedDevices: typeof ALL_DEVICES; currentPence: number }) {
+export function CrossDeviceCoordination({ connectedDevices, currentPence }: { connectedDevices: DeviceConfig[]; currentPence: number }) {
   const hasBattery = connectedDevices.some(d => d.id === "battery");
   const hasEV = connectedDevices.some(d => d.id === "ev");
   if (!hasBattery || !hasEV) return null;
@@ -422,7 +446,7 @@ function CrossDeviceCoordination({ connectedDevices, currentPence }: { connected
 }
 
 // ── BATTERY HEALTH SCORE ──────────────────────────────────────────────────
-function BatteryHealthScore() {
+export function BatteryHealthScore() {
   const h = SANDBOX.batteryHealth;
   const [expanded, setExpanded] = useState(false);
   const cyclePct = Math.round((h.cyclesUsed / h.cyclesTotal) * 100);
@@ -480,19 +504,42 @@ function BatteryHealthScore() {
 }
 
 // ── TARIFF SWITCHER ───────────────────────────────────────────────────────
-function TariffSwitcher({ connectedDevices }: { connectedDevices: typeof ALL_DEVICES }) {
+export function TariffSwitcher({ connectedDevices }: { connectedDevices: DeviceConfig[] }) {
   const [expanded, setExpanded] = useState(false);
+  const [liveTariffs, setLiveTariffs] = useState<TariffRecord[] | null>(null);
+  const [loadingTariffs, setLoadingTariffs] = useState(false);
+  const [tariffError, setTariffError] = useState<string | null>(null);
   const hasEV = connectedDevices.some(d => d.id === "ev");
   const hasBattery = connectedDevices.some(d => d.id === "battery");
-  const tariffs = SANDBOX.tariffs;
-  const current = tariffs.find(t => t.current)!;
+
+  const tariffs = (liveTariffs ?? SANDBOX.tariffs) as TariffRecord[];
+  const current = tariffs.find(t => t.current) ?? tariffs[0];
   const relevant = tariffs.filter(t => {
     if (t.id === "go" && !hasEV) return false;
     if (t.id === "flux" && !hasBattery) return false;
     return true;
   });
-  const best = relevant.reduce((a, b) => b.annualSaving > a.annualSaving ? b : a);
-  const uplift = best.annualSaving - current.annualSaving;
+
+  if (relevant.length === 0) {
+    return null;
+  }
+
+  const best = relevant.reduce((a, b) => (b.annualSaving > a.annualSaving ? b : a), relevant[0]);
+  const uplift = current ? best.annualSaving - current.annualSaving : 0;
+
+  const refreshTariffs = async () => {
+    setLoadingTariffs(true);
+    setTariffError(null);
+    try {
+      const imported = await importTariffsFromApi();
+      setLiveTariffs(imported);
+    } catch (err) {
+      setTariffError(err instanceof Error ? err.message : "Could not import tariff data");
+    } finally {
+      setLoadingTariffs(false);
+    }
+  };
+
   return (
     <div style={{ margin: "0 20px 16px", background: "#0D1117", border: "1px solid #A78BFA20", borderRadius: 16, overflow: "hidden" }}>
       <button onClick={() => setExpanded(e => !e)} style={{ width: "100%", background: "none", border: "none", padding: "14px 16px", cursor: "pointer", fontFamily: "inherit", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -509,12 +556,26 @@ function TariffSwitcher({ connectedDevices }: { connectedDevices: typeof ALL_DEV
       </button>
       {expanded && (
         <div style={{ padding: "0 16px 16px", borderTop: "1px solid #1F2937" }}>
-          <div style={{ paddingTop: 14, marginBottom: 10, fontSize: 12, color: "#6B7280", lineHeight: 1.5 }}>
-            Based on your devices and usage, here is what each tariff would earn you per year with Gridly:
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, paddingTop: 14 }}>
+            <div style={{ fontSize: 12, color: "#6B7280", lineHeight: 1.5 }}>
+              Based on your devices and usage, here is what each tariff would earn you per year with Gridly.
+            </div>
+            <button
+              onClick={refreshTariffs}
+              disabled={loadingTariffs}
+              style={{ background: "#1F2937", border: "1px solid #374151", borderRadius: 8, padding: "6px 10px", color: "#D1D5DB", fontSize: 11, fontWeight: 700, cursor: loadingTariffs ? "default" : "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}
+            >
+              {loadingTariffs ? "Importing…" : "Import live tariffs"}
+            </button>
           </div>
-          <div style={{ display: "grid", gap: 8 }}>
+          {tariffError && (
+            <div style={{ marginTop: 8, fontSize: 11, color: "#FCA5A5", background: "#2a1111", border: "1px solid #EF444430", borderRadius: 8, padding: "8px 10px" }}>
+              {tariffError}
+            </div>
+          )}
+          <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
             {relevant.map(t => {
-              const diff = t.annualSaving - current.annualSaving;
+              const diff = current ? t.annualSaving - current.annualSaving : 0;
               const isBest = t.id === best.id;
               return (
                 <div key={t.id} style={{ background: t.current ? "#0D1F14" : isBest ? "#1A0F2E" : "#111827", border: `1px solid ${t.current ? "#16A34A30" : isBest ? "#A78BFA30" : "#1F2937"}`, borderRadius: 10, padding: "10px 14px" }}>
@@ -544,9 +605,8 @@ function TariffSwitcher({ connectedDevices }: { connectedDevices: typeof ALL_DEV
 }
 
 
-
 // ── CARBON TRACKER ────────────────────────────────────────────────────────
-function CarbonTracker({ connectedDevices }: { connectedDevices: typeof ALL_DEVICES }) {
+export function CarbonTracker({ connectedDevices }: { connectedDevices: DeviceConfig[] }) {
   const hasEV = connectedDevices.some(d => d.id === "ev");
   if (!hasEV) return null;
   const slotIdx = getCurrentSlotIndex();
@@ -586,7 +646,7 @@ function CarbonTracker({ connectedDevices }: { connectedDevices: typeof ALL_DEVI
 }
 
 // ── DEVICE HEALTH ALERTS ──────────────────────────────────────────────────
-function DeviceHealthAlerts({ connectedDevices }: { connectedDevices: typeof ALL_DEVICES }) {
+export function DeviceHealthAlerts({ connectedDevices }: { connectedDevices: DeviceConfig[] }) {
   const alerts = connectedDevices.filter(d => {
     const h = (SANDBOX.deviceHealth as any)[d.id];
     return h && !h.ok;
@@ -617,7 +677,7 @@ function DeviceHealthAlerts({ connectedDevices }: { connectedDevices: typeof ALL
 }
 
 // ── NIGHTLY REPORT CARD ───────────────────────────────────────────────────
-function NightlyReportCard() {
+export function NightlyReportCard() {
   const hour = new Date().getHours();
   if (hour >= 6 && hour < 8) return null; // Only show morning window 6-8am; hide otherwise for cleanliness — swap to always-show for demo
   return (
@@ -680,7 +740,7 @@ function ChargeSessionHistory() {
 
 // ── BOOST BUTTON ──────────────────────────────────────────────────────────
 // Prominent single-tap charge now — replaces buried manual override for EV
-function BoostButton({ connectedDevices, currentPence }: { connectedDevices: typeof ALL_DEVICES; currentPence: number }) {
+export function BoostButton({ connectedDevices, currentPence }: { connectedDevices: DeviceConfig[]; currentPence: number }) {
   const hasEV = connectedDevices.some(d => d.id === "ev");
   const [boosting, setBoosting] = useState(false);
   if (!hasEV) return null;
@@ -709,7 +769,7 @@ function BoostButton({ connectedDevices, currentPence }: { connectedDevices: typ
 }
 
 // ── CHARGER LOCK ──────────────────────────────────────────────────────────
-function ChargerLock({ connectedDevices }: { connectedDevices: typeof ALL_DEVICES }) {
+export function ChargerLock({ connectedDevices }: { connectedDevices: DeviceConfig[] }) {
   const hasEV = connectedDevices.some(d => d.id === "ev");
   const [locked, setLocked] = useState(false);
   if (!hasEV) return null;
@@ -770,243 +830,7 @@ function ChargerLock({ connectedDevices }: { connectedDevices: typeof ALL_DEVICE
 }
 
 // ── HOME TAB ──────────────────────────────────────────────────────────────
-function HomeTab({ connectedDevices, now }: { connectedDevices: typeof ALL_DEVICES; now: Date }) {
-  const hour = now.getHours();
-  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-  const slotIndex = getCurrentSlotIndex();
-  const currentPence = AGILE_RATES[slotIndex].pence;
-  const best = getBestChargeSlot();
-  const s = SANDBOX.solar;
 
-  const hasBattery = connectedDevices.some(d => d.id === "battery");
-  const hasEV = connectedDevices.some(d => d.id === "ev");
-  const hasSolar = connectedDevices.some(d => d.id === "solar");
-  const hasGrid = connectedDevices.some(d => d.id === "grid");
-
-  const evState = {
-    connected: hasEV,
-    pct: 38,
-    targetPct: 80,
-    readyByHour: 7,
-  };
-
-  const mode = getGridlyMode({
-    price: currentPence,
-    solarW: s.w,
-    batteryPct: s.batteryPct,
-    hasBattery,
-    hasSolar,
-    hasEV,
-    hasGrid,
-    evConnected: evState.connected,
-    evPct: evState.pct,
-    evTargetPct: evState.targetPct,
-    readyByHour: evState.readyByHour,
-  });
-
-  const cfg = MODE_CONFIG[mode];
-  const isExporting = mode === "EXPORT" || s.gridW > 0;
-  const isCharging =
-    mode === "CHARGE" ||
-    mode === "EV_CHARGE" ||
-    mode === "SPLIT_CHARGE";
-
-  return (
-    <div>
-      <div style={{ padding: "44px 24px 20px" }}>
-        <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.8, marginBottom: 2 }}>{greeting}</div>
-        <div style={{ fontSize: 13, color: "#6B7280" }}>
-          {now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
-        </div>
-      </div>
-
-      {/* All-time counter */}
-      <div style={{ margin: "0 20px 16px", background: "linear-gradient(135deg, #0a0a0a, #111827)", border: "1px solid #1F2937", borderRadius: 20, padding: "20px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
-          <div style={{ fontSize: 11, color: "#4B5563", letterSpacing: 1, fontWeight: 700, marginBottom: 6 }}>ALL TIME</div>
-          <div style={{ fontSize: 40, fontWeight: 900, color: "#22C55E", letterSpacing: -2, lineHeight: 1 }}>+£{SANDBOX.allTime}</div>
-          <div style={{ fontSize: 11, color: "#4B5563", marginTop: 6 }}>since {SANDBOX.allTimeSince}</div>
-        </div>
-        <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 11, color: "#4B5563", marginBottom: 4 }}>Today</div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "#22C55E" }}>+£{SANDBOX.savedToday}</div>
-          <div style={{ fontSize: 11, color: "#F59E0B", marginTop: 2 }}>£{SANDBOX.earnedToday} exported</div>
-        </div>
-      </div>
-
-      {/* Device health alerts — top priority */}
-      <DeviceHealthAlerts connectedDevices={connectedDevices} />
-
-      {/* Nightly report card */}
-      <NightlyReportCard />
-
-      {/* Mode card */}
-      <div style={{ margin: "0 20px 16px", background: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: 16, padding: "16px 20px" }}>
-        <div style={{ fontSize: 10, color: cfg.color, fontWeight: 700, letterSpacing: 1.5, marginBottom: 8 }}>RIGHT NOW</div>
-        <div style={{ fontSize: 22, fontWeight: 900, color: cfg.color, letterSpacing: -0.5, marginBottom: 4 }}>{cfg.icon} {cfg.label}</div>
-        <div style={{ fontSize: 13, color: "#9CA3AF", lineHeight: 1.5 }}>
-          {getModeDescription(mode, {
-            price: currentPence,
-            solarW: s.w,
-            batteryPct: s.batteryPct,
-            hasBattery,
-            hasSolar,
-            hasEV,
-            hasGrid,
-            evConnected: evState.connected,
-            evPct: evState.pct,
-            evTargetPct: evState.targetPct,
-            readyByHour: evState.readyByHour,
-          })}
-        </div>
-      </div>
-
-      {/* Manual override */}
-      {/* Boost button — prominent single-tap charge */}
-      <BoostButton connectedDevices={connectedDevices} currentPence={currentPence} />
-
-      {/* Charger lock */}
-      <ChargerLock connectedDevices={connectedDevices} />
-
-      {/* Carbon tracker */}
-      <CarbonTracker connectedDevices={connectedDevices} />
-
-      <ManualOverride currentPence={currentPence} connectedDevices={connectedDevices} />
-
-      {/* EV Ready-by */}
-      {hasEV && <EVReadyBy />}
-
-      {/* Battery reserve */}
-      {hasBattery && <BatteryReserve />}
-
-      {/* Solar forecast */}
-      {hasSolar && <SolarForecastCard />}
-
-      {/* Cross-device coordination — battery + EV joint plan */}
-      <CrossDeviceCoordination connectedDevices={connectedDevices} currentPence={currentPence} />
-
-      {/* Energy flow — only connected devices */}
-<div style={{ margin: "0 20px 16px", background: "#0D1117", border: "1px solid #1F2937", borderRadius: 16, padding: "20px" }}>
-  <div style={{ fontSize: 10, color: "#4B5563", fontWeight: 700, letterSpacing: 1, marginBottom: 20 }}>
-    LIVE ENERGY FLOW
-  </div>
-
-  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-
-    {connectedDevices.some(d => d.id === "solar") && (
-      <>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ width: 52, height: 52, background: "#F59E0B15", border: "1.5px solid #F59E0B30", borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 6px" }}>
-            <Sun size={22} color="#F59E0B" />
-          </div>
-          <div style={{ fontSize: 13, fontWeight: 800, color: "#F9FAFB" }}>
-            {(s.w / 1000).toFixed(1)}kW
-          </div>
-          <div style={{ fontSize: 10, color: "#6B7280" }}>Solar</div>
-        </div>
-
-        <FlowDot active={s.w > 0} color="#F59E0B" />
-      </>
-    )}
-
-    <div style={{ textAlign: "center" }}>
-      <div style={{ width: 52, height: 52, background: "#ffffff10", border: "1.5px solid #ffffff20", borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 6px" }}>
-        <Home size={22} color="#E5E7EB" />
-      </div>
-      <div style={{ fontSize: 13, fontWeight: 800, color: "#F9FAFB" }}>
-        {(s.homeW / 1000).toFixed(1)}kW
-      </div>
-      <div style={{ fontSize: 10, color: "#6B7280" }}>Home</div>
-    </div>
-
-    {connectedDevices.some(d => d.id === "battery") && (
-      <>
-        <FlowDot active={isCharging} color="#16A34A" />
-
-        <div style={{ textAlign: "center" }}>
-          <div style={{ width: 52, height: 52, background: "#16A34A15", border: "1.5px solid #16A34A30", borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 6px" }}>
-            <Battery size={22} color="#22C55E" />
-          </div>
-          <div style={{ fontSize: 13, fontWeight: 800, color: "#F9FAFB" }}>
-            {s.batteryPct}%
-          </div>
-          <div style={{ fontSize: 10, color: "#6B7280" }}>Battery</div>
-        </div>
-      </>
-    )}
-
-    {connectedDevices.some(d => d.id === "ev") && (
-      <>
-        <FlowDot active={isCharging} color="#38BDF8" />
-
-        <div style={{ textAlign: "center" }}>
-          <div style={{ width: 52, height: 52, background: "#38BDF815", border: "1.5px solid #38BDF830", borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 6px" }}>
-            <Zap size={22} color="#38BDF8" />
-          </div>
-          <div style={{ fontSize: 13, fontWeight: 800, color: "#38BDF8" }}>
-            Charging
-          </div>
-          <div style={{ fontSize: 10, color: "#6B7280" }}>EV</div>
-        </div>
-      </>
-    )}
-
-    {connectedDevices.some(d => d.id === "grid") && (
-      <>
-        <FlowDot active={isExporting} color="#F59E0B" />
-
-        <div style={{ textAlign: "center" }}>
-          <div style={{ width: 52, height: 52, background: isExporting ? "#F59E0B15" : "#ffffff05", border: `1.5px solid ${isExporting ? "#F59E0B30" : "#ffffff10"}`, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 6px" }}>
-            <TrendingUp size={22} color={isExporting ? "#F59E0B" : "#374151"} />
-          </div>
-
-          <div style={{ fontSize: 13, fontWeight: 800, color: isExporting ? "#F59E0B" : "#374151" }}>
-            {isExporting ? `${(s.gridW / 1000).toFixed(1)}kW` : "—"}
-          </div>
-
-          <div style={{ fontSize: 10, color: "#6B7280" }}>
-            {isExporting ? "Exporting" : "Grid"}
-          </div>
-        </div>
-      </>
-    )}
-
-  </div>
-</div>
-
-      {/* Battery health — only if battery connected */}
-      {hasBattery && <BatteryHealthScore />}
-
-      {/* Tariff switcher */}
-      <TariffSwitcher connectedDevices={connectedDevices} />
-
-      {/* Connected devices */}
-      <div style={{ margin: "0 20px" }}>
-        <div style={{ fontSize: 10, color: "#4B5563", fontWeight: 700, letterSpacing: 1, marginBottom: 10 }}>CONNECTED</div>
-        <div style={{ display: "grid", gap: 8 }}>
-          {connectedDevices.map(device => {
-            const Icon = device.icon;
-            return (
-              <div key={device.id} style={{ background: "#111827", borderRadius: 12, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", border: "1px solid #1F2937" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <Icon size={16} color={device.color} />
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "#F9FAFB" }}>{device.name}</div>
-                    <div style={{ fontSize: 11, color: "#4B5563" }}>{device.status}</div>
-                  </div>
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: device.color }}>+£{device.monthlyValue}/mo</div>
-              </div>
-            );
-          })}
-        </div>
-        <button onClick={() => window.location.href = '/onboarding'} style={{ width: "100%", marginTop: 10, background: "none", border: "1px dashed #374151", borderRadius: 12, padding: "12px 16px", color: "#4B5563", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-          + Add another device
-        </button>
-      </div>
-    </div> 
-  );
-}
 
 // ── MAIN ──────────────────────────────────────────────────────────────────
 export default function SimplifiedDashboard() {
