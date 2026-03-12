@@ -1,15 +1,6 @@
 import { useState } from "react";
-import { SANDBOX } from "../data/sandbox";
+import { SANDBOX, DeviceConfig } from "../pages/SimplifiedDashboard";
 
-type Device = {
-  id: string;
-  name: string;
-  status: string;
-  monthlyValue: number;
-  icon: any;
-  color: string;
-  historyColor: string;
-};
 
 function ChargeSessionHistory() {
   const [expanded, setExpanded] = useState(false);
@@ -19,7 +10,7 @@ function ChargeSessionHistory() {
   const totalCost = sessions.reduce((s, c) => s + c.cost, 0).toFixed(2);
 
   return (
-    <div style={{ margin: "0 20px 16px", background: "#0D1117", border: "1px solid #1F2937", borderRadius: 16, overflow: "hidden" }}>
+    <div style={{ background: "#0D1117", border: "1px solid #1F2937", borderRadius: 16, overflow: "hidden" }}>
       <div style={{ padding: "14px 16px", borderBottom: "1px solid #1F2937", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <div style={{ fontSize: 11, color: "#38BDF8", fontWeight: 700, letterSpacing: 1, marginBottom: 3 }}>CHARGE SESSIONS</div>
@@ -78,11 +69,22 @@ function ChargeSessionHistory() {
 export default function HistoryTab({
   connectedDevices,
 }: {
-  connectedDevices: Device[];
+  connectedDevices: DeviceConfig[];
 }) {
   const [activeDevice, setActiveDevice] = useState<string>("all");
+  const [shareStatus, setShareStatus] = useState<string | null>(null);
 
-  const values = SANDBOX.history.map(d => {
+  const historyRows = Array.isArray(SANDBOX?.history) ? SANDBOX.history : [];
+
+  if (historyRows.length === 0) {
+    return (
+      <div style={{ padding: "44px 24px 0", color: "#9CA3AF" }}>
+        History data is temporarily unavailable.
+      </div>
+    );
+  }
+
+  const values = historyRows.map(d => {
     if (activeDevice === "all") return d.solar + d.battery + d.ev + d.grid;
     return (d as any)[activeDevice] ?? 0;
   });
@@ -97,11 +99,57 @@ export default function HistoryTab({
 
   const deviceTotals = connectedDevices.map(device => ({
     ...device,
-    total: SANDBOX.history
+    total: historyRows
       .reduce((s, d) => s + ((d as any)[device.id] ?? 0), 0)
       .toFixed(2),
   }));
 
+
+  const weeklySummary = {
+    weekTotal,
+    topDevice: [...deviceTotals].sort((a, b) => parseFloat(b.total) - parseFloat(a.total))[0],
+    entries: deviceTotals.map(d => ({ id: d.id, name: d.name, total: d.total })),
+  };
+
+  const weeklySummaryText = `Gridly weekly summary: £${weekTotal} saved. Top device: ${weeklySummary.topDevice?.name ?? "N/A"} (£${weeklySummary.topDevice?.total ?? "0.00"}).`;
+
+  const exportWeeklyReport = () => {
+    const report = {
+      generatedAt: new Date().toISOString(),
+      weekTotal: weeklySummary.weekTotal,
+      topDevice: weeklySummary.topDevice?.name ?? null,
+      devices: weeklySummary.entries,
+    };
+
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "gridly-weekly-report.json";
+    a.click();
+  };
+
+  const copyWeeklySummary = async () => {
+    try {
+      await navigator.clipboard.writeText(weeklySummaryText);
+      setShareStatus("Weekly summary copied");
+    } catch {
+      setShareStatus("Could not copy summary");
+    }
+  };
+
+  const shareWeeklySummary = async () => {
+    if (!navigator.share) {
+      setShareStatus("Share not supported on this device");
+      return;
+    }
+    try {
+      await navigator.share({ title: "Gridly weekly savings", text: weeklySummaryText });
+      setShareStatus("Shared successfully");
+    } catch {
+      setShareStatus("Share cancelled");
+    }
+  };
   return (
     <div style={{ padding: "44px 0 0" }}>
       <div style={{ padding: "0 24px 20px" }}>
@@ -186,10 +234,10 @@ export default function HistoryTab({
         </div>
 
         <div style={{ display: "flex", gap: 6, alignItems: "flex-end", height: 72, marginBottom: 8 }}>
-          {SANDBOX.history.map((d, i) => {
+          {historyRows.map((d, i) => {
             const val = values[i];
             const h = Math.max(4, maxVal > 0 ? (val / maxVal) * 72 : 4);
-            const isToday = i === SANDBOX.history.length - 1;
+            const isToday = i === historyRows.length - 1;
 
             return (
               <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
@@ -212,21 +260,36 @@ export default function HistoryTab({
         </div>
 
         <div style={{ display: "flex", gap: 6 }}>
-          {SANDBOX.history.map((d, i) => (
+          {historyRows.map((d, i) => (
             <div
               key={i}
               style={{
                 flex: 1,
                 textAlign: "center",
                 fontSize: 10,
-                color: i === SANDBOX.history.length - 1 ? "#F9FAFB" : "#4B5563",
-                fontWeight: i === SANDBOX.history.length - 1 ? 700 : 400,
+                color: i === historyRows.length - 1 ? "#F9FAFB" : "#4B5563",
+                fontWeight: i === historyRows.length - 1 ? 700 : 400,
               }}
             >
-              {i === SANDBOX.history.length - 1 ? "Today" : d.day}
+              {i === historyRows.length - 1 ? "Today" : d.day}
             </div>
           ))}
         </div>
+      </div>
+
+      <div style={{ margin: "0 20px 16px", background: "#0D1117", border: "1px solid #1F2937", borderRadius: 16, padding: "16px" }}>
+        <div style={{ fontSize: 10, color: "#4B5563", fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>
+          WEEKLY REPORT
+        </div>
+        <div style={{ fontSize: 13, color: "#D1D5DB", marginBottom: 10 }}>
+          {weeklySummaryText}
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button onClick={copyWeeklySummary} style={{ background: "#1F2937", border: "none", borderRadius: 8, padding: "8px 10px", color: "#E5E7EB", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Copy summary</button>
+          <button onClick={exportWeeklyReport} style={{ background: "#1F2937", border: "none", borderRadius: 8, padding: "8px 10px", color: "#E5E7EB", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Export JSON</button>
+          <button onClick={shareWeeklySummary} style={{ background: "#1F2937", border: "none", borderRadius: 8, padding: "8px 10px", color: "#E5E7EB", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Share</button>
+        </div>
+        {shareStatus && <div style={{ marginTop: 8, fontSize: 11, color: "#9CA3AF" }}>{shareStatus}</div>}
       </div>
 
       <div style={{ margin: "0 20px" }}>
