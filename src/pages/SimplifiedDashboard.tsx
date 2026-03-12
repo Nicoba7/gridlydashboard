@@ -18,6 +18,13 @@ const SANDBOX = {
   allTimeSince: "March 2024",
   solar: { w: 2840, batteryPct: 62, gridW: 420, homeW: 1200 },
   solarForecast: { kwh: 18.4, confidence: 82, condition: "Mostly sunny", icon: "🌤️", deltaKwh: 2.1 },
+  batteryHealth: { cyclesUsed: 312, cyclesTotal: 6000, capacityPct: 97, projectedLifeYears: 14.2, weeklyChargeCycles: 4.2 },
+  tariffs: [
+    { id: "agile",   name: "Octopus Agile",         annualSaving: 713,  current: true,  badge: "You're on this" },
+    { id: "go",      name: "Intelligent Octopus Go",  annualSaving: 1041, current: false, badge: "Best for EV" },
+    { id: "flux",    name: "Octopus Flux",            annualSaving: 892,  current: false, badge: "Best for battery" },
+    { id: "cosy",    name: "Cosy Octopus",            annualSaving: 634,  current: false, badge: null },
+  ],
   history: [
     { day: "Mon", solar: 1.24, battery: 0.98, ev: 0.63, grid: 0.18 },
     { day: "Tue", solar: 2.11, battery: 1.42, ev: 1.21, grid: 0.31 },
@@ -344,6 +351,152 @@ function SolarForecastCard() {
   );
 }
 
+
+// ── CROSS-DEVICE COORDINATION ─────────────────────────────────────────────
+function CrossDeviceCoordination({ connectedDevices, currentPence }: { connectedDevices: typeof ALL_DEVICES; currentPence: number }) {
+  const hasBattery = connectedDevices.some(d => d.id === "battery");
+  const hasEV = connectedDevices.some(d => d.id === "ev");
+  if (!hasBattery || !hasEV) return null;
+  const batteryPct = SANDBOX.solar.batteryPct;
+  const isCheap = currentPence < 12;
+  const decision = batteryPct >= 90
+    ? { icon: "🚗", title: "Charging your EV instead", reason: `Battery is already at ${batteryPct}% — spare capacity going to your car tonight.`, color: "#38BDF8", bg: "#0D1521", border: "#38BDF820" }
+    : batteryPct < 30
+    ? { icon: "⚡", title: "Battery first, then EV", reason: `Battery at ${batteryPct}% — Gridly fills it first, then switches to the car.`, color: "#22C55E", bg: "#0D1F14", border: "#16A34A20" }
+    : { icon: "⚡🚗", title: "Splitting charge tonight", reason: `Battery at ${batteryPct}% — Gridly splits the cheap slots between battery and EV for maximum value.`, color: "#F59E0B", bg: "#1A1200", border: "#F59E0B20" };
+  return (
+    <div style={{ margin: "0 20px 16px", background: decision.bg, border: `1px solid ${decision.border}`, borderRadius: 16, padding: "14px 16px" }}>
+      <div style={{ fontSize: 11, color: decision.color, fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>JOINT OPTIMISATION</div>
+      <div style={{ fontSize: 15, fontWeight: 800, color: "#F9FAFB", marginBottom: 4 }}>{decision.icon} {decision.title}</div>
+      <div style={{ fontSize: 12, color: "#9CA3AF", lineHeight: 1.5 }}>{decision.reason}</div>
+      {isCheap && <div style={{ marginTop: 8, fontSize: 11, color: decision.color, fontWeight: 600 }}>Now is a good slot — {currentPence}p/kWh</div>}
+    </div>
+  );
+}
+
+// ── BATTERY HEALTH SCORE ──────────────────────────────────────────────────
+function BatteryHealthScore() {
+  const h = SANDBOX.batteryHealth;
+  const [expanded, setExpanded] = useState(false);
+  const cyclePct = Math.round((h.cyclesUsed / h.cyclesTotal) * 100);
+  const healthColor = h.capacityPct >= 90 ? "#22C55E" : h.capacityPct >= 75 ? "#F59E0B" : "#EF4444";
+  const healthLabel = h.capacityPct >= 90 ? "Excellent" : h.capacityPct >= 75 ? "Good" : "Degraded";
+  return (
+    <div style={{ margin: "0 20px 16px", background: "#0D1117", border: "1px solid #1F2937", borderRadius: 16, overflow: "hidden" }}>
+      <button onClick={() => setExpanded(e => !e)} style={{ width: "100%", background: "none", border: "none", padding: "14px 16px", cursor: "pointer", fontFamily: "inherit", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ textAlign: "left" }}>
+          <div style={{ fontSize: 11, color: "#6B7280", fontWeight: 700, letterSpacing: 1, marginBottom: 3 }}>BATTERY HEALTH</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#F9FAFB" }}>
+            🔋 <span style={{ color: healthColor }}>{healthLabel}</span> · {h.capacityPct}% capacity · {h.projectedLifeYears} yrs left
+          </div>
+        </div>
+        {expanded ? <ChevronUp size={16} color="#6B7280" /> : <ChevronDown size={16} color="#6B7280" />}
+      </button>
+      {expanded && (
+        <div style={{ padding: "0 16px 16px", borderTop: "1px solid #1F2937" }}>
+          <div style={{ paddingTop: 14, marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+              <span style={{ fontSize: 11, color: "#9CA3AF" }}>Remaining capacity</span>
+              <span style={{ fontSize: 12, fontWeight: 800, color: healthColor }}>{h.capacityPct}%</span>
+            </div>
+            <div style={{ height: 6, background: "#1F2937", borderRadius: 99 }}>
+              <div style={{ height: "100%", width: `${h.capacityPct}%`, background: healthColor, borderRadius: 99 }} />
+            </div>
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+              <span style={{ fontSize: 11, color: "#9CA3AF" }}>Charge cycles used</span>
+              <span style={{ fontSize: 12, fontWeight: 800, color: "#F9FAFB" }}>{h.cyclesUsed} / {h.cyclesTotal.toLocaleString()}</span>
+            </div>
+            <div style={{ height: 6, background: "#1F2937", borderRadius: 99 }}>
+              <div style={{ height: "100%", width: `${cyclePct}%`, background: "#6B7280", borderRadius: 99 }} />
+            </div>
+            <div style={{ fontSize: 10, color: "#4B5563", marginTop: 4 }}>{cyclePct}% of rated cycle life used</div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <div style={{ background: "#111827", borderRadius: 10, padding: "10px 12px" }}>
+              <div style={{ fontSize: 10, color: "#4B5563", marginBottom: 3 }}>Avg cycles/week</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "#F9FAFB" }}>{h.weeklyChargeCycles}</div>
+            </div>
+            <div style={{ background: "#111827", borderRadius: 10, padding: "10px 12px" }}>
+              <div style={{ fontSize: 10, color: "#4B5563", marginBottom: 3 }}>Est. life remaining</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: healthColor }}>{h.projectedLifeYears} yrs</div>
+            </div>
+          </div>
+          <div style={{ marginTop: 10, background: "#0D1F14", borderRadius: 8, padding: "8px 12px", fontSize: 11, color: "#6B7280", lineHeight: 1.5 }}>
+            💡 Gridly avoids unnecessary cycles — only charging when prices make it worthwhile. This extends your battery life.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── TARIFF SWITCHER ───────────────────────────────────────────────────────
+function TariffSwitcher({ connectedDevices }: { connectedDevices: typeof ALL_DEVICES }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasEV = connectedDevices.some(d => d.id === "ev");
+  const hasBattery = connectedDevices.some(d => d.id === "battery");
+  const tariffs = SANDBOX.tariffs;
+  const current = tariffs.find(t => t.current)!;
+  const relevant = tariffs.filter(t => {
+    if (t.id === "go" && !hasEV) return false;
+    if (t.id === "flux" && !hasBattery) return false;
+    return true;
+  });
+  const best = relevant.reduce((a, b) => b.annualSaving > a.annualSaving ? b : a);
+  const uplift = best.annualSaving - current.annualSaving;
+  return (
+    <div style={{ margin: "0 20px 16px", background: "#0D1117", border: "1px solid #A78BFA20", borderRadius: 16, overflow: "hidden" }}>
+      <button onClick={() => setExpanded(e => !e)} style={{ width: "100%", background: "none", border: "none", padding: "14px 16px", cursor: "pointer", fontFamily: "inherit", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ textAlign: "left" }}>
+          <div style={{ fontSize: 11, color: "#A78BFA", fontWeight: 700, letterSpacing: 1, marginBottom: 3 }}>TARIFF OPTIMISER</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#F9FAFB" }}>
+            {uplift > 0
+              ? <span>💡 Switch to <span style={{ color: "#A78BFA" }}>{best.name}</span> · save <span style={{ color: "#22C55E" }}>+£{uplift}/yr more</span></span>
+              : <span>✓ You are on the best tariff for your setup</span>
+            }
+          </div>
+        </div>
+        {expanded ? <ChevronUp size={16} color="#6B7280" /> : <ChevronDown size={16} color="#6B7280" />}
+      </button>
+      {expanded && (
+        <div style={{ padding: "0 16px 16px", borderTop: "1px solid #1F2937" }}>
+          <div style={{ paddingTop: 14, marginBottom: 10, fontSize: 12, color: "#6B7280", lineHeight: 1.5 }}>
+            Based on your devices and usage, here is what each tariff would earn you per year with Gridly:
+          </div>
+          <div style={{ display: "grid", gap: 8 }}>
+            {relevant.map(t => {
+              const diff = t.annualSaving - current.annualSaving;
+              const isBest = t.id === best.id;
+              return (
+                <div key={t.id} style={{ background: t.current ? "#0D1F14" : isBest ? "#1A0F2E" : "#111827", border: `1px solid ${t.current ? "#16A34A30" : isBest ? "#A78BFA30" : "#1F2937"}`, borderRadius: 10, padding: "10px 14px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#F9FAFB", marginBottom: 2 }}>{t.name}</div>
+                      {t.badge && <div style={{ fontSize: 10, color: t.current ? "#22C55E" : isBest ? "#A78BFA" : "#6B7280", fontWeight: 700 }}>{t.badge}</div>}
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: t.current ? "#22C55E" : "#F9FAFB" }}>£{t.annualSaving}/yr</div>
+                      {!t.current && <div style={{ fontSize: 11, fontWeight: 700, color: diff > 0 ? "#22C55E" : "#EF4444" }}>{diff > 0 ? `+£${diff} more` : `£${Math.abs(diff)} less`}</div>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {uplift > 0 && (
+            <a href="https://octopus.energy/tariffs/" target="_blank" rel="noreferrer" style={{ display: "block", marginTop: 12, background: "#A78BFA", borderRadius: 10, padding: "11px 14px", textAlign: "center", fontSize: 13, fontWeight: 700, color: "#0D1117", textDecoration: "none" }}>
+              Switch on Octopus →
+            </a>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 // ── HOME TAB ──────────────────────────────────────────────────────────────
 function HomeTab({ connectedDevices, now }: { connectedDevices: typeof ALL_DEVICES; now: Date }) {
   const hour = now.getHours();
@@ -402,6 +555,9 @@ function HomeTab({ connectedDevices, now }: { connectedDevices: typeof ALL_DEVIC
       {/* Solar forecast */}
       {hasSolar && <SolarForecastCard />}
 
+      {/* Cross-device coordination — battery + EV joint plan */}
+      <CrossDeviceCoordination connectedDevices={connectedDevices} currentPence={currentPence} />
+
       {/* Energy flow — only connected devices */}
       <div style={{ margin: "0 20px 16px", background: "#0D1117", border: "1px solid #1F2937", borderRadius: 16, padding: "20px" }}>
         <div style={{ fontSize: 10, color: "#4B5563", fontWeight: 700, letterSpacing: 1, marginBottom: 20 }}>LIVE ENERGY FLOW</div>
@@ -457,6 +613,12 @@ function HomeTab({ connectedDevices, now }: { connectedDevices: typeof ALL_DEVIC
           </>}
         </div>
       </div>
+
+      {/* Battery health — only if battery connected */}
+      {hasBattery && <BatteryHealthScore />}
+
+      {/* Tariff switcher */}
+      <TariffSwitcher connectedDevices={connectedDevices} />
 
       {/* Connected devices */}
       <div style={{ margin: "0 20px" }}>
