@@ -715,7 +715,15 @@ function HomeTab({ connectedDevices, now }: { connectedDevices: typeof ALL_DEVIC
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const slotIndex = getCurrentSlotIndex();
   const currentPence = AGILE_RATES[slotIndex].pence;
-  const mode = getGridlyMode(currentPence);
+  const mode = getGridlyMode({
+    price: currentPence,
+    solarW: s.w,
+    batteryPct: s.batteryPct,
+    hasBattery,
+    hasSolar,
+    hasEV,
+    hasGrid: connectedDevices.some(d => d.id === "grid"),
+  });
   const best = getBestChargeSlot();
   const cfg = MODE_CONFIG[mode];
   const s = SANDBOX.solar;
