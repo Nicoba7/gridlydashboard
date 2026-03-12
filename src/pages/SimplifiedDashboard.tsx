@@ -687,13 +687,12 @@ export function DeviceHealthAlerts({ connectedDevices }: { connectedDevices: Dev
     </div>
   );
 }
+
 // ── NIGHTLY REPORT CARD ───────────────────────────────────────────────────
 export function NightlyReportCard() {
-  const hour = new Date().getHours();
-  if (hour >= 6 && hour < 8) return null; // Only show morning window 6-8am; hide otherwise for cleanliness — swap to always-show for demo
   return (
     <div style={{ margin: "0 20px 16px", background: "linear-gradient(135deg, #0D1F14, #0D1521)", border: "1px solid #22C55E20", borderRadius: 16, padding: "16px" }}>
-      <div style={{ fontSize: 11, color: "#22C55E", fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>LAST NIGHT</div>
+      <div style={{ fontSize: 11, color: "#22C55E", fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>⚡ WHAT GRIDLY DID LAST NIGHT</div>
       <div style={{ fontSize: 13, color: "#D1FAE5", lineHeight: 1.7 }}>{SANDBOX.nightlyReport}</div>
     </div>
   );
