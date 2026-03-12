@@ -628,8 +628,8 @@ function ChargeSessionHistory() {
         <button onClick={() => {
           const csv = ["Date,Start,End,kWh,Cost (£),Avg (p/kWh),Carbon (gCO2)",
             ...sessions.map(s => `${s.date},${s.startTime},${s.endTime},${s.kwh},${s.cost},${s.avgPence},${s.carbonG}`)
-          ].join("
-");
+          ]..join("\n");
+      
           const blob = new Blob([csv], { type: "text/csv" });
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a"); a.href = url; a.download = "gridly-sessions.csv"; a.click();
