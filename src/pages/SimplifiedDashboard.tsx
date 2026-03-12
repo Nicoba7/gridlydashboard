@@ -886,7 +886,13 @@ function PlanTab({ connectedDevices }: { connectedDevices: typeof ALL_DEVICES })
   const maxPence = Math.max(...AGILE_RATES.map(r => r.pence));
   const minPence = Math.min(...AGILE_RATES.map(r => r.pence));
   const [hovered, setHovered] = useState<number | null>(null);
-  const projectedValue = calculateSavings();
+  const connectedDeviceIds = connectedDevices.map(d => d.id) as ("solar" | "battery" | "ev" | "grid")[];
+  const { plan, summary } = buildGridlyPlan(
+    AGILE_RATES,
+    connectedDeviceIds,
+    SANDBOX.solarForecast.kwh
+  );
+  const projectedValue = (summary.projectedEarnings + summary.projectedSavings).toFixed(2);
 
   return (
     <div style={{ padding: "44px 0 0" }}>
@@ -940,7 +946,7 @@ function PlanTab({ connectedDevices }: { connectedDevices: typeof ALL_DEVICES })
       {/* Schedule */}
       <div style={{ margin: "0 20px" }}>
         <div style={{ fontSize: 10, color: "#4B5563", fontWeight: 700, letterSpacing: 1, marginBottom: 12 }}>GRIDLY'S SCHEDULE</div>
-        {SANDBOX.plan
+        {plan
           .filter(slot => slot.requires.length === 0 || slot.requires.some(r => connectedDevices.some(d => d.id === r)))
           .map((slot, i, arr) => {
             const isLast = i === arr.length - 1;
