@@ -42,6 +42,35 @@ const SANDBOX = {
     { time: "5:30pm",  action: "EXPORT", title: "Peak earnings window",     reason: "Best price of the day",            price: 38.6, color: "#F59E0B", requires: ["battery", "grid"] },
     { time: "8:00pm",  action: "CHARGE", title: "Topping up for tomorrow",  reason: "Price dropping — refilling now",   price: 11.8, color: "#22C55E", requires: ["battery"] },
   ],
+  // Carbon intensity (gCO2/kWh) — 48 half-hour slots. Source: National Grid ESO API
+  carbonIntensity: [
+    210,198,187,176,165,158,152,148,144,141,139,142,
+    148,156,168,182,194,203,211,218,222,219,214,208,
+    201,195,188,182,176,171,167,164,162,160,159,158,
+    162,168,176,184,192,198,203,206,208,207,204,200,
+  ],
+  // Charging sessions — last 10
+  chargeSessions: [
+    { date: "Today",     startTime: "03:00", endTime: "05:30", kwh: 18.5, cost: 1.42, avgPence: 7.7,  carbonG: 2868 },
+    { date: "Yesterday", startTime: "02:30", endTime: "06:00", kwh: 22.1, cost: 1.89, avgPence: 8.6,  carbonG: 3271 },
+    { date: "Mon",       startTime: "03:00", endTime: "05:00", kwh: 14.8, cost: 1.11, avgPence: 7.5,  carbonG: 2186 },
+    { date: "Sun",       startTime: "01:30", endTime: "04:30", kwh: 22.2, cost: 1.64, avgPence: 7.4,  carbonG: 3196 },
+    { date: "Sat",       startTime: "02:00", endTime: "05:00", kwh: 22.2, cost: 1.71, avgPence: 7.7,  carbonG: 3152 },
+    { date: "Fri",       startTime: "03:30", endTime: "05:30", kwh: 14.8, cost: 1.32, avgPence: 8.9,  carbonG: 2149 },
+    { date: "Thu",       startTime: "02:30", endTime: "05:00", kwh: 18.5, cost: 1.46, avgPence: 7.9,  carbonG: 2701 },
+    { date: "Wed",       startTime: "03:00", endTime: "04:30", kwh: 11.1, cost: 0.84, avgPence: 7.6,  carbonG: 1598 },
+    { date: "Tue",       startTime: "02:00", endTime: "05:30", kwh: 25.9, cost: 2.01, avgPence: 7.8,  carbonG: 3782 },
+    { date: "Mon",       startTime: "03:00", endTime: "06:00", kwh: 22.2, cost: 1.71, avgPence: 7.7,  carbonG: 3219 },
+  ],
+  // Device health — last reported timestamps
+  deviceHealth: {
+    solar:   { lastSeen: 2,   ok: true  },   // minutes ago
+    battery: { lastSeen: 2,   ok: true  },
+    ev:      { lastSeen: 847, ok: false },   // 14hrs ago — simulate Lynne's problem
+    grid:    { lastSeen: 4,   ok: true  },
+  },
+  // Nightly report card
+  nightlyReport: "Last night Gridly charged your battery at 4.8p, your EV at 5.1p, and exported 8kWh at 38.6p. Total earned: £4.21. Today looks strong — 18kWh of solar forecast and peak prices above 35p this evening.",
 };
 
 // ── AGILE RATES ───────────────────────────────────────────────────────────
@@ -497,6 +526,190 @@ function TariffSwitcher({ connectedDevices }: { connectedDevices: typeof ALL_DEV
 }
 
 
+
+// ── CARBON TRACKER ────────────────────────────────────────────────────────
+function CarbonTracker({ connectedDevices }: { connectedDevices: typeof ALL_DEVICES }) {
+  const hasEV = connectedDevices.some(d => d.id === "ev");
+  if (!hasEV) return null;
+  const slotIdx = getCurrentSlotIndex();
+  const current = SANDBOX.carbonIntensity[slotIdx];
+  const min = Math.min(...SANDBOX.carbonIntensity);
+  const max = Math.max(...SANDBOX.carbonIntensity);
+  const pct = Math.round(((current - min) / (max - min)) * 100);
+  const isGreen = current < 160;
+  const color = current < 160 ? "#22C55E" : current < 190 ? "#F59E0B" : "#EF4444";
+  const label = current < 160 ? "Very clean — great time to charge" : current < 190 ? "Moderate — Gridly will wait if possible" : "Dirty grid — Gridly avoiding where it can";
+  const todaySessions = SANDBOX.chargeSessions.filter(s => s.date === "Today");
+  const totalCarbonKg = todaySessions.reduce((s, c) => s + c.carbonG, 0) / 1000;
+
+  return (
+    <div style={{ margin: "0 20px 16px", background: "#0D1117", border: `1px solid ${color}20`, borderRadius: 16, padding: "14px 16px" }}>
+      <div style={{ fontSize: 11, color, fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>GRID CARBON</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: "#F9FAFB", letterSpacing: -0.5 }}>
+            <span style={{ color }}>{current}</span> <span style={{ fontSize: 13, fontWeight: 500, color: "#6B7280" }}>gCO₂/kWh</span>
+          </div>
+          <div style={{ fontSize: 11, color: "#6B7280", marginTop: 2 }}>{label}</div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 10, color: "#4B5563", marginBottom: 2 }}>charged today</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#9CA3AF" }}>{totalCarbonKg.toFixed(1)} kg CO₂</div>
+        </div>
+      </div>
+      <div style={{ height: 4, background: "#1F2937", borderRadius: 99 }}>
+        <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: 99, transition: "width 0.3s ease" }} />
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#374151", marginTop: 3 }}>
+        <span>Cleanest: {min}g</span><span>Dirtiest: {max}g</span>
+      </div>
+    </div>
+  );
+}
+
+// ── DEVICE HEALTH ALERTS ──────────────────────────────────────────────────
+function DeviceHealthAlerts({ connectedDevices }: { connectedDevices: typeof ALL_DEVICES }) {
+  const alerts = connectedDevices.filter(d => {
+    const h = (SANDBOX.deviceHealth as any)[d.id];
+    return h && !h.ok;
+  });
+  if (alerts.length === 0) return null;
+
+  return (
+    <div style={{ margin: "0 20px 16px" }}>
+      {alerts.map(device => {
+        const h = (SANDBOX.deviceHealth as any)[device.id];
+        const hrs = Math.floor(h.lastSeen / 60);
+        const mins = h.lastSeen % 60;
+        const ago = hrs > 0 ? `${hrs}h ${mins}m ago` : `${mins}m ago`;
+        return (
+          <div key={device.id} style={{ background: "#1A0A0A", border: "1px solid #EF444430", borderRadius: 14, padding: "12px 16px", marginBottom: 8, display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ fontSize: 18, flexShrink: 0 }}>⚠️</div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#FCA5A5", marginBottom: 2 }}>
+                {device.name} not reporting
+              </div>
+              <div style={{ fontSize: 11, color: "#6B7280" }}>Last seen {ago} — Gridly has paused automated actions for this device</div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── NIGHTLY REPORT CARD ───────────────────────────────────────────────────
+function NightlyReportCard() {
+  const hour = new Date().getHours();
+  if (hour >= 6 && hour < 8) return null; // Only show morning window 6-8am; hide otherwise for cleanliness — swap to always-show for demo
+  return (
+    <div style={{ margin: "0 20px 16px", background: "linear-gradient(135deg, #0D1F14, #0D1521)", border: "1px solid #22C55E20", borderRadius: 16, padding: "16px" }}>
+      <div style={{ fontSize: 11, color: "#22C55E", fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>LAST NIGHT</div>
+      <div style={{ fontSize: 13, color: "#D1FAE5", lineHeight: 1.7 }}>{SANDBOX.nightlyReport}</div>
+    </div>
+  );
+}
+
+// ── CHARGE SESSION HISTORY ────────────────────────────────────────────────
+function ChargeSessionHistory() {
+  const [expanded, setExpanded] = useState(false);
+  const sessions = SANDBOX.chargeSessions;
+  const shown = expanded ? sessions : sessions.slice(0, 3);
+  const totalKwh = sessions.reduce((s, c) => s + c.kwh, 0).toFixed(0);
+  const totalCost = sessions.reduce((s, c) => s + c.cost, 0).toFixed(2);
+
+  return (
+    <div style={{ margin: "0 20px 16px", background: "#0D1117", border: "1px solid #1F2937", borderRadius: 16, overflow: "hidden" }}>
+      <div style={{ padding: "14px 16px", borderBottom: "1px solid #1F2937", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <div style={{ fontSize: 11, color: "#38BDF8", fontWeight: 700, letterSpacing: 1, marginBottom: 3 }}>CHARGE SESSIONS</div>
+          <div style={{ fontSize: 13, color: "#9CA3AF" }}>{totalKwh} kWh · £{totalCost} last 10 sessions</div>
+        </div>
+        <button onClick={() => {
+          const csv = ["Date,Start,End,kWh,Cost (£),Avg (p/kWh),Carbon (gCO2)",
+            ...sessions.map(s => `${s.date},${s.startTime},${s.endTime},${s.kwh},${s.cost},${s.avgPence},${s.carbonG}`)
+          ].join("
+");
+          const blob = new Blob([csv], { type: "text/csv" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a"); a.href = url; a.download = "gridly-sessions.csv"; a.click();
+        }} style={{ background: "#1F2937", border: "none", borderRadius: 8, padding: "5px 10px", color: "#9CA3AF", fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>
+          Export CSV
+        </button>
+      </div>
+      <div>
+        {shown.map((s, i) => (
+          <div key={i} style={{ padding: "10px 16px", borderBottom: i < shown.length - 1 ? "1px solid #111827" : "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#F9FAFB", marginBottom: 2 }}>{s.date} · {s.startTime}–{s.endTime}</div>
+              <div style={{ fontSize: 10, color: "#4B5563" }}>{s.kwh} kWh · avg {s.avgPence}p · {(s.carbonG/1000).toFixed(1)} kg CO₂</div>
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: "#38BDF8" }}>£{s.cost}</div>
+          </div>
+        ))}
+      </div>
+      {sessions.length > 3 && (
+        <button onClick={() => setExpanded(e => !e)} style={{ width: "100%", background: "none", border: "none", borderTop: "1px solid #111827", padding: "10px", color: "#4B5563", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+          {expanded ? "Show less" : `Show all ${sessions.length} sessions`}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ── BOOST BUTTON ──────────────────────────────────────────────────────────
+// Prominent single-tap charge now — replaces buried manual override for EV
+function BoostButton({ connectedDevices, currentPence }: { connectedDevices: typeof ALL_DEVICES; currentPence: number }) {
+  const hasEV = connectedDevices.some(d => d.id === "ev");
+  const [boosting, setBoosting] = useState(false);
+  if (!hasEV) return null;
+
+  return (
+    <div style={{ margin: "0 20px 16px" }}>
+      {boosting ? (
+        <div style={{ background: "#0D1521", border: "1px solid #38BDF840", borderRadius: 14, padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#38BDF8", marginBottom: 2 }}>🚗 Boost charging — {currentPence}p/kWh</div>
+            <div style={{ fontSize: 11, color: "#6B7280" }}>Charging at full speed regardless of price</div>
+          </div>
+          <button onClick={() => setBoosting(false)} style={{ background: "#374151", border: "none", borderRadius: 8, padding: "5px 10px", color: "#9CA3AF", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Stop</button>
+        </div>
+      ) : (
+        <button onClick={() => setBoosting(true)} style={{ width: "100%", background: "#0D1521", border: "2px solid #38BDF830", borderRadius: 14, padding: "13px 16px", cursor: "pointer", fontFamily: "inherit", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ textAlign: "left" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#38BDF8", marginBottom: 2 }}>⚡ Boost charge EV now</div>
+            <div style={{ fontSize: 11, color: "#6B7280" }}>Override schedule — charge at full speed</div>
+          </div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#38BDF8" }}>{currentPence}p</div>
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ── CHARGER LOCK ──────────────────────────────────────────────────────────
+function ChargerLock({ connectedDevices }: { connectedDevices: typeof ALL_DEVICES }) {
+  const hasEV = connectedDevices.some(d => d.id === "ev");
+  const [locked, setLocked] = useState(false);
+  if (!hasEV) return null;
+
+  return (
+    <div style={{ margin: "0 20px 16px" }}>
+      <button onClick={() => setLocked(l => !l)} style={{ width: "100%", background: locked ? "#1A0A0A" : "#111827", border: `1px solid ${locked ? "#EF444430" : "#1F2937"}`, borderRadius: 14, padding: "12px 16px", cursor: "pointer", fontFamily: "inherit", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ textAlign: "left" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: locked ? "#FCA5A5" : "#9CA3AF", marginBottom: 2 }}>
+            {locked ? "🔒 Charger locked" : "🔓 Charger unlocked"}
+          </div>
+          <div style={{ fontSize: 11, color: "#4B5563" }}>{locked ? "No one can start a charge without Gridly" : "Tap to lock your charger remotely"}</div>
+        </div>
+        <div style={{ width: 36, height: 20, background: locked ? "#EF4444" : "#374151", borderRadius: 99, position: "relative", flexShrink: 0, transition: "background 0.2s" }}>
+          <div style={{ position: "absolute", top: 2, left: locked ? 18 : 2, width: 16, height: 16, background: "#F9FAFB", borderRadius: "50%", transition: "left 0.2s" }} />
+        </div>
+      </button>
+    </div>
+  );
+}
+
 // ── HOME TAB ──────────────────────────────────────────────────────────────
 function HomeTab({ connectedDevices, now }: { connectedDevices: typeof ALL_DEVICES; now: Date }) {
   const hour = now.getHours();
@@ -536,6 +749,12 @@ function HomeTab({ connectedDevices, now }: { connectedDevices: typeof ALL_DEVIC
         </div>
       </div>
 
+      {/* Device health alerts — top priority */}
+      <DeviceHealthAlerts connectedDevices={connectedDevices} />
+
+      {/* Nightly report card */}
+      <NightlyReportCard />
+
       {/* Mode card */}
       <div style={{ margin: "0 20px 16px", background: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: 16, padding: "16px 20px" }}>
         <div style={{ fontSize: 10, color: cfg.color, fontWeight: 700, letterSpacing: 1.5, marginBottom: 8 }}>RIGHT NOW</div>
@@ -544,6 +763,15 @@ function HomeTab({ connectedDevices, now }: { connectedDevices: typeof ALL_DEVIC
       </div>
 
       {/* Manual override */}
+      {/* Boost button — prominent single-tap charge */}
+      <BoostButton connectedDevices={connectedDevices} currentPence={currentPence} />
+
+      {/* Charger lock */}
+      <ChargerLock connectedDevices={connectedDevices} />
+
+      {/* Carbon tracker */}
+      <CarbonTracker connectedDevices={connectedDevices} />
+
       <ManualOverride currentPence={currentPence} connectedDevices={connectedDevices} />
 
       {/* EV Ready-by */}
@@ -762,6 +990,10 @@ function HistoryTab({ connectedDevices }: { connectedDevices: typeof ALL_DEVICES
       <div style={{ padding: "0 24px 20px" }}>
         <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.8, marginBottom: 2 }}>Your savings</div>
         <div style={{ fontSize: 13, color: "#6B7280" }}>Every penny Gridly has made you</div>
+      </div>
+
+      <div style={{ margin: "0 20px 16px" }}>
+        <ChargeSessionHistory />
       </div>
 
       <div style={{ margin: "0 20px 16px", background: "linear-gradient(135deg, #0a0a0a, #111827)", border: "1px solid #1F2937", borderRadius: 20, padding: "24px", textAlign: "center" }}>
