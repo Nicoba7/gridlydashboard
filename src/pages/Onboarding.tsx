@@ -20,6 +20,13 @@ const DEVICES: Device[] = [
 
 const EV_BRANDS = [
   {
+    id: "tesla",
+    name: "Tesla",
+    description: "Any Tesla vehicle",
+    fields: [],
+    oauth: true,
+  },
+  {
     id: "zappi",
     name: "Zappi",
     description: "by myenergi",
@@ -256,8 +263,23 @@ function EVForm({ creds, setCreds }: { creds: any; setCreds: any }) {
         ))}
       </div>
 
+      {/* Tesla — OAuth flow, no fields needed */}
+      {brand === "tesla" && (
+        <div style={{ background: "#0D1521", border: "1px solid #38BDF830", borderRadius: 12, padding: "16px", marginBottom: 16 }}>
+          <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 12, lineHeight: 1.5 }}>
+            Tap below to log in with your Tesla account. You'll be redirected back automatically.
+          </div>
+          <button
+            onClick={() => window.location.href = "/api/tesla-auth"}
+            style={{ width: "100%", background: "#38BDF8", border: "none", borderRadius: 10, padding: "12px 16px", color: "#030712", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+          >
+            Connect Tesla Account
+          </button>
+        </div>
+      )}
+
       {/* Dynamic fields for selected brand */}
-      {selectedBrand && (
+      {selectedBrand && !(selectedBrand as any).oauth && (
         <div>
           {selectedBrand.fields.map(field => (
             <Field
@@ -308,13 +330,13 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
       <div style={{ marginBottom: 28, marginTop: 20 }}>
         <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 6, letterSpacing: -0.5 }}>
-          {step === 1 && "Gridly pays for itself in the first month."}
-          {step === 2 && "Almost there"}
+          {step === 1 && "What do you have?"}
+          {step === 2 && "Connect your devices"}
           {step === 3 && "You're all set"}
         </h1>
         <p style={{ fontSize: 13, color: "#9CA3AF", margin: 0 }}>
-          {step === 1 && "Select what you have and we'll show you exactly how much you could save."}
-          {step === 2 && "Just your account details — takes under 2 minutes and you can always skip for now"}
+          {step === 1 && "Select everything you have — we'll show you what you could earn"}
+          {step === 2 && "Enter your account details — takes 2 minutes"}
           {step === 3 && `£${totalSavings}/yr unlocked and optimising`}
         </p>
       </div>
