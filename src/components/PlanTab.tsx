@@ -60,7 +60,7 @@ export default function PlanTab({ connectedDevices }: { connectedDevices: Device
 
       <div style={{ margin: "0 20px 16px", background: "#0D1117", border: "1px solid #1F2937", borderRadius: 16, padding: "16px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <div style={{ fontSize: 10, color: "#4B5563", fontWeight: 700, letterSpacing: 1 }}>PRICES TODAY</div>
+          <div style={{ fontSize: 10, color: "#4B5563", fontWeight: 700, letterSpacing: 1 }}>ENERGY PRICES RIGHT NOW</div>
           <div style={{ fontSize: 12, color: "#9CA3AF" }}>
             Now: <span style={{ color: getBarColor(AGILE_RATES[currentSlot].pence), fontWeight: 700 }}>{AGILE_RATES[currentSlot].pence}p</span>
           </div>
@@ -109,7 +109,7 @@ export default function PlanTab({ connectedDevices }: { connectedDevices: Device
       </div>
 
       <div style={{ margin: "0 20px" }}>
-        <div style={{ fontSize: 10, color: "#4B5563", fontWeight: 700, letterSpacing: 1, marginBottom: 12 }}>GRIDLY'S SCHEDULE</div>
+        <div style={{ fontSize: 10, color: "#4B5563", fontWeight: 700, letterSpacing: 1, marginBottom: 12 }}>WHAT GRIDLY IS DOING TONIGHT</div>
         {plan
           .filter(slot => slot.requires.length === 0 || slot.requires.some(r => connectedDevices.some(d => d.id === r)))
           .map((slot, i, arr) => {
