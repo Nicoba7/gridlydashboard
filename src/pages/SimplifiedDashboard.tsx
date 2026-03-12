@@ -789,7 +789,6 @@ function HomeTab({ connectedDevices, now }: { connectedDevices: typeof ALL_DEVIC
   return (
     <div>
 
-  return (
     <div>
       <div style={{ padding: "44px 24px 20px" }}>
         <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.8, marginBottom: 2 }}>{greeting}</div>
