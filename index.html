@@ -24,6 +24,17 @@
   <meta name="twitter:title" content="Gridly — Smart Energy Dashboard">
   <meta property="og:description" content="Monitor your home solar, EV charging, battery storage and grid export in one clean dashboard.">
   <meta name="twitter:description" content="Monitor your home solar, EV charging, battery storage and grid export in one clean dashboard.">
+    <script>
+      (function () {
+        var l = window.location;
+        if (l.search[1] === '/') {
+          var decoded = l.search.slice(1).split('&').map(function (s) {
+            return s.replace(/~and~/g, '&');
+          }).join('?');
+          window.history.replaceState(null, null, l.pathname.slice(0, -1) + decoded + l.hash);
+        }
+      })();
+    </script>
 </head>
 
   <body>

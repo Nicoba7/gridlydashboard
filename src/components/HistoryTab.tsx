@@ -84,6 +84,18 @@ export default function HistoryTab({
     );
   }
 
+
+
+  const history = Array.isArray(SANDBOX?.history) ? SANDBOX.history : [];
+
+  if (history.length === 0) {
+    return (
+      <div style={{ padding: "44px 24px 0", color: "#9CA3AF" }}>
+        History data is temporarily unavailable.
+      </div>
+    );
+  }
+
   const values = history.map(d => {
     if (activeDevice === "all") return d.solar + d.battery + d.ev + d.grid;
     return (d as any)[activeDevice] ?? 0;
