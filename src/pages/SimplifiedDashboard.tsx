@@ -1,3 +1,4 @@
+import { getGridlyMode } from "../lib/gridlyEngine";
 import { buildGridlyPlan } from "../lib/gridlyPlan";
 import { useState, useEffect, useMemo } from "react";
 import { Sun, Battery, Zap, Grid3X3, TrendingUp, Home, Calendar, Clock, ChevronDown, ChevronUp } from "lucide-react";
@@ -113,12 +114,6 @@ function getBestChargeSlot() {
     (min, r, i) => r.pence < min.price ? { index: i, price: r.pence, time: r.time } : min,
     { index: 0, price: AGILE_RATES[0].pence, time: AGILE_RATES[0].time }
   );
-}
-
-function getGridlyMode(pence: number) {
-  if (pence < 8) return "CHARGE";
-  if (pence > 30) return "EXPORT";
-  return "HOLD";
 }
 
 function calculateSavings() {
