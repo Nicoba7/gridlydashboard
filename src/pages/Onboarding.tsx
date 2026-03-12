@@ -57,6 +57,26 @@ const EV_BRANDS = [
       { key: "chargerId", label: "CHARGER ID",        placeholder: "XXXXXXXXXX",      secret: false, hint: "myWallbox app → Charger settings → Serial number" },
     ],
   },
+  {
+    id: "easee",
+    name: "Easee",
+    description: "Home / Charge",
+    fields: [
+      { key: "email",     label: "EASEE EMAIL",     placeholder: "you@example.com", secret: false, hint: "Your Easee account email or phone number" },
+      { key: "password",  label: "EASEE PASSWORD",  placeholder: "••••••••",        secret: true  },
+      { key: "chargerId", label: "CHARGER ID",      placeholder: "EH123456",        secret: false, hint: "Easee app → Charger → Settings → Charger ID" },
+    ],
+  },
+  {
+    id: "podpoint",
+    name: "Pod Point",
+    description: "Solo / Solo 3",
+    fields: [
+      { key: "email",  label: "POD POINT EMAIL",    placeholder: "you@example.com", secret: false, hint: "Your Pod Point account email" },
+      { key: "password", label: "POD POINT PASSWORD", placeholder: "••••••••",      secret: true  },
+      { key: "unitId", label: "UNIT ID",            placeholder: "XXXXXXXX",        secret: false, hint: "Pod Point app → Home Charger → Unit ID" },
+    ],
+  },
 ];
 
 // ── FIELD COMPONENT ───────────────────────────────────────────────────────
