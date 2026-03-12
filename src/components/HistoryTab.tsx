@@ -1,15 +1,6 @@
 import { useState } from "react";
-import { SANDBOX } from "../data/sandbox";
+import { SANDBOX, DeviceConfig } from "../pages/SimplifiedDashboard";
 
-type Device = {
-  id: string;
-  name: string;
-  status: string;
-  monthlyValue: number;
-  icon: any;
-  color: string;
-  historyColor: string;
-};
 
 function ChargeSessionHistory() {
   const [expanded, setExpanded] = useState(false);
@@ -78,7 +69,7 @@ function ChargeSessionHistory() {
 export default function HistoryTab({
   connectedDevices,
 }: {
-  connectedDevices: Device[];
+  connectedDevices: DeviceConfig[];
 }) {
   const [activeDevice, setActiveDevice] = useState<string>("all");
 
