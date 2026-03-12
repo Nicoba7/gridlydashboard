@@ -26,7 +26,7 @@ const EV_BRANDS = [
     fields: [
       { key: "email",    label: "MYENERGI EMAIL",    placeholder: "you@example.com",  secret: false, hint: "Your myenergi account email" },
       { key: "password", label: "MYENERGI PASSWORD", placeholder: "••••••••",         secret: true  },
-      { key: "serial",   label: "ZAPPI SERIAL",      placeholder: "XXXXXXXXXX",       secret: false, hint: "Look on the front of your Zappi unit — or myenergi app → Zappi → Settings → Serial" },
+      { key: "serial",   label: "ZAPPI SERIAL",      placeholder: "XXXXXXXXXX",       secret: false, hint: "Printed on the front of your Zappi unit" },
     ],
   },
   {
@@ -34,7 +34,7 @@ const EV_BRANDS = [
     name: "Ohme",
     description: "Home / Home Pro / ePod",
     fields: [
-      { key: "email",    label: "OHME EMAIL",    placeholder: "you@example.com", secret: false, hint: "The email you used to sign up to Ohme" },
+      { key: "email",    label: "OHME EMAIL",    placeholder: "you@example.com", secret: false, hint: "Your Ohme account email" },
       { key: "password", label: "OHME PASSWORD", placeholder: "••••••••",        secret: true  },
     ],
   },
@@ -43,8 +43,8 @@ const EV_BRANDS = [
     name: "Hypervolt",
     description: "Home 3 / Plus",
     fields: [
-      { key: "apiKey",     label: "API KEY",     placeholder: "hv_xxxxxxxxxxxx",  secret: true,  hint: "Hypervolt app → Settings (bottom right) → API access → Generate key" },
-      { key: "chargerId",  label: "CHARGER ID",  placeholder: "XXXXXXXXXXXX",     secret: false, hint: "Hypervolt app → your charger → Settings → Charger ID" },
+      { key: "apiKey",     label: "API KEY",     placeholder: "hv_xxxxxxxxxxxx",  secret: true,  hint: "Hypervolt app → Settings → API access" },
+      { key: "chargerId",  label: "CHARGER ID",  placeholder: "XXXXXXXXXXXX",     secret: false, hint: "Found in the Hypervolt app under your charger" },
     ],
   },
   {
@@ -54,7 +54,7 @@ const EV_BRANDS = [
     fields: [
       { key: "email",     label: "WALLBOX EMAIL",     placeholder: "you@example.com", secret: false, hint: "Your myWallbox account email" },
       { key: "password",  label: "WALLBOX PASSWORD",  placeholder: "••••••••",        secret: true  },
-      { key: "chargerId", label: "CHARGER ID",        placeholder: "XXXXXXXXXX",      secret: false, hint: "myWallbox app → your charger → Settings → Serial number" },
+      { key: "chargerId", label: "CHARGER ID",        placeholder: "XXXXXXXXXX",      secret: false, hint: "myWallbox app → Charger settings → Serial number" },
     ],
   },
   {
@@ -64,7 +64,7 @@ const EV_BRANDS = [
     fields: [
       { key: "email",     label: "EASEE EMAIL",     placeholder: "you@example.com", secret: false, hint: "Your Easee account email or phone number" },
       { key: "password",  label: "EASEE PASSWORD",  placeholder: "••••••••",        secret: true  },
-      { key: "chargerId", label: "CHARGER ID",      placeholder: "EH123456",        secret: false, hint: "Easee app → your charger → Settings → Charger ID" },
+      { key: "chargerId", label: "CHARGER ID",      placeholder: "EH123456",        secret: false, hint: "Easee app → Charger → Settings → Charger ID" },
     ],
   },
   {
@@ -74,7 +74,7 @@ const EV_BRANDS = [
     fields: [
       { key: "email",  label: "POD POINT EMAIL",    placeholder: "you@example.com", secret: false, hint: "Your Pod Point account email" },
       { key: "password", label: "POD POINT PASSWORD", placeholder: "••••••••",      secret: true  },
-      { key: "unitId", label: "UNIT ID",            placeholder: "XXXXXXXX",        secret: false, hint: "Pod Point app → Home Charger → tap your charger → Unit ID" },
+      { key: "unitId", label: "UNIT ID",            placeholder: "XXXXXXXX",        secret: false, hint: "Pod Point app → Home Charger → Unit ID" },
     ],
   },
 ];
@@ -118,7 +118,7 @@ function OctopusForm({ creds, setCreds }: { creds: any; setCreds: any }) {
         <Grid3X3 size={16} color="#A78BFA" />
         <span style={{ fontSize: 13, fontWeight: 700, color: "#F9FAFB" }}>Octopus Energy</span>
       </div>
-      <Field label="API KEY" placeholder="sk_live_xxxxxxxxxxxx" hint="Octopus app → your name (top right) → API access → copy the key starting with sk_live_" link={{ text: "Open Octopus", url: "https://octopus.energy/dashboard/new/accounts/personal-details/" }} value={creds.apiKey} onChange={v => setCreds((c: any) => ({ ...c, apiKey: v }))} secret />
+      <Field label="API KEY" placeholder="sk_live_xxxxxxxxxxxx" hint="Account → Personal details → API access" link={{ text: "Open Octopus", url: "https://octopus.energy/dashboard/new/accounts/personal-details/" }} value={creds.apiKey} onChange={v => setCreds((c: any) => ({ ...c, apiKey: v }))} secret />
       <Field label="ACCOUNT NUMBER" placeholder="A-XXXXXXXX" hint="Format: A- followed by 8 characters" value={creds.accountNumber} onChange={v => setCreds((c: any) => ({ ...c, accountNumber: v }))} />
     </div>
   );
@@ -131,8 +131,8 @@ const INVERTER_BRANDS = [
     name: "GivEnergy",
     description: "All models",
     fields: [
-      { key: "apiKey", label: "API KEY", placeholder: "your-givenergy-api-key", secret: true, hint: "Go to givenergy.cloud → log in → click your name → Account Details → Generate API Key", link: { text: "Open GivEnergy", url: "https://givenergy.cloud" } },
-      { key: "serial", label: "INVERTER SERIAL NUMBER", placeholder: "SA2XXXXXXXXXX", secret: false, hint: "Look for a sticker on your inverter — starts with SA2. Or GivEnergy app → your inverter → Settings" },
+      { key: "apiKey", label: "API KEY", placeholder: "your-givenergy-api-key", secret: true, hint: "givenergy.cloud → Account Details → Generate API Key", link: { text: "Open GivEnergy", url: "https://givenergy.cloud" } },
+      { key: "serial", label: "INVERTER SERIAL NUMBER", placeholder: "SA2XXXXXXXXXX", secret: false, hint: "On the sticker on your inverter or in the app" },
     ],
   },
   {
@@ -140,8 +140,8 @@ const INVERTER_BRANDS = [
     name: "Solax",
     description: "X1 / X3 / Hybrid",
     fields: [
-      { key: "tokenId", label: "TOKEN ID", placeholder: "20240XXXXXXXXXXX", secret: true, hint: "Go to solaxcloud.com → log in → Support → Third-party Ecology → copy your Token ID" },
-      { key: "wifiSn", label: "WIFI DONGLE SERIAL", placeholder: "SUT****VB1", secret: false, hint: "Open Solax Cloud → tap your inverter → the serial number shown underneath it" },
+      { key: "tokenId", label: "TOKEN ID", placeholder: "20240XXXXXXXXXXX", secret: true, hint: "solaxcloud.com → Support → Third-party Ecology" },
+      { key: "wifiSn", label: "WIFI DONGLE SERIAL", placeholder: "SUT****VB1", secret: false, hint: "Registration number shown in Solax Cloud under your inverter" },
     ],
   },
   {
@@ -149,8 +149,8 @@ const INVERTER_BRANDS = [
     name: "SolarEdge",
     description: "With battery",
     fields: [
-      { key: "apiKey", label: "API KEY", placeholder: "your-solaredge-api-key", secret: true, hint: "Go to monitoring.solaredge.com → Admin → Site Access → API Access → copy your key" },
-      { key: "siteId", label: "SITE ID", placeholder: "XXXXXXX", secret: false, hint: "Same page — your Site ID is the number in the web address bar after /site/" },
+      { key: "apiKey", label: "API KEY", placeholder: "your-solaredge-api-key", secret: true, hint: "monitoring.solaredge.com → Admin → Site Access → API Access" },
+      { key: "siteId", label: "SITE ID", placeholder: "XXXXXXX", secret: false, hint: "Shown in the URL of your SolarEdge monitoring portal" },
     ],
   },
   {
@@ -158,9 +158,9 @@ const INVERTER_BRANDS = [
     name: "Solis",
     description: "S5 / S6",
     fields: [
-      { key: "apiKey", label: "API KEY", placeholder: "your-solis-api-key", secret: true, hint: "Solis Cloud app → Account → API Management → copy your API Key" },
-      { key: "apiSecret", label: "API SECRET", placeholder: "your-solis-api-secret", secret: true, hint: "Same screen as your API Key — tap to reveal and copy the secret" },
-      { key: "stationId", label: "STATION ID", placeholder: "XXXXXXXXXX", secret: false, hint: "Solis Cloud app → tap your plant — the Station ID is shown under the plant name" },
+      { key: "apiKey", label: "API KEY", placeholder: "your-solis-api-key", secret: true },
+      { key: "apiSecret", label: "API SECRET", placeholder: "your-solis-api-secret", secret: true, hint: "Solis Cloud → Account → API Management" },
+      { key: "stationId", label: "STATION ID", placeholder: "XXXXXXXXXX", secret: false },
     ],
   },
 ];
@@ -308,13 +308,13 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
       <div style={{ marginBottom: 28, marginTop: 20 }}>
         <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 6, letterSpacing: -0.5 }}>
-          {step === 1 && "What do you have?"}
-          {step === 2 && "Connect your devices"}
+          {step === 1 && "Gridly pays for itself in the first month."}
+          {step === 2 && "Almost there"}
           {step === 3 && "You're all set"}
         </h1>
         <p style={{ fontSize: 13, color: "#9CA3AF", margin: 0 }}>
-          {step === 1 && "Select everything you have — we'll show you what you could earn"}
-          {step === 2 && "Enter your account details — takes 2 minutes"}
+          {step === 1 && "Select what you have and we'll show you exactly how much you could save."}
+          {step === 2 && "Just your account details — takes under 2 minutes and you can always skip for now"}
           {step === 3 && `£${totalSavings}/yr unlocked and optimising`}
         </p>
       </div>
