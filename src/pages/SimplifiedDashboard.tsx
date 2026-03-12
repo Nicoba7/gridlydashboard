@@ -1,3 +1,5 @@
+import { SANDBOX } from "../data/sandbox";
+import { AGILE_RATES } from "../data/agileRates";
 import { getGridlyMode, getModeDescription } from "../lib/gridlyEngine";
 import { buildGridlyPlan } from "../lib/gridlyPlan";
 import { useState, useEffect, useMemo } from "react";
@@ -10,97 +12,6 @@ const ALL_DEVICES = [
   { id: "battery", name: "Home Battery",   status: "62% charged",      monthlyValue: 32, icon: Battery,  color: "#22C55E", historyColor: "#22C55E" },
   { id: "ev",      name: "EV Charger",     status: "Connected",        monthlyValue: 26, icon: Zap,      color: "#38BDF8", historyColor: "#38BDF8" },
   { id: "grid",    name: "Smart Meter",    status: "Live pricing",     monthlyValue: 15, icon: Grid3X3,  color: "#A78BFA", historyColor: "#A78BFA" },
-];
-
-// ── SANDBOX DATA ──────────────────────────────────────────────────────────
-const SANDBOX = {
-  savedToday: 3.76,
-  earnedToday: 1.52,
-  allTime: 713.67,
-  allTimeSince: "March 2024",
-  solar: { w: 2840, batteryPct: 62, gridW: 420, homeW: 1200 },
-  solarForecast: { kwh: 18.4, confidence: 82, condition: "Mostly sunny", icon: "🌤️", deltaKwh: 2.1 },
-  batteryHealth: { cyclesUsed: 312, cyclesTotal: 6000, capacityPct: 97, projectedLifeYears: 14.2, weeklyChargeCycles: 4.2 },
-  tariffs: [
-    { id: "agile",   name: "Octopus Agile",         annualSaving: 713,  current: true,  badge: "You're on this" },
-    { id: "go",      name: "Intelligent Octopus Go",  annualSaving: 1041, current: false, badge: "Best for EV" },
-    { id: "flux",    name: "Octopus Flux",            annualSaving: 892,  current: false, badge: "Best for battery" },
-    { id: "cosy",    name: "Cosy Octopus",            annualSaving: 634,  current: false, badge: null },
-  ],
-  history: [
-    { day: "Mon", solar: 1.24, battery: 0.98, ev: 0.63, grid: 0.18 },
-    { day: "Tue", solar: 2.11, battery: 1.42, ev: 1.21, grid: 0.31 },
-    { day: "Wed", solar: 0.94, battery: 0.87, ev: 0.44, grid: 0.12 },
-    { day: "Thu", solar: 2.64, battery: 1.84, ev: 1.84, grid: 0.47 },
-    { day: "Fri", solar: 1.52, battery: 1.21, ev: 0.97, grid: 0.22 },
-    { day: "Sat", solar: 3.41, battery: 2.31, ev: 2.31, grid: 0.58 },
-    { day: "Sun", solar: 2.18, battery: 1.52, ev: 1.52, grid: 0.34 },
-  ],
-  plan: [
-    { time: "11:30pm", action: "CHARGE", title: "Charging your battery",    reason: "Cheapest rate of the night",        price: 4.8,  color: "#22C55E", requires: ["battery"] },
-    { time: "2:00am",  action: "HOLD",   title: "Resting overnight",        reason: "Nothing to do — holding steady",   price: 5.1,  color: "#6B7280", requires: [] },
-    { time: "8:00am",  action: "EXPORT", title: "Selling to the grid",      reason: "High price — earning for you",     price: 31.2, color: "#F59E0B", requires: ["battery", "grid"] },
-    { time: "11:00am", action: "SOLAR",  title: "Solar powering your home", reason: "Free electricity from your panels",price: 9.6,  color: "#F59E0B", requires: ["solar"] },
-    { time: "5:30pm",  action: "EXPORT", title: "Peak earnings window",     reason: "Best price of the day",            price: 38.6, color: "#F59E0B", requires: ["battery", "grid"] },
-    { time: "8:00pm",  action: "CHARGE", title: "Topping up for tomorrow",  reason: "Price dropping — refilling now",   price: 11.8, color: "#22C55E", requires: ["battery"] },
-  ],
-  // Carbon intensity (gCO2/kWh) — 48 half-hour slots. Source: National Grid ESO API
-  carbonIntensity: [
-    210,198,187,176,165,158,152,148,144,141,139,142,
-    148,156,168,182,194,203,211,218,222,219,214,208,
-    201,195,188,182,176,171,167,164,162,160,159,158,
-    162,168,176,184,192,198,203,206,208,207,204,200,
-  ],
-  // Charging sessions — last 10
-  chargeSessions: [
-    { date: "Today",     startTime: "03:00", endTime: "05:30", kwh: 18.5, cost: 1.42, avgPence: 7.7,  carbonG: 2868 },
-    { date: "Yesterday", startTime: "02:30", endTime: "06:00", kwh: 22.1, cost: 1.89, avgPence: 8.6,  carbonG: 3271 },
-    { date: "Mon",       startTime: "03:00", endTime: "05:00", kwh: 14.8, cost: 1.11, avgPence: 7.5,  carbonG: 2186 },
-    { date: "Sun",       startTime: "01:30", endTime: "04:30", kwh: 22.2, cost: 1.64, avgPence: 7.4,  carbonG: 3196 },
-    { date: "Sat",       startTime: "02:00", endTime: "05:00", kwh: 22.2, cost: 1.71, avgPence: 7.7,  carbonG: 3152 },
-    { date: "Fri",       startTime: "03:30", endTime: "05:30", kwh: 14.8, cost: 1.32, avgPence: 8.9,  carbonG: 2149 },
-    { date: "Thu",       startTime: "02:30", endTime: "05:00", kwh: 18.5, cost: 1.46, avgPence: 7.9,  carbonG: 2701 },
-    { date: "Wed",       startTime: "03:00", endTime: "04:30", kwh: 11.1, cost: 0.84, avgPence: 7.6,  carbonG: 1598 },
-    { date: "Tue",       startTime: "02:00", endTime: "05:30", kwh: 25.9, cost: 2.01, avgPence: 7.8,  carbonG: 3782 },
-    { date: "Mon",       startTime: "03:00", endTime: "06:00", kwh: 22.2, cost: 1.71, avgPence: 7.7,  carbonG: 3219 },
-  ],
-  // Device health — last reported timestamps
-  deviceHealth: {
-    solar:   { lastSeen: 2,   ok: true  },   // minutes ago
-    battery: { lastSeen: 2,   ok: true  },
-    ev:      { lastSeen: 847, ok: false },   // 14hrs ago — simulate Lynne's problem
-    grid:    { lastSeen: 4,   ok: true  },
-  },
-  // Nightly report card
-  nightlyReport: "Last night Gridly charged your battery at 4.8p, your EV at 5.1p, and exported 8kWh at 38.6p. Total earned: £4.21. Today looks strong — 18kWh of solar forecast and peak prices above 35p this evening.",
-};
-
-// ── AGILE RATES ───────────────────────────────────────────────────────────
-const AGILE_RATES = [
-  { time: "00:00", pence: 7.2 }, { time: "00:30", pence: 6.8 },
-  { time: "01:00", pence: 6.1 }, { time: "01:30", pence: 5.9 },
-  { time: "02:00", pence: 5.4 }, { time: "02:30", pence: 5.1 },
-  { time: "03:00", pence: 4.8 }, { time: "03:30", pence: 4.6 },
-  { time: "04:00", pence: 4.9 }, { time: "04:30", pence: 5.3 },
-  { time: "05:00", pence: 6.2 }, { time: "05:30", pence: 8.1 },
-  { time: "06:00", pence: 12.4 }, { time: "06:30", pence: 18.7 },
-  { time: "07:00", pence: 24.3 }, { time: "07:30", pence: 28.9 },
-  { time: "08:00", pence: 31.2 }, { time: "08:30", pence: 29.4 },
-  { time: "09:00", pence: 24.1 }, { time: "09:30", pence: 19.8 },
-  { time: "10:00", pence: 16.2 }, { time: "10:30", pence: 13.4 },
-  { time: "11:00", pence: 11.8 }, { time: "11:30", pence: 10.2 },
-  { time: "12:00", pence: 9.6 },  { time: "12:30", pence: 8.9 },
-  { time: "13:00", pence: 9.1 },  { time: "13:30", pence: 10.4 },
-  { time: "14:00", pence: 11.2 }, { time: "14:30", pence: 12.8 },
-  { time: "15:00", pence: 14.6 }, { time: "15:30", pence: 17.3 },
-  { time: "16:00", pence: 22.1 }, { time: "16:30", pence: 27.8 },
-  { time: "17:00", pence: 34.2 }, { time: "17:30", pence: 38.6 },
-  { time: "18:00", pence: 35.4 }, { time: "18:30", pence: 29.7 },
-  { time: "19:00", pence: 22.3 }, { time: "19:30", pence: 17.6 },
-  { time: "20:00", pence: 14.2 }, { time: "20:30", pence: 11.8 },
-  { time: "21:00", pence: 10.1 }, { time: "21:30", pence: 9.4 },
-  { time: "22:00", pence: 8.7 },  { time: "22:30", pence: 8.1 },
-  { time: "23:00", pence: 7.6 },  { time: "23:30", pence: 7.1 },
 ];
 
 // ── INTELLIGENCE ENGINE ───────────────────────────────────────────────────
