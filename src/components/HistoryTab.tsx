@@ -85,6 +85,7 @@ export default function HistoryTab({
   }
 
 
+
   const history = Array.isArray(SANDBOX?.history) ? SANDBOX.history : [];
 
   if (history.length === 0) {
