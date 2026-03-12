@@ -93,7 +93,7 @@ export function buildGridlyPlan(
       reason: "Nothing to do — holding steady",
       price: secondCheap.pence,
       color: "#6B7280",
-       [],
+      requires: [],
       highlight: false,
     },
     {
