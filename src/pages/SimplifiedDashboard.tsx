@@ -626,9 +626,12 @@ function ChargeSessionHistory() {
           <div style={{ fontSize: 13, color: "#9CA3AF" }}>{totalKwh} kWh · £{totalCost} last 10 sessions</div>
         </div>
         <button onClick={() => {
-          const csv = ["Date,Start,End,kWh,Cost (£),Avg (p/kWh),Carbon (gCO2)",
-            ...sessions.map(s => `${s.date},${s.startTime},${s.endTime},${s.kwh},${s.cost},${s.avgPence},${s.carbonG}`)
-          ]..join("\n");
+          const csv = [
+            "Date,Start,End,kWh,Cost (£),Avg (p/kWh),Carbon (gCO2)",
+            ...sessions.map(s =>
+              `${s.date},${s.startTime},${s.endTime},${s.kwh},${s.cost},${s.avgPence},${s.carbonG}`
+            )
+          ].join("\n");
       
           const blob = new Blob([csv], { type: "text/csv" });
           const url = URL.createObjectURL(blob);
