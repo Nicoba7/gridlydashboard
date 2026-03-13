@@ -186,7 +186,7 @@ export default function HomeTab({ connectedDevices, now }: { connectedDevices: D
   const [optimisationGoal, setOptimisationGoal] = useState<OptimisationGoal>("MAX_SAVINGS");
   const [minBatteryReserve, setMinBatteryReserve] = useState(20);
   const [copilotStatus, setCopilotStatus] = useState("No manual action taken yet.");
-  const [showWhy, setShowWhy] = useState(false);
+  const [showControls, setShowControls] = useState(false);
   const hour = now.getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const slotIndex = getCurrentSlotIndex();
@@ -226,20 +226,6 @@ export default function HomeTab({ connectedDevices, now }: { connectedDevices: D
     mode === "CHARGE" ||
     mode === "EV_CHARGE" ||
     mode === "SPLIT_CHARGE";
-  const explainability = buildExplainability({
-    mode,
-    currentPence,
-    batteryPct: s.batteryPct,
-    solarW: s.w,
-    evPct: evState.pct,
-    evTargetPct: evState.targetPct,
-    hasBattery,
-    hasEV,
-    hasSolar,
-    hasGrid,
-    optimisationGoal,
-    minBatteryReserve,
-  });
   const recommendation = buildCopilotRecommendation({
     mode,
     currentPence,
@@ -287,54 +273,15 @@ export default function HomeTab({ connectedDevices, now }: { connectedDevices: D
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <div style={{ fontSize: 10, color: "#93C5FD", fontWeight: 700, letterSpacing: 1.2 }}>GRIDLY BRIEF</div>
           <button
-            onClick={() => setShowWhy((v) => !v)}
+            onClick={() => setShowControls((v) => !v)}
             style={{ background: "none", border: "none", color: "#60A5FA", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
           >
-            {showWhy ? "Hide details" : "Why this?"}
+            {showControls ? "Done" : "Tune"}
           </button>
         </div>
 
-        <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-          {GOAL_OPTIONS.map((goal) => {
-            const selected = goal.id === optimisationGoal;
-            return (
-              <button
-                key={goal.id}
-                onClick={() => setOptimisationGoal(goal.id)}
-                style={{
-                  background: selected ? "#1D4ED830" : "#0F172A",
-                  border: `1px solid ${selected ? "#60A5FA" : "#1E293B"}`,
-                  borderRadius: 999,
-                  padding: "6px 10px",
-                  color: selected ? "#BFDBFE" : "#94A3B8",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                {goal.label}
-              </button>
-            );
-          })}
-        </div>
-
-        <div style={{ fontSize: 17, fontWeight: 800, color: "#F9FAFB", marginBottom: 4 }}>{recommendation.title}</div>
-        <div style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 6 }}>{recommendation.reason}</div>
-        <div style={{ fontSize: 11, color: "#34D399", fontWeight: 700, marginBottom: 10 }}>{recommendation.impact}</div>
-
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 10 }}>
-          <div style={{ fontSize: 11, color: "#94A3B8" }}>Reserve floor: <span style={{ color: "#E2E8F0", fontWeight: 700 }}>{minBatteryReserve}%</span></div>
-          <input
-            type="range"
-            min={10}
-            max={50}
-            step={5}
-            value={minBatteryReserve}
-            onChange={(event) => setMinBatteryReserve(Number(event.target.value))}
-            style={{ width: 140 }}
-          />
-        </div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: "#F9FAFB", marginBottom: 4 }}>{recommendation.title}</div>
+        <div style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 8 }}>{recommendation.impact}</div>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
           <button
@@ -352,12 +299,31 @@ export default function HomeTab({ connectedDevices, now }: { connectedDevices: D
         </div>
         <div style={{ fontSize: 11, color: "#64748B" }}>{copilotStatus}</div>
 
-        {showWhy && (
-          <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #1E293B" }}>
-            <div style={{ fontSize: 11, color: "#BFDBFE", fontWeight: 700, marginBottom: 6 }}>Confidence {explainability.confidence}%</div>
-            <div style={{ fontSize: 11, color: "#94A3B8", lineHeight: 1.5, marginBottom: 4 }}>{explainability.signals.slice(0, 3).join(" • ")}</div>
-            <div style={{ fontSize: 11, color: "#94A3B8" }}>
-              Alternative: <span style={{ color: "#E2E8F0" }}>{explainability.alternativeAction}</span> ({explainability.altImpact})
+        {showControls && (
+          <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #1E293B", display: "grid", gap: 8 }}>
+            <label style={{ fontSize: 11, color: "#94A3B8", fontWeight: 700 }}>
+              Goal
+              <select
+                value={optimisationGoal}
+                onChange={(event) => setOptimisationGoal(event.target.value as OptimisationGoal)}
+                style={{ marginLeft: 8, background: "#0F172A", color: "#E2E8F0", border: "1px solid #334155", borderRadius: 8, padding: "4px 8px", fontFamily: "inherit", fontSize: 12 }}
+              >
+                {GOAL_OPTIONS.map((goal) => (
+                  <option key={goal.id} value={goal.id}>{goal.label}</option>
+                ))}
+              </select>
+            </label>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+              <div style={{ fontSize: 11, color: "#94A3B8" }}>Reserve {minBatteryReserve}%</div>
+              <input
+                type="range"
+                min={10}
+                max={50}
+                step={5}
+                value={minBatteryReserve}
+                onChange={(event) => setMinBatteryReserve(Number(event.target.value))}
+                style={{ width: 140 }}
+              />
             </div>
           </div>
         )}
