@@ -22,8 +22,11 @@ export default function EnergyFlow({
 }: Props) {
   return (
     <div style={{ margin: "0 20px 16px", background: "#0D1117", border: "1px solid #1F2937", borderRadius: 16, padding: "20px" }}>
-      <div style={{ fontSize: 10, color: "#4B5563", fontWeight: 700, letterSpacing: 1, marginBottom: 20 }}>
+      <div style={{ fontSize: 10, color: "#4B5563", fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>
         LIVE ENERGY FLOW
+      </div>
+      <div style={{ fontSize: 11, color: "#9CA3AF", lineHeight: 1.5, marginBottom: 16 }}>
+        A real-time map of where power is moving across home, solar, battery, EV, and grid.
       </div>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>

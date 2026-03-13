@@ -623,6 +623,9 @@ export function CarbonTracker({ connectedDevices }: { connectedDevices: DeviceCo
   return (
     <div style={{ margin: "0 20px 16px", background: "#0D1117", border: `1px solid ${color}20`, borderRadius: 16, padding: "14px 16px" }}>
       <div style={{ fontSize: 11, color, fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>GRID CARBON</div>
+      <div style={{ fontSize: 11, color: "#9CA3AF", lineHeight: 1.5, marginBottom: 10 }}>
+        Live grid cleanliness, so you can decide whether to charge now or let Gridly wait for a cleaner window.
+      </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
         <div>
           <div style={{ fontSize: 22, fontWeight: 900, color: "#F9FAFB", letterSpacing: -0.5 }}>
