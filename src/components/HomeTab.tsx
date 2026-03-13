@@ -187,6 +187,7 @@ export default function HomeTab({ connectedDevices, now }: { connectedDevices: D
   const [minBatteryReserve, setMinBatteryReserve] = useState(20);
   const [copilotStatus, setCopilotStatus] = useState("No manual action taken yet.");
   const [showControls, setShowControls] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const hour = now.getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const slotIndex = getCurrentSlotIndex();
@@ -272,13 +273,30 @@ export default function HomeTab({ connectedDevices, now }: { connectedDevices: D
       <div style={{ margin: "0 20px 16px", background: "#0E1726", border: "1px solid #1E293B", borderRadius: 16, padding: "14px 16px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <div style={{ fontSize: 10, color: "#93C5FD", fontWeight: 700, letterSpacing: 1.2 }}>GRIDLY BRIEF</div>
-          <button
-            onClick={() => setShowControls((v) => !v)}
-            style={{ background: "none", border: "none", color: "#60A5FA", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
-          >
-            {showControls ? "Done" : "Tune"}
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button
+              onClick={() => setShowHelp((v) => !v)}
+              style={{ background: "none", border: "none", color: "#93C5FD", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+            >
+              {showHelp ? "Close help" : "Help"}
+            </button>
+            <button
+              onClick={() => setShowControls((v) => !v)}
+              style={{ background: "none", border: "none", color: "#60A5FA", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+            >
+              {showControls ? "Done" : "Tune"}
+            </button>
+          </div>
         </div>
+
+        {showHelp && (
+          <div style={{ marginBottom: 10, background: "#0F172A", border: "1px solid #1E293B", borderRadius: 10, padding: "10px 12px" }}>
+            <div style={{ fontSize: 12, color: "#E2E8F0", fontWeight: 700, marginBottom: 6 }}>How this works</div>
+            <div style={{ fontSize: 11, color: "#94A3B8", lineHeight: 1.5 }}>
+              Gridly watches price and your devices, then suggests one best move right now. Use <span style={{ color: "#E2E8F0" }}>Do it now</span> to accept or <span style={{ color: "#E2E8F0" }}>Not now</span> to skip. Tap <span style={{ color: "#E2E8F0" }}>Tune</span> only if you want to change your goal or reserve level.
+            </div>
+          </div>
+        )}
 
         <div style={{ fontSize: 18, fontWeight: 800, color: "#F9FAFB", marginBottom: 4 }}>{recommendation.title}</div>
         <div style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 8 }}>{recommendation.impact}</div>
