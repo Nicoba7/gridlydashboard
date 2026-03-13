@@ -14,9 +14,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const clientId = process.env.VITE_TESLA_CLIENT_ID!;
-    const clientSecret = process.env.VITE_TESLA_CLIENT_SECRET!;
-    const redirectUri = "https://gridlydashboard.vercel.app/api/tesla-callback";
+    const clientId = process.env.TESLA_CLIENT_ID || process.env.VITE_TESLA_CLIENT_ID;
+    const clientSecret = process.env.TESLA_CLIENT_SECRET || process.env.VITE_TESLA_CLIENT_SECRET;
+    const redirectUri = process.env.TESLA_REDIRECT_URI || "https://gridlydashboard.vercel.app/api/tesla-callback";
+
+    if (!clientId || !clientSecret) {
+      return res.redirect(`/?error=tesla_env_not_set`);
+    }
 
     // Exchange code for token
     const tokenRes = await fetch("https://auth.tesla.com/oauth2/v3/token", {
