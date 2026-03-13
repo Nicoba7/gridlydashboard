@@ -1,3 +1,4 @@
+import { useState } from "react";
 import FlowDot from "./FlowDot";
 import { getGridlyMode, getModeDescription } from "../lib/gridlyEngine";
 import { Battery, Home, Sun, TrendingUp, Zap } from "lucide-react";
@@ -23,7 +24,169 @@ import {
   DeviceConfig,
 } from "../pages/SimplifiedDashboard";
 
+
+
+type OptimisationGoal = "MAX_SAVINGS" | "LOWEST_CARBON" | "BATTERY_CARE" | "EV_READY";
+
+const GOAL_OPTIONS: { id: OptimisationGoal; label: string; hint: string }[] = [
+  { id: "MAX_SAVINGS", label: "Save most", hint: "Prioritise lowest cost and export value" },
+  { id: "LOWEST_CARBON", label: "Lowest carbon", hint: "Shift usage into cleaner grid windows" },
+  { id: "BATTERY_CARE", label: "Battery care", hint: "Reduce deep cycling to extend lifespan" },
+  { id: "EV_READY", label: "EV ready", hint: "Prioritise hitting your ready-by target" },
+];
+
+type CopilotAction = "START_CHARGE" | "DELAY_90" | "PAUSE_UNTIL_CHEAP" | "EXPORT_NOW" | "HOLD";
+
+type CopilotRecommendation = {
+  title: string;
+  reason: string;
+  impact: string;
+  action: CopilotAction;
+};
+
+function buildCopilotRecommendation({
+  mode,
+  currentPence,
+  bestSlotPence,
+  hasBattery,
+  hasGrid,
+  hasEV,
+  optimisationGoal,
+}: {
+  mode: ReturnType<typeof getGridlyMode>;
+  currentPence: number;
+  bestSlotPence: number;
+  hasBattery: boolean;
+  hasGrid: boolean;
+  hasEV: boolean;
+  optimisationGoal: OptimisationGoal;
+}): CopilotRecommendation {
+  if (mode === "EXPORT" && hasBattery && hasGrid) {
+    return {
+      title: "Export now",
+      reason: "Current price is in a premium window, so this is a strong earning slot.",
+      impact: "Estimated +£0.45 this hour",
+      action: "EXPORT_NOW",
+    };
+  }
+
+  if (currentPence - bestSlotPence >= 4 && (hasBattery || hasEV)) {
+    return {
+      title: "Delay charging by 90 minutes",
+      reason: `A cheaper slot is coming (${bestSlotPence.toFixed(1)}p). Waiting captures better value.`,
+      impact: `Estimated saving ~£${((currentPence - bestSlotPence) * 0.08).toFixed(2)}`,
+      action: "DELAY_90",
+    };
+  }
+
+  if (optimisationGoal === "EV_READY" && hasEV) {
+    return {
+      title: "Start EV charging now",
+      reason: "EV-ready mode prioritises hitting your target on time.",
+      impact: "Higher readiness confidence by departure time",
+      action: "START_CHARGE",
+    };
+  }
+
+  if (optimisationGoal === "LOWEST_CARBON") {
+    return {
+      title: "Pause until cleaner window",
+      reason: "Lowest-carbon mode shifts usage to greener grid periods.",
+      impact: "Lower CO₂ intensity for this session",
+      action: "PAUSE_UNTIL_CHEAP",
+    };
+  }
+
+  return {
+    title: "Hold current plan",
+    reason: "Gridly is already in a near-optimal state for your selected goal.",
+    impact: "No major change expected",
+    action: "HOLD",
+  };
+}
+
+type ExplainabilityInput = {
+  mode: ReturnType<typeof getGridlyMode>;
+  currentPence: number;
+  batteryPct: number;
+  solarW: number;
+  evPct: number;
+  evTargetPct: number;
+  hasBattery: boolean;
+  hasEV: boolean;
+  hasSolar: boolean;
+  hasGrid: boolean;
+  optimisationGoal: OptimisationGoal;
+  minBatteryReserve: number;
+};
+
+function buildExplainability(input: ExplainabilityInput) {
+  const {
+    mode,
+    currentPence,
+    batteryPct,
+    solarW,
+    evPct,
+    evTargetPct,
+    hasBattery,
+    hasEV,
+    hasSolar,
+    hasGrid,
+    optimisationGoal,
+    minBatteryReserve,
+  } = input;
+
+  const expensive = currentPence >= 30;
+  const cheap = currentPence <= 8;
+  const strongSolar = hasSolar && solarW > 2000;
+  const batteryHealthy = hasBattery && batteryPct > 40;
+  const evGap = Math.max(0, evTargetPct - evPct);
+
+  let confidence = 62;
+  if (cheap || expensive) confidence += 14;
+  if (strongSolar) confidence += 10;
+  if (batteryHealthy) confidence += 6;
+  if (hasEV && evGap > 20) confidence += 4;
+  confidence = Math.min(96, confidence);
+
+  let alternativeAction = "HOLD";
+  if (mode === "EXPORT") alternativeAction = "HOLD";
+  else if (mode === "SOLAR") alternativeAction = hasEV ? "EV_CHARGE" : "HOLD";
+  else if (mode === "CHARGE") alternativeAction = hasEV && evGap > 0 ? "EV_CHARGE" : "HOLD";
+  else if (mode === "EV_CHARGE" || mode === "SPLIT_CHARGE") alternativeAction = hasBattery ? "CHARGE" : "HOLD";
+  else if (mode === "HOLD" && cheap && hasBattery) alternativeAction = "CHARGE";
+
+  const altImpact =
+    mode === "EXPORT"
+      ? "~£0.40 lower earnings this hour"
+      : mode === "HOLD"
+      ? "~£0.22 higher import cost likely"
+      : "~£0.18 less value captured this hour";
+
+  const doNothingImpact =
+    mode === "HOLD"
+      ? "Very similar outcome. Gridly is already preserving flexibility."
+      : mode === "EXPORT"
+      ? "You'd miss a peak-export window while prices are elevated."
+      : "You'd likely import more at higher prices later today.";
+
+  const signals = [
+    `Live price: ${currentPence.toFixed(1)}p/kWh`,
+    `Battery: ${hasBattery ? `${batteryPct}%` : "Not connected"}`,
+    `Solar: ${hasSolar ? `${(solarW / 1000).toFixed(1)}kW` : "Not connected"}`,
+    `EV target gap: ${hasEV ? `${evGap}%` : "No EV connected"}`,
+    `Export path: ${hasGrid ? "Available" : "Unavailable"}`,
+    `Goal: ${GOAL_OPTIONS.find((goal) => goal.id === optimisationGoal)?.label ?? "Custom"}`,
+    `Min battery reserve: ${minBatteryReserve}%`,
+  ];
+
+  return { confidence, alternativeAction, altImpact, doNothingImpact, signals };
+}
+
 export default function HomeTab({ connectedDevices, now }: { connectedDevices: DeviceConfig[]; now: Date }) {
+  const [optimisationGoal, setOptimisationGoal] = useState<OptimisationGoal>("MAX_SAVINGS");
+  const [minBatteryReserve, setMinBatteryReserve] = useState(20);
+  const [copilotStatus, setCopilotStatus] = useState("No manual action taken yet.");
   const hour = now.getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const slotIndex = getCurrentSlotIndex();
@@ -63,6 +226,30 @@ export default function HomeTab({ connectedDevices, now }: { connectedDevices: D
     mode === "CHARGE" ||
     mode === "EV_CHARGE" ||
     mode === "SPLIT_CHARGE";
+  const explainability = buildExplainability({
+    mode,
+    currentPence,
+    batteryPct: s.batteryPct,
+    solarW: s.w,
+    evPct: evState.pct,
+    evTargetPct: evState.targetPct,
+    hasBattery,
+    hasEV,
+    hasSolar,
+    hasGrid,
+    optimisationGoal,
+    minBatteryReserve,
+  });
+  const activeGoal = GOAL_OPTIONS.find((goal) => goal.id === optimisationGoal);
+  const recommendation = buildCopilotRecommendation({
+    mode,
+    currentPence,
+    bestSlotPence: best.pence,
+    hasBattery,
+    hasGrid,
+    hasEV,
+    optimisationGoal,
+  });
 
   return (
     <div>
@@ -94,6 +281,120 @@ export default function HomeTab({ connectedDevices, now }: { connectedDevices: D
             evTargetPct: evState.targetPct,
             readyByHour: evState.readyByHour,
           })}
+        </div>
+      </div>
+
+
+      <div style={{ margin: "0 20px 16px", background: "#0E1726", border: "1px solid #1E293B", borderRadius: 16, padding: "14px 16px" }}>
+        <div style={{ fontSize: 10, color: "#93C5FD", fontWeight: 700, letterSpacing: 1.2, marginBottom: 10 }}>OPTIMISATION GOAL</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+          {GOAL_OPTIONS.map((goal) => {
+            const selected = goal.id === optimisationGoal;
+            return (
+              <button
+                key={goal.id}
+                onClick={() => setOptimisationGoal(goal.id)}
+                style={{
+                  background: selected ? "#1D4ED820" : "#0F172A",
+                  border: `1px solid ${selected ? "#60A5FA" : "#1E293B"}`,
+                  borderRadius: 10,
+                  padding: "10px",
+                  textAlign: "left",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                <div style={{ fontSize: 12, color: selected ? "#BFDBFE" : "#E2E8F0", fontWeight: 700 }}>{goal.label}</div>
+                <div style={{ fontSize: 10, color: "#94A3B8", marginTop: 3 }}>{goal.hint}</div>
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ background: "#0F172A", border: "1px solid #1E293B", borderRadius: 10, padding: "10px 12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <div style={{ fontSize: 10, color: "#94A3B8", fontWeight: 700, letterSpacing: 1 }}>GUARDRAIL</div>
+            <div style={{ fontSize: 12, color: "#E2E8F0", fontWeight: 700 }}>Battery reserve {minBatteryReserve}%</div>
+          </div>
+          <input
+            type="range"
+            min={10}
+            max={50}
+            step={5}
+            value={minBatteryReserve}
+            onChange={(event) => setMinBatteryReserve(Number(event.target.value))}
+            style={{ width: "100%" }}
+          />
+          <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 6 }}>
+            {activeGoal?.label} mode active. Gridly will avoid actions that push below {minBatteryReserve}% battery where possible.
+          </div>
+        </div>
+      </div>
+
+      <div style={{ margin: "0 20px 16px", background: "#101827", border: "1px solid #1F2937", borderRadius: 16, padding: "14px 16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <div style={{ fontSize: 10, color: "#34D399", fontWeight: 700, letterSpacing: 1.2 }}>ENERGY COPILOT</div>
+          <div style={{ fontSize: 11, color: "#6EE7B7", fontWeight: 700 }}>Live recommendation</div>
+        </div>
+        <div style={{ fontSize: 15, fontWeight: 800, color: "#F9FAFB", marginBottom: 3 }}>{recommendation.title}</div>
+        <div style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 8 }}>{recommendation.reason}</div>
+        <div style={{ fontSize: 11, color: "#34D399", fontWeight: 700, marginBottom: 10 }}>{recommendation.impact}</div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+          <button
+            onClick={() => setCopilotStatus(`Applied: ${recommendation.title}`)}
+            style={{
+              background: "#16A34A20",
+              border: "1px solid #16A34A50",
+              color: "#86EFAC",
+              borderRadius: 10,
+              padding: "8px 10px",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            Do it now
+          </button>
+          <button
+            onClick={() => setCopilotStatus(`Skipped: ${recommendation.title}`)}
+            style={{
+              background: "#0F172A",
+              border: "1px solid #334155",
+              color: "#94A3B8",
+              borderRadius: 10,
+              padding: "8px 10px",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            Not now
+          </button>
+        </div>
+        <div style={{ fontSize: 11, color: "#64748B" }}>{copilotStatus}</div>
+      </div>
+
+      <div style={{ margin: "0 20px 16px", background: "#0B1220", border: "1px solid #1E293B", borderRadius: 16, padding: "14px 16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div style={{ fontSize: 10, color: "#60A5FA", fontWeight: 700, letterSpacing: 1.2 }}>WHY GRIDLY CHOSE THIS</div>
+          <div style={{ fontSize: 11, color: "#BFDBFE", fontWeight: 700 }}>Confidence {explainability.confidence}%</div>
+        </div>
+        <div style={{ display: "grid", gap: 8, marginBottom: 10 }}>
+          {explainability.signals.map((signal) => (
+            <div key={signal} style={{ fontSize: 12, color: "#CBD5E1", background: "#0F172A", border: "1px solid #1E293B", borderRadius: 10, padding: "8px 10px" }}>
+              {signal}
+            </div>
+          ))}
+        </div>
+        <div style={{ background: "#0F172A", border: "1px solid #1E293B", borderRadius: 10, padding: "10px 12px", marginBottom: 8 }}>
+          <div style={{ fontSize: 10, color: "#94A3B8", fontWeight: 700, letterSpacing: 1, marginBottom: 2 }}>ALTERNATIVE CONSIDERED</div>
+          <div style={{ fontSize: 13, color: "#E2E8F0", fontWeight: 700 }}>{explainability.alternativeAction}</div>
+          <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 2 }}>{explainability.altImpact}</div>
+        </div>
+        <div style={{ background: "#0F172A", border: "1px solid #1E293B", borderRadius: 10, padding: "10px 12px" }}>
+          <div style={{ fontSize: 10, color: "#94A3B8", fontWeight: 700, letterSpacing: 1, marginBottom: 2 }}>IF GRIDLY DID NOTHING</div>
+          <div style={{ fontSize: 11, color: "#CBD5E1", lineHeight: 1.5 }}>{explainability.doNothingImpact}</div>
         </div>
       </div>
 
