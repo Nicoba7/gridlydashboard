@@ -180,7 +180,7 @@ export default function HomeTab({ connectedDevices, now }: { connectedDevices: D
           <div style={{ marginBottom: 10, background: "#0F172A", border: "1px solid #1E293B", borderRadius: 10, padding: "10px 12px" }}>
             <div style={{ fontSize: 12, color: "#E2E8F0", fontWeight: 700, marginBottom: 6 }}>How this works</div>
             <div style={{ fontSize: 11, color: "#94A3B8", lineHeight: 1.5 }}>
-              Gridly watches price and your devices, then suggests one best move right now. Use <span style={{ color: "#E2E8F0" }}>Do it now</span> to accept or <span style={{ color: "#E2E8F0" }}>Not now</span> to skip. Tap <span style={{ color: "#E2E8F0" }}>Tune</span> only if you want to change your goal or reserve level.
+               Gridly watches price and your devices, then suggests one best move right now. Use <span style={{ color: "#E2E8F0" }}>Do it now</span> to accept or <span style={{ color: "#E2E8F0" }}>Not now</span> to skip. Tap <span style={{ color: "#E2E8F0" }}>Tune</span> only if you want to change your goal or reserve level. <span style={{ color: "#E2E8F0" }}>AI confidence</span> tells you how strong today&apos;s signal is for this action, and <span style={{ color: "#E2E8F0" }}>Trust</span> reflects how consistently this recommendation pattern has worked for you over time.
             </div>
           </div>
         )}
