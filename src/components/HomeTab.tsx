@@ -1,6 +1,11 @@
 import { useMemo, useState } from "react";
 import FlowDot from "./FlowDot";
 import { getGridlyMode, getModeDescription } from "../lib/gridlyEngine";
+import {
+  buildAiRecommendation,
+  recordAiFeedback,
+  type OptimisationGoal,
+} from "../lib/aiCopilot";
 import { Battery, Home, Sun, TrendingUp, Zap } from "lucide-react";
 import TomorrowForecast from "../pages/TomorrowForecast";
 import { buildDayPlan } from "../lib/dayPlanner";
@@ -26,162 +31,12 @@ import {
 } from "../pages/SimplifiedDashboard";
 
 
-type OptimisationGoal = "MAX_SAVINGS" | "LOWEST_CARBON" | "BATTERY_CARE" | "EV_READY";
-
 const GOAL_OPTIONS: { id: OptimisationGoal; label: string; hint: string }[] = [
   { id: "MAX_SAVINGS", label: "Save most", hint: "Prioritise lowest cost and export value" },
   { id: "LOWEST_CARBON", label: "Lowest carbon", hint: "Shift usage into cleaner grid windows" },
   { id: "BATTERY_CARE", label: "Battery care", hint: "Reduce deep cycling to extend lifespan" },
   { id: "EV_READY", label: "EV ready", hint: "Prioritise hitting your ready-by target" },
 ];
-
-type CopilotAction = "START_CHARGE" | "DELAY_90" | "PAUSE_UNTIL_CHEAP" | "EXPORT_NOW" | "HOLD";
-
-type CopilotRecommendation = {
-  title: string;
-  reason: string;
-  impact: string;
-  action: CopilotAction;
-};
-
-function buildCopilotRecommendation({
-  mode,
-  currentPence,
-  bestSlotPence,
-  hasBattery,
-  hasGrid,
-  hasEV,
-  optimisationGoal,
-}: {
-  mode: ReturnType<typeof getGridlyMode>;
-  currentPence: number;
-  bestSlotPence: number;
-  hasBattery: boolean;
-  hasGrid: boolean;
-  hasEV: boolean;
-  optimisationGoal: OptimisationGoal;
-}): CopilotRecommendation {
-  if (mode === "EXPORT" && hasBattery && hasGrid) {
-    return {
-      title: "Export now",
-      reason: "Current price is in a premium window, so this is a strong earning slot.",
-      impact: "Estimated +£0.45 this hour",
-      action: "EXPORT_NOW",
-    };
-  }
-
-  if (currentPence - bestSlotPence >= 4 && (hasBattery || hasEV)) {
-    return {
-      title: "Delay charging by 90 minutes",
-      reason: `A cheaper slot is coming (${bestSlotPence.toFixed(1)}p). Waiting captures better value.`,
-      impact: `Estimated saving ~£${((currentPence - bestSlotPence) * 0.08).toFixed(2)}`,
-      action: "DELAY_90",
-    };
-  }
-
-  if (optimisationGoal === "EV_READY" && hasEV) {
-    return {
-      title: "Start EV charging now",
-      reason: "EV-ready mode prioritises hitting your target on time.",
-      impact: "Higher readiness confidence by departure time",
-      action: "START_CHARGE",
-    };
-  }
-
-  if (optimisationGoal === "LOWEST_CARBON") {
-    return {
-      title: "Pause until cleaner window",
-      reason: "Lowest-carbon mode shifts usage to greener grid periods.",
-      impact: "Lower CO₂ intensity for this session",
-      action: "PAUSE_UNTIL_CHEAP",
-    };
-  }
-
-  return {
-    title: "Hold current plan",
-    reason: "Gridly is already in a near-optimal state for your selected goal.",
-    impact: "No major change expected",
-    action: "HOLD",
-  };
-}
-
-type ExplainabilityInput = {
-  mode: ReturnType<typeof getGridlyMode>;
-  currentPence: number;
-  batteryPct: number;
-  solarW: number;
-  evPct: number;
-  evTargetPct: number;
-  hasBattery: boolean;
-  hasEV: boolean;
-  hasSolar: boolean;
-  hasGrid: boolean;
-  optimisationGoal: OptimisationGoal;
-  minBatteryReserve: number;
-};
-
-function buildExplainability(input: ExplainabilityInput) {
-  const {
-    mode,
-    currentPence,
-    batteryPct,
-    solarW,
-    evPct,
-    evTargetPct,
-    hasBattery,
-    hasEV,
-    hasSolar,
-    hasGrid,
-    optimisationGoal,
-    minBatteryReserve,
-  } = input;
-
-  const expensive = currentPence >= 30;
-  const cheap = currentPence <= 8;
-  const strongSolar = hasSolar && solarW > 2000;
-  const batteryHealthy = hasBattery && batteryPct > 40;
-  const evGap = Math.max(0, evTargetPct - evPct);
-
-  let confidence = 62;
-  if (cheap || expensive) confidence += 14;
-  if (strongSolar) confidence += 10;
-  if (batteryHealthy) confidence += 6;
-  if (hasEV && evGap > 20) confidence += 4;
-  confidence = Math.min(96, confidence);
-
-  let alternativeAction = "HOLD";
-  if (mode === "EXPORT") alternativeAction = "HOLD";
-  else if (mode === "SOLAR") alternativeAction = hasEV ? "EV_CHARGE" : "HOLD";
-  else if (mode === "CHARGE") alternativeAction = hasEV && evGap > 0 ? "EV_CHARGE" : "HOLD";
-  else if (mode === "EV_CHARGE" || mode === "SPLIT_CHARGE") alternativeAction = hasBattery ? "CHARGE" : "HOLD";
-  else if (mode === "HOLD" && cheap && hasBattery) alternativeAction = "CHARGE";
-
-  const altImpact =
-    mode === "EXPORT"
-      ? "~£0.40 lower earnings this hour"
-      : mode === "HOLD"
-      ? "~£0.22 higher import cost likely"
-      : "~£0.18 less value captured this hour";
-
-  const doNothingImpact =
-    mode === "HOLD"
-      ? "Very similar outcome. Gridly is already preserving flexibility."
-      : mode === "EXPORT"
-      ? "You'd miss a peak-export window while prices are elevated."
-      : "You'd likely import more at higher prices later today.";
-
-  const signals = [
-    `Live price: ${currentPence.toFixed(1)}p/kWh`,
-    `Battery: ${hasBattery ? `${batteryPct}%` : "Not connected"}`,
-    `Solar: ${hasSolar ? `${(solarW / 1000).toFixed(1)}kW` : "Not connected"}`,
-    `EV target gap: ${hasEV ? `${evGap}%` : "No EV connected"}`,
-    `Export path: ${hasGrid ? "Available" : "Unavailable"}`,
-    `Goal: ${GOAL_OPTIONS.find((goal) => goal.id === optimisationGoal)?.label ?? "Custom"}`,
-    `Min battery reserve: ${minBatteryReserve}%`,
-  ];
-
-  return { confidence, alternativeAction, altImpact, doNothingImpact, signals };
-}
 
 export default function HomeTab({ connectedDevices, now }: { connectedDevices: DeviceConfig[]; now: Date }) {
   const [optimisationGoal, setOptimisationGoal] = useState<OptimisationGoal>("MAX_SAVINGS");
@@ -258,14 +113,15 @@ export default function HomeTab({ connectedDevices, now }: { connectedDevices: D
     });
   }, [slotIndex, s.batteryPct, minBatteryReserve, hasGrid]);
 
-  const recommendation = buildCopilotRecommendation({
+  const recommendation = buildAiRecommendation({
     mode,
     currentPence,
-    bestSlotPence: best.pence,
+    bestSlotPence: best.price,
     hasBattery,
     hasGrid,
     hasEV,
     optimisationGoal,
+    projectedDayPlanSavings: Math.max(0, planner.projectedSavingsPounds),
   });
 
   return (
@@ -330,20 +186,30 @@ export default function HomeTab({ connectedDevices, now }: { connectedDevices: D
         )}
 
         <div style={{ fontSize: 18, fontWeight: 800, color: "#F9FAFB", marginBottom: 4 }}>{recommendation.title}</div>
+        <div style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 2 }}>{recommendation.reason}</div>
         <div style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 4 }}>{recommendation.impact}</div>
+        <div style={{ fontSize: 11, color: "#93C5FD", marginBottom: 6 }}>
+          AI confidence: {recommendation.confidence}% · Trust: {Math.round(recommendation.trustScore * 100)}%
+        </div>
         <div style={{ fontSize: 11, color: "#60A5FA", marginBottom: 8 }}>
           Day plan: £{planner.optimisedCostPounds.toFixed(2)} vs £{planner.baselineCostPounds.toFixed(2)} baseline (save £{Math.max(0, planner.projectedSavingsPounds).toFixed(2)}).
         </div>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
           <button
-            onClick={() => setCopilotStatus(`Applied: ${recommendation.title}`)}
+            onClick={() => {
+              recordAiFeedback("accepted");
+              setCopilotStatus(`Applied: ${recommendation.title}`);
+            }}
             style={{ background: "#16A34A20", border: "1px solid #16A34A50", color: "#86EFAC", borderRadius: 10, padding: "8px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
           >
             Do it now
           </button>
           <button
-            onClick={() => setCopilotStatus(`Skipped: ${recommendation.title}`)}
+            onClick={() => {
+              recordAiFeedback("skipped");
+              setCopilotStatus(`Skipped: ${recommendation.title}`);
+            }}
             style={{ background: "#0F172A", border: "1px solid #334155", color: "#94A3B8", borderRadius: 10, padding: "8px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
           >
             Not now
