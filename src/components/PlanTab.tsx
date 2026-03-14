@@ -10,6 +10,7 @@ import {
   buildPlanTimelineViewModel,
   buildOptimisationModeViewModel,
   buildPriceWindowsViewModel,
+  selectDisplaySessions,
 } from "./plan/planViewModels";
 import AIInsightCard from "./plan/AIInsightCard";
 import AIPlanSummaryCard from "./plan/AIPlanSummaryCard";
@@ -44,20 +45,27 @@ export default function PlanTab({ connectedDevices }: { connectedDevices: Device
     nowSlotIndex: currentSlot,
     carbonIntensity: SANDBOX?.carbonIntensity,
   });
+  const sessions = plan.sessions;
+  const displaySessions = selectDisplaySessions(sessions);
+
+  if (import.meta.env.DEV) {
+    console.log("Gridly sessions:", displaySessions);
+  }
 
   const heroViewModel = buildPlanHeroViewModel({
     summary,
     gridlySummary,
-    plan,
+    sessions: displaySessions,
     pricingStatus,
     loading,
   });
 
-  const timelineViewModel = buildPlanTimelineViewModel(plan, connectedDeviceIds, optimisationMode);
+  const timelineViewModel = buildPlanTimelineViewModel(displaySessions, connectedDeviceIds, optimisationMode);
   const priceWindowsViewModel = buildPriceWindowsViewModel(summary, plan.find((s) => s.action === "SOLAR"), forecastKwh);
   const planSummaryViewModel = buildPlanSummaryViewModel({
     summary,
     gridlySummary,
+    sessions: displaySessions,
   });
   const insightViewModel = buildAIInsightViewModel({
     gridlySummary,

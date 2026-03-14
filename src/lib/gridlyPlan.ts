@@ -19,6 +19,10 @@ export type PlanSlot = {
   decisionType?: "battery_charge" | "ev_charge" | "export" | "solar" | "hold";
 };
 
+export type PlanWithSessions = PlanSlot[] & {
+  sessions: GridlyPlanSession[];
+};
+
 export type PlanSummary = {
   projectedEarnings: number;
   projectedSavings: number;
@@ -53,6 +57,20 @@ export type GridlyPlanSummary = {
   showSolarInsight: boolean;
   showPriceChart: boolean;
   showInsightCard: boolean;
+};
+
+export type GridlyPlanSessionType = "battery_charge" | "ev_charge" | "export" | "solar_use" | "hold";
+
+export type GridlyPlanSession = {
+  type: GridlyPlanSessionType;
+  start: string;
+  end: string;
+  priceRange?: string;
+  priceMin: number;
+  priceMax: number;
+  color: string;
+  highlight: boolean;
+  slotCount: number;
 };
 
 export type GridlyPlanOptions = {
@@ -279,6 +297,87 @@ function dedupe(values: string[]) {
   return [...new Set(values.filter(Boolean))];
 }
 
+function toHHMM(slotIndex: number) {
+  const normalized = ((slotIndex % 48) + 48) % 48;
+  const hours = String(Math.floor(normalized / 2)).padStart(2, "0");
+  const minutes = normalized % 2 === 0 ? "00" : "30";
+  return `${hours}:${minutes}`;
+}
+
+function decisionToSessionType(decision: SlotDecision): GridlyPlanSessionType {
+  if (decision.decisionType === "battery_charge") return "battery_charge";
+  if (decision.decisionType === "ev_charge") return "ev_charge";
+  if (decision.decisionType === "export") return "export";
+  if (decision.decisionType === "solar") return "solar_use";
+  return "hold";
+}
+
+function decisionColor(decision: SlotDecision): string {
+  if (decision.action === "CHARGE") return "#22C55E";
+  if (decision.action === "EXPORT") return "#F59E0B";
+  if (decision.action === "SOLAR") return "#F59E0B";
+  return "#6B7280";
+}
+
+function decisionPrice(decision: SlotDecision): number {
+  return decision.action === "EXPORT" ? decision.exportPence : decision.importPence;
+}
+
+function buildPlanSessions(decisions: SlotDecision[], mode: OptimisationMode): GridlyPlanSession[] {
+  if (!decisions.length) return [];
+
+  const grouped: Array<{
+    decisions: SlotDecision[];
+    type: GridlyPlanSessionType;
+    endSlotIndex: number;
+  }> = [];
+
+  const sorted = [...decisions].sort((a, b) => a.slotIndex - b.slotIndex);
+
+  for (const decision of sorted) {
+    const type = decisionToSessionType(decision);
+    const slotIndex = decision.slotIndex;
+    const last = grouped[grouped.length - 1];
+
+    if (!last) {
+      grouped.push({ decisions: [decision], type, endSlotIndex: slotIndex });
+      continue;
+    }
+
+    const sameAction = last.type === type;
+    const consecutive = slotIndex === last.endSlotIndex + 1;
+
+    if (sameAction && consecutive) {
+      last.decisions.push(decision);
+      last.endSlotIndex = slotIndex;
+    } else {
+      grouped.push({ decisions: [decision], type, endSlotIndex: slotIndex });
+    }
+  }
+
+  return grouped.map((group) => {
+    const first = group.decisions[0];
+    const last = group.decisions[group.decisions.length - 1];
+    const end = toHHMM(last.slotIndex + 1);
+    const priceMin = Math.min(...group.decisions.map((decision) => decisionPrice(decision)));
+    const priceMax = Math.max(...group.decisions.map((decision) => decisionPrice(decision)));
+
+    return {
+      type: group.type,
+      start: first.time,
+      end,
+      priceRange: priceMin === priceMax ? `${priceMin.toFixed(1)}p` : `${priceMin.toFixed(1)}–${priceMax.toFixed(1)}p`,
+      priceMin,
+      priceMax,
+      color: decisionColor(first),
+      highlight: group.decisions.some((decision) =>
+        mode === "CHEAPEST" ? decision.decisionType === "battery_charge" : decision.decisionType === "solar"
+      ),
+      slotCount: group.decisions.length,
+    };
+  });
+}
+
 function buildGridlyCustomerSummary({
   mode,
   hasBattery,
@@ -405,10 +504,13 @@ export function buildGridlyPlan(
   solarForecastKwh = 18.4,
   mode: OptimisationMode = "CHEAPEST",
   options: GridlyPlanOptions = {}
-): { plan: PlanSlot[]; summary: PlanSummary; gridlySummary: GridlyPlanSummary } {
+): { plan: PlanWithSessions; summary: PlanSummary; gridlySummary: GridlyPlanSummary } {
   if (!rates.length) {
+    const emptyPlan = [] as PlanWithSessions;
+    emptyPlan.sessions = [];
+
     return {
-      plan: [],
+      plan: emptyPlan,
       summary: {
         projectedEarnings: 0,
         projectedSavings: 0,
@@ -707,9 +809,12 @@ export function buildGridlyPlan(
     title: "Resting overnight",
   });
 
-  const plan = decisions
+  const planSlots = decisions
     .sort((a, b) => a.slotIndex - b.slotIndex)
     .map((decision) => decisionToPlanSlot(decision, mode));
+  const sessions = buildPlanSessions(decisions, mode);
+  const plan = planSlots as PlanWithSessions;
+  plan.sessions = sessions;
 
   const importSpend = Number((
     decisions

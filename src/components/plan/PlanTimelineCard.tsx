@@ -15,7 +15,7 @@ export default function PlanTimelineCard({ viewModel }: { viewModel: PlanTimelin
                   ? "🚗"
                   : row.coreAction === "export"
                   ? "💰"
-                  : row.coreAction === "solar"
+                  : row.coreAction === "solar_use"
                   ? "☀️"
                   : "⏸"}
               </div>

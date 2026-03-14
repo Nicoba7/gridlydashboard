@@ -1,5 +1,5 @@
 import { PricingState } from "../../hooks/useAgileRates";
-import { PlanSlot, PlanSummary, ConnectedDeviceId, OptimisationMode, GridlyPlanSummary } from "../../lib/gridlyPlan";
+import { PlanSlot, PlanSummary, ConnectedDeviceId, OptimisationMode, GridlyPlanSummary, GridlyPlanSession } from "../../lib/gridlyPlan";
 
 export type PlanHeroViewModel = {
   title: string;
@@ -18,7 +18,7 @@ export type PlanTimelineRow = {
   highlight?: boolean;
   modeTag?: string;
   emphasis?: "high" | "medium" | "low";
-  coreAction?: "charge_ev" | "charge_battery" | "export" | "solar" | "hold";
+  coreAction?: "charge_ev" | "charge_battery" | "export" | "solar_use" | "hold";
 };
 
 export type PlanTimelineViewModel = {
@@ -61,47 +61,29 @@ function formatMoney(value: number) {
   return `£${value.toFixed(2)}`;
 }
 
-function toSlotIndex(time: string) {
-  const [hours, minutes] = time.split(":").map(Number);
-  return (hours * 2) + (minutes >= 30 ? 1 : 0);
-}
-
-function toHHMM(slotIndex: number) {
-  const normalized = ((slotIndex % 48) + 48) % 48;
-  const hours = String(Math.floor(normalized / 2)).padStart(2, "0");
-  const minutes = normalized % 2 === 0 ? "00" : "30";
-  return `${hours}:${minutes}`;
-}
-
 function formatRange(start: string, end: string) {
   if (start === end) return start;
   return `${start}–${end}`;
 }
 
-function getCoreAction(slot: PlanSlot): "charge_ev" | "charge_battery" | "export" | "solar" | "hold" {
-  if (slot.decisionType === "ev_charge") return "charge_ev";
-  if (slot.decisionType === "battery_charge") return "charge_battery";
-  if (slot.decisionType === "export") return "export";
-  if (slot.decisionType === "solar") return "solar";
-
-  if (slot.action === "CHARGE") {
-    return slot.requires.includes("ev") ? "charge_ev" : "charge_battery";
-  }
-  if (slot.action === "EXPORT") return "export";
-  if (slot.action === "SOLAR") return "solar";
-  return "hold";
+function coreActionFromSessionType(sessionType: GridlyPlanSession["type"]) {
+  if (sessionType === "ev_charge") return "charge_ev" as const;
+  if (sessionType === "battery_charge") return "charge_battery" as const;
+  if (sessionType === "solar_use") return "solar_use" as const;
+  if (sessionType === "export") return "export" as const;
+  return "hold" as const;
 }
 
-function coreActionLabel(coreAction: "charge_ev" | "charge_battery" | "export" | "solar" | "hold") {
-  if (coreAction === "charge_ev") return "Charge EV";
-  if (coreAction === "charge_battery") return "Charge battery";
-  if (coreAction === "export") return "Export to grid";
-  if (coreAction === "solar") return "Use solar";
-  return "Hold";
+function sessionActionLabel(sessionType: GridlyPlanSession["type"]) {
+  if (sessionType === "battery_charge") return "Battery charging overnight";
+  if (sessionType === "ev_charge") return "Charging EV overnight";
+  if (sessionType === "export") return "Selling energy during peak prices";
+  if (sessionType === "solar_use") return "Solar covering home demand";
+  return "Holding steady";
 }
 
 function compactReason(
-  coreAction: "charge_ev" | "charge_battery" | "export" | "solar" | "hold",
+  coreAction: ReturnType<typeof coreActionFromSessionType>,
   mode: OptimisationMode,
   hasManySlots: boolean,
   context: { hasBattery: boolean; hasSolar: boolean; hasBatteryCharge: boolean }
@@ -124,7 +106,7 @@ function compactReason(
     return "Export mainly from clean surplus periods.";
   }
 
-  if (coreAction === "solar") return "Let solar cover home demand around midday.";
+  if (coreAction === "solar_use") return "Let solar cover home demand around midday.";
 
   if (mode === "BALANCED" && context.hasBattery && !context.hasBatteryCharge) {
     return "Battery reserve is healthy, so Gridly avoids unnecessary overnight charging.";
@@ -143,16 +125,25 @@ function compactReason(
   return "No action needed in this window.";
 }
 
+function formatSessionOutcome(session: GridlyPlanSession) {
+  return sessionActionLabel(session.type);
+}
+
+export function selectDisplaySessions(sessions: GridlyPlanSession[]) {
+  const actionable = sessions.filter((session) => session.type !== "hold");
+  return actionable.length ? actionable : sessions;
+}
+
 export function buildPlanHeroViewModel({
   summary,
   gridlySummary,
-  plan,
+  sessions,
   pricingStatus,
   loading,
 }: {
   summary: PlanSummary;
   gridlySummary: GridlyPlanSummary;
-  plan: PlanSlot[];
+  sessions: GridlyPlanSession[];
   pricingStatus: PricingState;
   loading: boolean;
 }): PlanHeroViewModel {
@@ -177,73 +168,36 @@ export function buildPlanHeroViewModel({
   return {
     title: gridlySummary.planHeadline,
     value: `+${formatMoney(value)}`,
-    outcomes: gridlySummary.keyOutcomes,
+    outcomes: sessions.map(formatSessionOutcome),
     trustNote,
     statusNote,
   };
 }
 
 export function buildPlanTimelineViewModel(
-  plan: PlanSlot[],
+  sessions: GridlyPlanSession[],
   connectedDeviceIds: ConnectedDeviceId[],
   mode: OptimisationMode
 ): PlanTimelineViewModel {
-  const filtered = plan.filter((slot) =>
-    slot.requires.length === 0 || slot.requires.some((r) => connectedDeviceIds.includes(r))
-  );
   const hasBattery = connectedDeviceIds.includes("battery");
   const hasSolar = connectedDeviceIds.includes("solar");
 
-  const sorted = [...filtered].sort((a, b) => toSlotIndex(a.time) - toSlotIndex(b.time));
-  const grouped: Array<{
-    slots: PlanSlot[];
-    coreAction: "charge_ev" | "charge_battery" | "export" | "solar" | "hold";
-    endSlotIndex: number;
-  }> = [];
-
-  for (const slot of sorted) {
-    const coreAction = getCoreAction(slot);
-    const slotIndex = toSlotIndex(slot.time);
-    const last = grouped[grouped.length - 1];
-
-    if (!last) {
-      grouped.push({ slots: [slot], coreAction, endSlotIndex: slotIndex });
-      continue;
-    }
-
-    const consecutive = slotIndex === last.endSlotIndex + 1;
-    const sameAction = last.coreAction === coreAction;
-
-    if (consecutive && sameAction) {
-      last.slots.push(slot);
-      last.endSlotIndex = slotIndex;
-    } else {
-      grouped.push({ slots: [slot], coreAction, endSlotIndex: slotIndex });
-    }
-  }
-
-  const hasBatteryCharge = grouped.some((group) => group.coreAction === "charge_battery");
+  const hasBatteryCharge = sessions.some((session) => session.type === "battery_charge");
 
   return {
-    rows: grouped.map((group) => {
-      const first = group.slots[0];
-      const last = group.slots[group.slots.length - 1];
-      const startIndex = toSlotIndex(first.time);
-      const endIndex = toSlotIndex(last.time) + (group.slots.length > 1 ? 1 : 0);
-      const minPrice = Math.min(...group.slots.map((slot) => slot.price));
-      const maxPrice = Math.max(...group.slots.map((slot) => slot.price));
-
+    rows: sessions.map((session) => {
+      const coreAction = coreActionFromSessionType(session.type);
       return {
-        time: formatRange(first.time, toHHMM(endIndex)),
-        action: coreActionLabel(group.coreAction),
-        reason: compactReason(group.coreAction, mode, group.slots.length > 1, {
+        time: formatRange(session.start, session.end),
+        action: sessionActionLabel(session.type),
+        reason: compactReason(coreAction, mode, session.slotCount > 1, {
           hasBattery,
           hasSolar,
           hasBatteryCharge,
         }),
-        value: minPrice === maxPrice ? `${minPrice.toFixed(1)}p` : `${minPrice.toFixed(1)}–${maxPrice.toFixed(1)}p`,
-        color: first.color,
-        highlight: group.slots.some((slot) => slot.highlight),
+        value: session.priceRange ?? (session.priceMin === session.priceMax ? `${session.priceMin.toFixed(1)}p` : `${session.priceMin.toFixed(1)}–${session.priceMax.toFixed(1)}p`),
+        color: session.color,
+        highlight: session.highlight,
         modeTag:
           mode === "CHEAPEST"
             ? "Cheapest plan"
@@ -251,14 +205,14 @@ export function buildPlanTimelineViewModel(
             ? "Balanced plan"
             : "Greenest plan",
         emphasis:
-          group.coreAction === "export"
+          coreAction === "export"
             ? "high"
-            : group.coreAction === "charge_ev" || group.coreAction === "charge_battery"
+            : coreAction === "charge_ev" || coreAction === "charge_battery"
             ? mode === "BALANCED"
               ? "medium"
               : "high"
             : "low",
-        coreAction: group.coreAction,
+        coreAction,
       };
     }),
   };
@@ -288,15 +242,19 @@ export function buildPriceWindowsViewModel(
 export function buildPlanSummaryViewModel({
   summary,
   gridlySummary,
+  sessions,
 }: {
   summary: PlanSummary;
   gridlySummary: GridlyPlanSummary;
+  sessions: GridlyPlanSession[];
 }): PlanSummaryViewModel {
+  const highlights = sessions.map(formatSessionOutcome);
+
   return {
     title: "Why this plan works",
     summary: gridlySummary.customerReason,
     modeTag: summary.mode,
-    highlights: gridlySummary.keyOutcomes,
+    highlights,
   };
 }
 
