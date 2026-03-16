@@ -1,10 +1,13 @@
 import HistoryTab from "../components/HistoryTab";
 import HomeTab from "../components/HomeTab";
 import PlanTab from "../components/PlanTab";
+import { SANDBOX } from "../data/sandbox";
 import { buildGridlyPlan } from "../lib/gridlyPlan";
 import { useState, useEffect, useMemo } from "react";
 import { Sun, Battery, Zap, Grid3X3, Home, Calendar, Clock, ChevronDown, ChevronUp } from "lucide-react";
 import { AGILE_RATES, type AgileRate } from "../data/agileRates";
+
+export { SANDBOX };
 
 // ── DEVICE CONFIG ─────────────────────────────────────────────────────────
 export const ALL_DEVICES = [
@@ -15,76 +18,6 @@ export const ALL_DEVICES = [
 ];
 
 export type DeviceConfig = (typeof ALL_DEVICES)[number];
-
-// ── SANDBOX DATA ──────────────────────────────────────────────────────────
-export const SANDBOX = {
-  savedToday: 3.76,
-  earnedToday: 1.52,
-  allTime: 713.67,
-  allTimeSince: "March 2024",
-  solar: { w: 2840, batteryPct: 62, gridW: 420, homeW: 1200 },
-  solarForecast: { kwh: 18.4, confidence: 82, condition: "Mostly sunny", icon: "🌤️", deltaKwh: 2.1 },
-  batteryHealth: { cyclesUsed: 312, cyclesTotal: 6000, capacityPct: 97, projectedLifeYears: 14.2, weeklyChargeCycles: 4.2 },
-  tariffs: [
-    { id: "agile",   name: "Octopus Agile",         annualSaving: 713,  current: true,  badge: "You're on this" },
-    { id: "go",      name: "Intelligent Octopus Go",  annualSaving: 1041, current: false, badge: "Best for EV" },
-    { id: "flux",    name: "Octopus Flux",            annualSaving: 892,  current: false, badge: "Best for battery" },
-    { id: "cosy",    name: "Cosy Octopus",            annualSaving: 634,  current: false, badge: null },
-  ],
-  history: [
-    { day: "Mon", solar: 0.96, battery: 0.81, ev: 0.52, grid: 0.14 },
-    { day: "Tue", solar: 1.38, battery: 1.05, ev: 0.74, grid: 0.20 },
-    { day: "Wed", solar: 0.72, battery: 0.69, ev: 0.31, grid: 0.10 },
-    { day: "Thu", solar: 1.94, battery: 1.41, ev: 1.12, grid: 0.28 },
-    { day: "Fri", solar: 1.08, battery: 0.92, ev: 0.66, grid: 0.16 },
-    { day: "Sat", solar: 2.46, battery: 1.78, ev: 1.54, grid: 0.39 },
-    { day: "Sun", solar: 1.63, battery: 1.18, ev: 0.91, grid: 0.24 },
-    { day: "Mon", solar: 1.24, battery: 0.98, ev: 0.63, grid: 0.18 },
-    { day: "Tue", solar: 2.11, battery: 1.42, ev: 1.21, grid: 0.31 },
-    { day: "Wed", solar: 0.94, battery: 0.87, ev: 0.44, grid: 0.12 },
-    { day: "Thu", solar: 2.64, battery: 1.84, ev: 1.84, grid: 0.47 },
-    { day: "Fri", solar: 1.52, battery: 1.21, ev: 0.97, grid: 0.22 },
-    { day: "Sat", solar: 3.41, battery: 2.31, ev: 2.31, grid: 0.58 },
-    { day: "Sun", solar: 2.18, battery: 1.52, ev: 1.52, grid: 0.34 },
-  ],
-  plan: [
-    { time: "11:30pm", action: "CHARGE", title: "Charging your battery",    reason: "Cheapest rate of the night",        price: 4.8,  color: "#22C55E", requires: ["battery"] },
-    { time: "2:00am",  action: "HOLD",   title: "Resting overnight",        reason: "Nothing to do — holding steady",   price: 5.1,  color: "#6B7280", requires: [] },
-    { time: "8:00am",  action: "EXPORT", title: "Selling to the grid",      reason: "High price — earning for you",     price: 31.2, color: "#F59E0B", requires: ["battery", "grid"] },
-    { time: "11:00am", action: "SOLAR",  title: "Solar powering your home", reason: "Free electricity from your panels",price: 9.6,  color: "#F59E0B", requires: ["solar"] },
-    { time: "5:30pm",  action: "EXPORT", title: "Peak earnings window",     reason: "Best price of the day",            price: 38.6, color: "#F59E0B", requires: ["battery", "grid"] },
-    { time: "8:00pm",  action: "CHARGE", title: "Topping up for tomorrow",  reason: "Price dropping — refilling now",   price: 11.8, color: "#22C55E", requires: ["battery"] },
-  ],
-  // Carbon intensity (gCO2/kWh) — 48 half-hour slots. Source: National Grid ESO API
-  carbonIntensity: [
-    210,198,187,176,165,158,152,148,144,141,139,142,
-    148,156,168,182,194,203,211,218,222,219,214,208,
-    201,195,188,182,176,171,167,164,162,160,159,158,
-    162,168,176,184,192,198,203,206,208,207,204,200,
-  ],
-  // Charging sessions — last 10
-  chargeSessions: [
-    { date: "Today",     startTime: "03:00", endTime: "05:30", kwh: 18.5, cost: 1.42, avgPence: 7.7,  carbonG: 2868 },
-    { date: "Yesterday", startTime: "02:30", endTime: "06:00", kwh: 22.1, cost: 1.89, avgPence: 8.6,  carbonG: 3271 },
-    { date: "Mon",       startTime: "03:00", endTime: "05:00", kwh: 14.8, cost: 1.11, avgPence: 7.5,  carbonG: 2186 },
-    { date: "Sun",       startTime: "01:30", endTime: "04:30", kwh: 22.2, cost: 1.64, avgPence: 7.4,  carbonG: 3196 },
-    { date: "Sat",       startTime: "02:00", endTime: "05:00", kwh: 22.2, cost: 1.71, avgPence: 7.7,  carbonG: 3152 },
-    { date: "Fri",       startTime: "03:30", endTime: "05:30", kwh: 14.8, cost: 1.32, avgPence: 8.9,  carbonG: 2149 },
-    { date: "Thu",       startTime: "02:30", endTime: "05:00", kwh: 18.5, cost: 1.46, avgPence: 7.9,  carbonG: 2701 },
-    { date: "Wed",       startTime: "03:00", endTime: "04:30", kwh: 11.1, cost: 0.84, avgPence: 7.6,  carbonG: 1598 },
-    { date: "Tue",       startTime: "02:00", endTime: "05:30", kwh: 25.9, cost: 2.01, avgPence: 7.8,  carbonG: 3782 },
-    { date: "Mon",       startTime: "03:00", endTime: "06:00", kwh: 22.2, cost: 1.71, avgPence: 7.7,  carbonG: 3219 },
-  ],
-  // Device health — last reported timestamps
-  deviceHealth: {
-    solar:   { lastSeen: 2,   ok: true  },   // minutes ago
-    battery: { lastSeen: 2,   ok: true  },
-    ev:      { lastSeen: 847, ok: false },   // 14hrs ago — simulate Lynne's problem
-    grid:    { lastSeen: 4,   ok: true  },
-  },
-  // Nightly report card
-  nightlyReport: "Last night Gridly charged your battery at 4.8p, your EV at 5.1p, and exported 8kWh at 38.6p. Total earned: £4.21. Today looks strong — 18kWh of solar forecast and peak prices above 35p this evening.",
-};
 
 export { AGILE_RATES };
 export type { AgileRate };

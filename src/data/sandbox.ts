@@ -1,8 +1,21 @@
-export const SANDBOX = {
-  savedToday: 3.76,
-  earnedToday: 1.52,
-  allTime: 713.67,
-  allTimeSince: "March 2024",
-  solar: { w: 2840, batteryPct: 62, gridW: 420, homeW: 1200 },
-  // ...keep the rest
-};
+import {
+  createLegacySandboxSnapshot,
+  getCanonicalSimulationSnapshot,
+  type LegacySandboxData,
+} from "../simulator";
+
+/**
+ * Legacy compatibility export.
+ *
+ * Existing dashboard code still expects a monolithic SANDBOX object. This now
+ * comes from the canonical simulator instead of a hand-maintained fixture.
+ */
+export function getSandboxSnapshot(now: Date = new Date()): LegacySandboxData {
+  return createLegacySandboxSnapshot(now);
+}
+
+export function getSandboxCanonicalSnapshot(now: Date = new Date()) {
+  return getCanonicalSimulationSnapshot(now);
+}
+
+export const SANDBOX = getSandboxSnapshot();
