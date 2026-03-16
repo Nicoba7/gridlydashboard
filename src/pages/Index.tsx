@@ -2,9 +2,12 @@ import { useState, useEffect, useCallback } from "react";
 import { Sun, Zap, Battery, PoundSterling, TrendingUp, RefreshCw, Wifi, WifiOff, ChevronRight, AlertCircle, Settings } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import GridlySetup from "./GridlySetup";
-import { optimizePlan } from "../engine/core/optimizePlan";
-import { explainPlan } from "../engine/core/explainPlan";
-import { mapEngineToHome } from "../features/home/mapEngineToHome";
+import {
+  buildIndexOptimizerInput,
+  buildIndexUiViewModel,
+  optimize,
+  type IndexConnectedDeviceId,
+} from "../optimizer";
 
 // ── SANDBOX DATA ──────────────────────────────────────────────────────────
 const SANDBOX = {
@@ -49,38 +52,6 @@ function getCurrentRate(rates: Rate[]): Rate | null {
 function getNextRates(rates: Rate[], n = 6): Rate[] {
   const now = new Date();
   return rates.filter((r) => r.from > now).slice(0, n);
-}
-
-function buildEngineInput(rates: Rate[], g: typeof SANDBOX.givenergy) {
-  const forecastLoadKwh = rates.map(() => Math.max(g.consumptionW / 1000 / 2, 0.4));
-  const forecastSolarKwh = rates.map((rate) => {
-    const hour = rate.from.getHours() + rate.from.getMinutes() / 60;
-
-    if (hour < 6 || hour > 19) {
-      return 0;
-    }
-
-    if (hour >= 11 && hour <= 15) {
-      return 2.8;
-    }
-
-    if ((hour >= 9 && hour < 11) || (hour > 15 && hour <= 17)) {
-      return 1.6;
-    }
-
-    return 0.6;
-  });
-
-  const importPrice = rates.map((rate) => rate.pence / 100);
-  const exportPrice = rates.map((rate) => Math.max(0.05, rate.pence / 100 - 0.03));
-
-  return {
-    batterySocPercent: g.batteryPct,
-    forecastLoadKwh,
-    forecastSolarKwh,
-    importPrice,
-    exportPrice,
-  };
 }
 
 function actionToColor(action?: string): string {
@@ -188,16 +159,27 @@ const Index = () => {
   const currentRate = getCurrentRate(rates);
   const nextRates = getNextRates(rates, 8);
   const displayRates = currentRate ? [currentRate, ...nextRates] : nextRates;
-  const engineInput = buildEngineInput(rates, g);
-  const engineOutput = optimizePlan(engineInput);
-  const homeView = mapEngineToHome(engineOutput);
-  const planExplanation = explainPlan(engineOutput);
+  const connectedDeviceIds: IndexConnectedDeviceId[] = ALL_DEVICES
+    .filter((device) => device.connected)
+    .map((device) => device.id)
+    .filter((id): id is IndexConnectedDeviceId => id === "solar" || id === "battery" || id === "ev" || id === "grid");
 
-  const primaryRecommendation = engineOutput.recommendations[0];
+  const optimizerInput = buildIndexOptimizerInput({
+    now,
+    rates,
+    connectedDeviceIds,
+    batteryStartPct: g.batteryPct,
+    batteryCapacityKwh: g.batteryCapKwh,
+    householdPowerW: g.consumptionW,
+    solarForecastKwh: g.todaySolarKwh,
+  });
+  const optimizerOutput = optimize(optimizerInput);
+  const indexView = buildIndexUiViewModel(optimizerOutput);
+
   const opt = {
-    action: actionToLabel(primaryRecommendation?.action),
-    reason: engineOutput.subheadline ?? planExplanation.shortReason ?? "Gridly is evaluating the best time to act.",
-    color: actionToColor(primaryRecommendation?.action),
+    action: actionToLabel(indexView.currentRecommendation.action),
+    reason: indexView.subheadline || "Gridly is evaluating the best time to act.",
+    color: actionToColor(indexView.currentRecommendation.action),
   };  
   const savedToday = calcTodaySavings(g);
   const connectedDevices = ALL_DEVICES.filter(d => d.connected);
@@ -273,24 +255,24 @@ const Index = () => {
           <span style={{ fontSize: 10, color: "#4B5563" }}>Auto-updates every 30 min</span>
         </div>
         <div style={{ fontSize: 20, fontWeight: 800, color: opt.color, letterSpacing: -0.5 }}>
-           {homeView.headline}
+           {indexView.headline}
         </div>
         <div style={{ fontSize: 12, color: "#9CA3AF", marginTop: 3 }}>
-            {homeView.subheadline ?? opt.reason}
+            {indexView.subheadline || opt.reason}
         </div>
         <div style={{ display: "flex", gap: 12, marginTop: 10, flexWrap: "wrap" }}>
-          {homeView.savings !== undefined && (
+          {indexView.savingsEstimate > 0 && (
             <span style={{ fontSize: 11, color: "#22C55E", fontWeight: 700 }}>
-              Saving est. £{homeView.savings.toFixed(2)}
+              Saving est. £{indexView.savingsEstimate.toFixed(2)}
             </span>
           )}
-          {planExplanation.confidenceLabel && (
+          {indexView.confidenceLabel && (
             <span style={{ fontSize: 11, color: "#9CA3AF" }}>
-              {planExplanation.confidenceLabel}
+              {indexView.confidenceLabel}
             </span>
           )}
           <span style={{ fontSize: 11, color: "#6B7280" }}>
-            {homeView.actionCount} planned actions
+            {indexView.actionCount} planned actions
           </span>
         </div>
       </div>

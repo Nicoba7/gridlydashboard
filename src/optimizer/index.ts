@@ -13,6 +13,18 @@ export {
   type HomeUiViewModel,
 } from "./homeUiAdapter";
 export {
+  buildIndexOptimizerInput,
+  type IndexConnectedDeviceId,
+  type IndexOptimizerContextInput,
+  type IndexRate,
+} from "./indexInputAdapter";
+export {
+  buildIndexUiViewModel,
+  type IndexRecommendation,
+  type IndexRecommendationAction,
+  type IndexUiViewModel,
+} from "./indexUiAdapter";
+export {
   buildOptimizerInputFromLegacyPlanContext,
   type LegacyConnectedDeviceId,
   type LegacyPlanContextInput,
