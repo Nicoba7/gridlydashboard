@@ -116,6 +116,16 @@ function buildCycleDecisionSummaries(controlLoopResult: ControlLoopResult): Exec
     decisionId: decision.decisionId,
     action: decision.action,
     targetDeviceIds: [...decision.targetDeviceIds],
+    marginalImportAvoidance: decision.marginalImportAvoidancePencePerKwh,
+    marginalExportValue: decision.marginalExportValuePencePerKwh,
+    grossStoredEnergyValue: decision.grossStoredEnergyValuePencePerKwh,
+    netStoredEnergyValue: decision.netStoredEnergyValuePencePerKwh,
+    batteryDegradationCost: decision.batteryDegradationCostPencePerKwh,
+    effectiveStoredEnergyValue: decision.effectiveStoredEnergyValuePencePerKwh,
+    planningConfidenceLevel: decision.planningConfidenceLevel,
+    conservativeAdjustmentApplied: decision.conservativeAdjustmentApplied,
+    conservativeAdjustmentReason: decision.conservativeAdjustmentReason,
+    decisionReason: decision.reason,
   }));
 }
 

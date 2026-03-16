@@ -15,6 +15,7 @@ function computeHoldCurrentStateBaseline(
 ): {
   importCostPence: number;
   exportRevenuePence: number;
+  batteryDegradationCostPence: number;
   netCostPence: number;
   caveats: string[];
 } {
@@ -30,6 +31,7 @@ function computeHoldCurrentStateBaseline(
     return {
       importCostPence: 0,
       exportRevenuePence: 0,
+      batteryDegradationCostPence: 0,
       netCostPence: 0,
       caveats,
     };
@@ -68,6 +70,7 @@ function computeHoldCurrentStateBaseline(
   return {
     importCostPence: roundedImportCostPence,
     exportRevenuePence: roundedExportRevenuePence,
+    batteryDegradationCostPence: 0,
     netCostPence: roundedImportCostPence - roundedExportRevenuePence,
     caveats,
   };
@@ -78,7 +81,8 @@ export function buildCanonicalValueLedger(
 ): CanonicalValueLedger {
   const estimatedImportCostPence = input.optimizerOutput.summary.expectedImportCostPence;
   const estimatedExportRevenuePence = input.optimizerOutput.summary.expectedExportRevenuePence;
-  const estimatedNetCostPence = estimatedImportCostPence - estimatedExportRevenuePence;
+  const estimatedBatteryDegradationCostPence = input.optimizerOutput.summary.expectedBatteryDegradationCostPence ?? 0;
+  const estimatedNetCostPence = estimatedImportCostPence - estimatedExportRevenuePence + estimatedBatteryDegradationCostPence;
 
   const baseline = computeHoldCurrentStateBaseline(input.forecasts, input.tariffSchedule);
 
@@ -86,6 +90,10 @@ export function buildCanonicalValueLedger(
     "Estimated optimized value uses canonical optimizer summary for this planning run.",
     "Baseline uses hold_current_state: forecast load/solar is settled directly against tariff slots with no optimization actions.",
   ];
+
+  if (estimatedBatteryDegradationCostPence > 0) {
+    assumptions.push("Estimated optimized value includes battery degradation cost for planned discharge throughput.");
+  }
 
   if (!input.tariffSchedule.exportRates?.length) {
     assumptions.push("No export tariff schedule was available; baseline export value is conservatively treated as zero.");
@@ -95,11 +103,13 @@ export function buildCanonicalValueLedger(
     optimizationMode: input.optimizationMode,
     estimatedImportCostPence,
     estimatedExportRevenuePence,
+    estimatedBatteryDegradationCostPence,
     estimatedNetCostPence,
     baselineType: "hold_current_state",
     baselineNetCostPence: baseline.netCostPence,
     baselineImportCostPence: baseline.importCostPence,
     baselineExportRevenuePence: baseline.exportRevenuePence,
+    baselineBatteryDegradationCostPence: baseline.batteryDegradationCostPence,
     estimatedSavingsVsBaselinePence: baseline.netCostPence - estimatedNetCostPence,
     assumptions,
     caveats: baseline.caveats,

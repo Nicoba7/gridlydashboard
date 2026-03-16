@@ -4,6 +4,7 @@ import type { SystemState } from "./system";
 import type { TariffSchedule } from "./tariff";
 
 export type OptimizationMode = "cost" | "balanced" | "carbon" | "self_consumption";
+export type PlanningConfidenceLevel = "high" | "medium" | "low";
 
 export type OptimizerAction =
   | "charge_battery"
@@ -43,6 +44,8 @@ export interface Constraints {
   maxExportPowerW?: number;
   /** Minimum lead time before a scheduled command may execute. */
   minCommandLeadMinutes?: number;
+  /** Canonical battery wear cost assumption in pence per kWh discharged. */
+  batteryDegradationCostPencePerKwh?: number;
 }
 
 /**
@@ -87,8 +90,47 @@ export interface OptimizerDecision {
   expectedEvSocPercent?: number;
   /** Machine- and user-readable explanation for the action. */
   reason: string;
+  /** Marginal import-avoidance value for one additional stored kWh at this slot. */
+  marginalImportAvoidancePencePerKwh?: number;
+  /** Marginal export-opportunity value for one additional stored kWh at this slot. */
+  marginalExportValuePencePerKwh?: number;
+  /** Effective value used for storage decisioning at this slot. */
+  effectiveStoredEnergyValuePencePerKwh?: number;
+  /** Gross stored-energy value before degradation cost is applied. */
+  grossStoredEnergyValuePencePerKwh?: number;
+  /** Net stored-energy value after degradation cost is applied. */
+  netStoredEnergyValuePencePerKwh?: number;
+  /** Applied battery degradation cost for this decision slot. */
+  batteryDegradationCostPencePerKwh?: number;
+  /** Planning confidence level used when evaluating this decision slot. */
+  planningConfidenceLevel?: PlanningConfidenceLevel;
+  /** Whether conservative gating adjusted this slot's decision thresholds. */
+  conservativeAdjustmentApplied?: boolean;
+  /** Explicit rationale for conservative gating when applied. */
+  conservativeAdjustmentReason?: string;
   /** Confidence score from 0 to 1 for the decision. */
   confidence: number;
+}
+
+export interface InputCoverageMetric {
+  availableSlots: number;
+  totalPlannedSlots: number;
+  coveragePercent: number;
+}
+
+export interface PlanningInputCoverage {
+  plannedSlotCount: number;
+  tariffImport: InputCoverageMetric;
+  tariffExport: InputCoverageMetric;
+  forecastLoad: InputCoverageMetric;
+  forecastSolar: InputCoverageMetric;
+  fallbackSlotCount: number;
+  fallbackByType: {
+    exportRateSlots: number;
+    loadForecastSlots: number;
+    solarForecastSlots: number;
+  };
+  caveats: string[];
 }
 
 /**
@@ -98,6 +140,7 @@ export interface OptimizerSummary {
   expectedImportCostPence: number;
   expectedExportRevenuePence: number;
   expectedNetValuePence: number;
+  expectedBatteryDegradationCostPence?: number;
   expectedSolarSelfConsumptionKwh?: number;
   expectedBatteryCycles?: number;
   expectedCarbonAvoidedGrams?: number;
@@ -156,6 +199,14 @@ export interface OptimizerOutput {
   summary: OptimizerSummary;
   /** Explainability and quality diagnostics. */
   diagnostics: OptimizerDiagnostic[];
+  /** Canonical coverage and fallback usage for planning inputs. */
+  planningInputCoverage?: PlanningInputCoverage;
+  /** Aggregate planning confidence level for this runtime optimization pass. */
+  planningConfidenceLevel?: PlanningConfidenceLevel;
+  /** Whether conservative gating was applied due to imperfect planning inputs. */
+  conservativeAdjustmentApplied?: boolean;
+  /** Explicit reason for conservative planning adjustment. */
+  conservativeAdjustmentReason?: string;
   /** Explicit feasibility outcome for execution-layer readiness checks. */
   feasibility?: OptimizerFeasibility;
   /** Assumptions made while generating this plan. */

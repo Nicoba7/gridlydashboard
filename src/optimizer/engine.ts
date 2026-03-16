@@ -2,8 +2,48 @@ import type { OptimizerInput, OptimizerOutput } from "../domain";
 import { buildOptimizerExplanation } from "./explain";
 import { buildCanonicalRuntimeResult } from "./runtimeCoreMapper";
 
+function isFiniteTimestamp(timestamp: string | undefined): boolean {
+  if (!timestamp) {
+    return false;
+  }
+
+  return Number.isFinite(new Date(timestamp).getTime());
+}
+
+function resolvePlanningTimestamp(input: OptimizerInput): string {
+  if (isFiniteTimestamp(input.systemState.capturedAt)) {
+    return input.systemState.capturedAt;
+  }
+
+  if (isFiniteTimestamp(input.forecasts.horizonStartAt)) {
+    return input.forecasts.horizonStartAt;
+  }
+
+  return "1970-01-01T00:00:00.000Z";
+}
+
+function toPlanToken(value: string): string {
+  return value.replace(/[^a-zA-Z0-9]/g, "").slice(0, 32) || "na";
+}
+
+function toDeterministicBlockedPlanId(input: OptimizerInput, generatedAt: string): string {
+  const horizonStartAt = input.forecasts.horizonStartAt ?? generatedAt;
+  const horizonEndAt = input.forecasts.horizonEndAt ?? generatedAt;
+
+  return [
+    input.systemState.siteId,
+    input.constraints.mode,
+    generatedAt,
+    horizonStartAt,
+    horizonEndAt,
+    "blocked",
+  ]
+    .map((value) => toPlanToken(value))
+    .join("-");
+}
+
 function buildBlockedOutput(input: OptimizerInput): OptimizerOutput {
-  const generatedAt = new Date().toISOString();
+  const generatedAt = resolvePlanningTimestamp(input);
   const diagnostics = [
     {
       code: "MISSING_TARIFF_DATA",
@@ -15,7 +55,7 @@ function buildBlockedOutput(input: OptimizerInput): OptimizerOutput {
   return {
     schemaVersion: "optimizer-output.v1.1",
     plannerVersion: "canonical-runtime.v1",
-    planId: `${input.systemState.siteId}-${generatedAt.replace(/[-:.TZ]/g, "")}`,
+    planId: toDeterministicBlockedPlanId(input, generatedAt),
     generatedAt,
     planningWindow: undefined,
     status: "blocked",
@@ -28,6 +68,23 @@ function buildBlockedOutput(input: OptimizerInput): OptimizerOutput {
       expectedNetValuePence: 0,
     },
     diagnostics,
+    planningInputCoverage: {
+      plannedSlotCount: 0,
+      tariffImport: { availableSlots: 0, totalPlannedSlots: 0, coveragePercent: 0 },
+      tariffExport: { availableSlots: 0, totalPlannedSlots: 0, coveragePercent: 0 },
+      forecastLoad: { availableSlots: 0, totalPlannedSlots: 0, coveragePercent: 0 },
+      forecastSolar: { availableSlots: 0, totalPlannedSlots: 0, coveragePercent: 0 },
+      fallbackSlotCount: 0,
+      fallbackByType: {
+        exportRateSlots: 0,
+        loadForecastSlots: 0,
+        solarForecastSlots: 0,
+      },
+      caveats: ["Planning did not run because no import tariff slots were available."],
+    },
+    planningConfidenceLevel: "low",
+    conservativeAdjustmentApplied: true,
+    conservativeAdjustmentReason: "Planning blocked due to missing import tariff data.",
     feasibility: {
       executable: false,
       reasonCodes: ["MISSING_TARIFF_DATA"],
@@ -72,6 +129,10 @@ export function optimize(input: OptimizerInput): OptimizerOutput {
     recommendedCommands: result.recommendedCommands,
     summary: result.summary,
     diagnostics: explanation.diagnostics,
+    planningInputCoverage: result.planningInputCoverage,
+    planningConfidenceLevel: result.planningConfidenceLevel,
+    conservativeAdjustmentApplied: result.conservativeAdjustmentApplied,
+    conservativeAdjustmentReason: result.conservativeAdjustmentReason,
     feasibility: {
       executable: result.feasibility.executable && !hasCritical,
       reasonCodes: result.feasibility.reasonCodes,

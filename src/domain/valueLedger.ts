@@ -6,11 +6,13 @@ export interface CanonicalValueLedger {
   optimizationMode: OptimizationMode;
   estimatedImportCostPence: number;
   estimatedExportRevenuePence: number;
+  estimatedBatteryDegradationCostPence: number;
   estimatedNetCostPence: number;
   baselineType: ValueLedgerBaselineType;
   baselineNetCostPence: number;
   baselineImportCostPence: number;
   baselineExportRevenuePence: number;
+  baselineBatteryDegradationCostPence: number;
   estimatedSavingsVsBaselinePence: number;
   assumptions: string[];
   caveats: string[];

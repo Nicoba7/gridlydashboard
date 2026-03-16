@@ -38,6 +38,15 @@ function buildDecision(id: string, deviceId: string): OptimizerDecision {
     targetDeviceIds: [deviceId],
     targetDevices: [{ deviceId }],
     reason: "Test",
+    marginalImportAvoidancePencePerKwh: 12.4,
+    marginalExportValuePencePerKwh: 9.3,
+    grossStoredEnergyValuePencePerKwh: 12.4,
+    netStoredEnergyValuePencePerKwh: 10.4,
+    batteryDegradationCostPencePerKwh: 2,
+    effectiveStoredEnergyValuePencePerKwh: 12.4,
+    planningConfidenceLevel: "medium",
+    conservativeAdjustmentApplied: true,
+    conservativeAdjustmentReason: "Export tariff coverage is partial. Fallback/default forecast or tariff values were used.",
     confidence: 0.8,
   };
 }
@@ -257,16 +266,37 @@ describe("runControlLoopExecutionService journal", () => {
           optimizationMode: "cost",
           estimatedImportCostPence: 120,
           estimatedExportRevenuePence: 40,
+          estimatedBatteryDegradationCostPence: 2,
           estimatedNetCostPence: 80,
           baselineType: "hold_current_state",
           baselineNetCostPence: 100,
           baselineImportCostPence: 110,
           baselineExportRevenuePence: 10,
+          baselineBatteryDegradationCostPence: 0,
           estimatedSavingsVsBaselinePence: 20,
           assumptions: ["test assumption"],
           caveats: [],
           confidence: 0.8,
         },
+        planningInputCoverage: {
+          plannedSlotCount: 4,
+          tariffImport: { availableSlots: 4, totalPlannedSlots: 4, coveragePercent: 100 },
+          tariffExport: { availableSlots: 2, totalPlannedSlots: 4, coveragePercent: 50 },
+          forecastLoad: { availableSlots: 3, totalPlannedSlots: 4, coveragePercent: 75 },
+          forecastSolar: { availableSlots: 4, totalPlannedSlots: 4, coveragePercent: 100 },
+          fallbackSlotCount: 1,
+          fallbackByType: {
+            exportRateSlots: 2,
+            loadForecastSlots: 1,
+            solarForecastSlots: 0,
+          },
+          caveats: ["Fallback/default slot values were used for at least one planned slot."],
+        },
+        planningConfidenceLevel: "medium",
+        conservativeAdjustmentApplied: true,
+        conservativeAdjustmentReason: "Export tariff coverage is partial. Fallback/default forecast or tariff values were used.",
+        planningAssumptions: ["test assumption"],
+        planningWarnings: ["PARTIAL_EXPORT_RATE_COVERAGE", "FALLBACK_SLOT_DEFAULTS_APPLIED"],
       },
     );
 
@@ -276,6 +306,21 @@ describe("runControlLoopExecutionService journal", () => {
     expect(entries[0].cycleFinancialContext?.valueLedger.estimatedSavingsVsBaselinePence).toBe(20);
     expect(entries[0].cycleFinancialContext?.decisionsTaken).toHaveLength(1);
     expect(entries[0].cycleFinancialContext?.decisionsTaken[0]?.decisionId).toBe("decision-1");
+    expect(entries[0].cycleFinancialContext?.decisionsTaken[0]?.marginalImportAvoidance).toBe(12.4);
+    expect(entries[0].cycleFinancialContext?.decisionsTaken[0]?.marginalExportValue).toBe(9.3);
+    expect(entries[0].cycleFinancialContext?.decisionsTaken[0]?.grossStoredEnergyValue).toBe(12.4);
+    expect(entries[0].cycleFinancialContext?.decisionsTaken[0]?.netStoredEnergyValue).toBe(10.4);
+    expect(entries[0].cycleFinancialContext?.decisionsTaken[0]?.batteryDegradationCost).toBe(2);
+    expect(entries[0].cycleFinancialContext?.decisionsTaken[0]?.effectiveStoredEnergyValue).toBe(12.4);
+    expect(entries[0].cycleFinancialContext?.decisionsTaken[0]?.planningConfidenceLevel).toBe("medium");
+    expect(entries[0].cycleFinancialContext?.decisionsTaken[0]?.conservativeAdjustmentApplied).toBe(true);
+    expect(entries[0].cycleFinancialContext?.decisionsTaken[0]?.conservativeAdjustmentReason).toContain("Export tariff coverage is partial");
+    expect(entries[0].cycleFinancialContext?.decisionsTaken[0]?.decisionReason).toBe("Test");
+    expect(entries[0].cycleFinancialContext?.planningInputCoverage?.tariffExport.coveragePercent).toBe(50);
+    expect(entries[0].cycleFinancialContext?.planningInputCoverage?.forecastLoad.coveragePercent).toBe(75);
+    expect(entries[0].cycleFinancialContext?.planningConfidenceLevel).toBe("medium");
+    expect(entries[0].cycleFinancialContext?.conservativeAdjustmentApplied).toBe(true);
+    expect(entries[0].cycleFinancialContext?.planningWarnings).toContain("PARTIAL_EXPORT_RATE_COVERAGE");
   });
 
   it("records journal entry for failed dispatch", async () => {

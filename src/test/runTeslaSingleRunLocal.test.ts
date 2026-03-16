@@ -358,6 +358,161 @@ describe("runTeslaSingleRunLocal", () => {
     expect(summary.tariffForecastSummary.exportRateCount).toBe(1);
   });
 
+  it("emits concrete Tesla vehicle IDs in optimizer commands for runtime execution", async () => {
+    let capturedOptimizerOutput: OptimizerOutput | undefined;
+
+    const summary = await runTeslaSingleRunLocal(
+      {
+        TESLA_ACCESS_TOKEN: "token-123",
+        TESLA_VEHICLE_ID: "tesla-vehicle-1",
+        GRIDLY_NOW_ISO: "2026-03-16T10:05:00.000Z",
+      },
+      {
+        bootstrapFromSource: () => ({
+          config: {
+            accessToken: "token-123",
+            vehicleId: "tesla-vehicle-1",
+            timeoutMs: 10_000,
+          },
+          teslaAdapter: {} as never,
+          observedStateStore: {} as never,
+          executor: {} as never,
+          runCycle: async (input) => {
+            capturedOptimizerOutput = input.optimizerOutput;
+            return {
+              telemetryIngestionResult: {
+                ingestedCount: 1,
+                updatedStates: [],
+                outcomes: [],
+                acceptedCount: 1,
+                ignoredStaleCount: 0,
+                ignoredDuplicateCount: 0,
+                rejectedInvalidCount: 0,
+              },
+              controlLoopResult: {
+                activeDecisions: [],
+                commandsToIssue: [],
+                skippedDecisions: [],
+                replanRequired: true,
+                reasons: ["NO_ACTIVE_DECISIONS"],
+              },
+              executionResults: [],
+              executionSummary: {
+                total: 0,
+                issued: 0,
+                skipped: 0,
+                failed: 0,
+              },
+            };
+          },
+        }),
+        getSnapshot: () => ({
+          systemState: {
+            siteId: "site-1",
+            capturedAt: "2026-03-16T10:00:00.000Z",
+            timezone: "Europe/London",
+            devices: [
+              {
+                deviceId: "ev-generic-1",
+                kind: "ev_charger",
+                brand: "Generic",
+                name: "EV Charger",
+                connectionStatus: "online",
+                lastUpdatedAt: "2026-03-16T10:00:00.000Z",
+                capabilities: ["schedule_window", "start_stop"],
+                capacityKwh: 60,
+              },
+              {
+                deviceId: "grid-1",
+                kind: "smart_meter",
+                brand: "Octopus",
+                name: "Grid",
+                connectionStatus: "online",
+                lastUpdatedAt: "2026-03-16T10:00:00.000Z",
+                capabilities: ["read_tariff", "read_power"],
+              },
+            ],
+            homeLoadW: 1000,
+            solarGenerationW: 0,
+            batteryPowerW: 0,
+            evChargingPowerW: 0,
+            gridPowerW: 1000,
+            evConnected: true,
+            evSocPercent: 20,
+          },
+          forecasts: {
+            generatedAt: "2026-03-16T10:00:00.000Z",
+            horizonStartAt: "2026-03-16T10:00:00.000Z",
+            horizonEndAt: "2026-03-16T10:30:00.000Z",
+            slotDurationMinutes: 30,
+            householdLoadKwh: [
+              {
+                startAt: "2026-03-16T10:00:00.000Z",
+                endAt: "2026-03-16T10:30:00.000Z",
+                value: 1,
+                confidence: 0.9,
+              },
+            ],
+            solarGenerationKwh: [
+              {
+                startAt: "2026-03-16T10:00:00.000Z",
+                endAt: "2026-03-16T10:30:00.000Z",
+                value: 0,
+                confidence: 0.9,
+              },
+            ],
+            carbonIntensity: [
+              {
+                startAt: "2026-03-16T10:00:00.000Z",
+                endAt: "2026-03-16T10:30:00.000Z",
+                value: 200,
+                confidence: 0.9,
+              },
+            ],
+          },
+          tariffSchedule: {
+            tariffId: "tariff-1",
+            provider: "Gridly",
+            name: "Synthetic",
+            currency: "GBP",
+            updatedAt: "2026-03-16T10:00:00.000Z",
+            importRates: [
+              {
+                startAt: "2026-03-16T10:00:00.000Z",
+                endAt: "2026-03-16T10:30:00.000Z",
+                unitRatePencePerKwh: 10,
+                source: "live",
+              },
+            ],
+            exportRates: [
+              {
+                startAt: "2026-03-16T10:00:00.000Z",
+                endAt: "2026-03-16T10:30:00.000Z",
+                unitRatePencePerKwh: 5,
+                source: "live",
+              },
+            ],
+          },
+        }),
+        resolveTariffSchedule: async ({ fallbackTariffSchedule }) => ({
+          tariffSchedule: fallbackTariffSchedule,
+          source: "simulated",
+          caveats: ["test simulated tariff"],
+        }),
+      },
+    );
+
+    expect(summary.status).toBe("ok");
+    if (summary.status !== "ok") {
+      throw new Error("expected success summary");
+    }
+
+    const evDecision = capturedOptimizerOutput?.decisions.find((decision) => decision.action === "charge_ev");
+    expect(evDecision).toBeDefined();
+    expect(evDecision?.targetDeviceIds).toEqual(["tesla-vehicle-1"]);
+    expect(capturedOptimizerOutput?.recommendedCommands[0]?.deviceId).toBe("tesla-vehicle-1");
+  });
+
   it("returns bootstrap error summary with explicit code", async () => {
     const summary = await runTeslaSingleRunLocal(
       {

@@ -310,6 +310,12 @@ export async function runTeslaSingleRunLocal(
       cycleFinancialContext: {
         optimizationMode: optimizationMode.activeMode,
         valueLedger,
+        planningInputCoverage: optimizerOutput.planningInputCoverage,
+        planningConfidenceLevel: optimizerOutput.planningConfidenceLevel,
+        conservativeAdjustmentApplied: optimizerOutput.conservativeAdjustmentApplied,
+        conservativeAdjustmentReason: optimizerOutput.conservativeAdjustmentReason,
+        planningAssumptions: optimizerOutput.assumptions,
+        planningWarnings: optimizerOutput.warnings,
       },
     });
 

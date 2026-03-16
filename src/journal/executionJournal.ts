@@ -1,19 +1,36 @@
 import type { CanonicalDeviceCommand } from "../application/controlLoopExecution/canonicalCommand";
 import type { CommandAcknowledgementStatus } from "../application/controlLoopExecution/projectExecutionOutcome";
 import type { CommandExecutionStatus } from "../application/controlLoopExecution/types";
-import type { OptimizationMode } from "../domain";
+import type { OptimizationMode, PlanningConfidenceLevel } from "../domain";
+import type { PlanningInputCoverage } from "../domain/optimizer";
 import type { CanonicalValueLedger } from "../domain/valueLedger";
 
 export interface ExecutionCycleDecisionSummary {
   decisionId: string;
   action: string;
   targetDeviceIds: string[];
+  marginalImportAvoidance?: number;
+  marginalExportValue?: number;
+  grossStoredEnergyValue?: number;
+  netStoredEnergyValue?: number;
+  batteryDegradationCost?: number;
+  effectiveStoredEnergyValue?: number;
+  planningConfidenceLevel?: PlanningConfidenceLevel;
+  conservativeAdjustmentApplied?: boolean;
+  conservativeAdjustmentReason?: string;
+  decisionReason?: string;
 }
 
 export interface ExecutionCycleFinancialContext {
   optimizationMode: OptimizationMode;
   decisionsTaken: ExecutionCycleDecisionSummary[];
   valueLedger: CanonicalValueLedger;
+  planningInputCoverage?: PlanningInputCoverage;
+  planningConfidenceLevel?: PlanningConfidenceLevel;
+  conservativeAdjustmentApplied?: boolean;
+  conservativeAdjustmentReason?: string;
+  planningAssumptions?: string[];
+  planningWarnings?: string[];
 }
 
 /**

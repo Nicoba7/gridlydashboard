@@ -41,13 +41,20 @@ function buildInput(params: {
   exportRates: number[];
   loadKwh: number;
   solarKwh: number;
+  batteryDegradationCostPencePerKwh?: number;
+  capturedAt?: string;
+  loadSlotsCount?: number;
+  solarSlotsCount?: number;
 }): OptimizerInput {
   const start = new Date("2026-03-16T10:00:00.000Z").getTime();
+  const capturedAt = params.capturedAt ?? "2026-03-16T10:00:00.000Z";
+  const loadSlotsCount = params.loadSlotsCount ?? params.importRates.length;
+  const solarSlotsCount = params.solarSlotsCount ?? params.importRates.length;
 
   return {
     systemState: {
       siteId: "site-1",
-      capturedAt: "2026-03-16T10:00:00.000Z",
+      capturedAt,
       timezone: "Europe/London",
       devices: buildDevices(),
       homeLoadW: Math.round(params.loadKwh * 2000),
@@ -64,13 +71,13 @@ function buildInput(params: {
       horizonStartAt: "2026-03-16T10:00:00.000Z",
       horizonEndAt: new Date(start + params.importRates.length * 30 * 60 * 1000).toISOString(),
       slotDurationMinutes: 30,
-      householdLoadKwh: params.importRates.map((_, index) => ({
+      householdLoadKwh: params.importRates.slice(0, loadSlotsCount).map((_, index) => ({
         startAt: new Date(start + index * 30 * 60 * 1000).toISOString(),
         endAt: new Date(start + (index + 1) * 30 * 60 * 1000).toISOString(),
         value: params.loadKwh,
         confidence: 0.9,
       })),
-      solarGenerationKwh: params.importRates.map((_, index) => ({
+      solarGenerationKwh: params.importRates.slice(0, solarSlotsCount).map((_, index) => ({
         startAt: new Date(start + index * 30 * 60 * 1000).toISOString(),
         endAt: new Date(start + (index + 1) * 30 * 60 * 1000).toISOString(),
         value: params.solarKwh,
@@ -106,6 +113,7 @@ function buildInput(params: {
       mode: params.mode,
       batteryReservePercent: 30,
       maxBatteryCyclesPerDay: 2,
+      batteryDegradationCostPencePerKwh: params.batteryDegradationCostPencePerKwh,
       allowGridBatteryCharging: true,
       allowBatteryExport: true,
       allowAutomaticEvCharging: false,
@@ -164,5 +172,248 @@ describe("optimize mode-aware objective behavior", () => {
 
     expect(costResult.decisions[0]?.action).toBe("charge_battery");
     expect(balancedResult.decisions[0]?.action).toBe("hold");
+  });
+
+  it("charges battery when forward stored-energy value is strong", () => {
+    const result = optimize(
+      buildInput({
+        mode: "cost",
+        importRates: [15, 15],
+        exportRates: [5, 40],
+        loadKwh: 1,
+        solarKwh: 0,
+      }),
+    );
+
+    expect(result.decisions[0]?.action).toBe("charge_battery");
+    expect(result.decisions[0]?.reason).toContain("forward net stored-energy value");
+    expect(result.decisions[0]?.netStoredEnergyValuePencePerKwh).toBeDefined();
+    expect(result.decisions[0]?.effectiveStoredEnergyValuePencePerKwh).toBeDefined();
+  });
+
+  it("discharges when current net stored-energy value is still materially stronger", () => {
+    const result = optimize(
+      buildInput({
+        mode: "cost",
+        importRates: [30, 10],
+        exportRates: [5, 5],
+        loadKwh: 1,
+        solarKwh: 0,
+      }),
+    );
+
+    expect(result.decisions[0]?.action).toBe("discharge_battery");
+    expect(result.decisions[0]?.reason).toContain("immediate net discharge value");
+    expect((result.decisions[0]?.netStoredEnergyValuePencePerKwh ?? 0)).toBeGreaterThan(
+      result.decisions[1]?.netStoredEnergyValuePencePerKwh ?? 0,
+    );
+  });
+
+  it("can flip from discharge to hold as degradation cost increases", () => {
+    const lowWear = optimize(
+      buildInput({
+        mode: "balanced",
+        importRates: [23, 22],
+        exportRates: [0, 0],
+        loadKwh: 1,
+        solarKwh: 0,
+        batteryDegradationCostPencePerKwh: 0,
+      }),
+    );
+
+    const highWear = optimize(
+      buildInput({
+        mode: "balanced",
+        importRates: [23, 22],
+        exportRates: [0, 0],
+        loadKwh: 1,
+        solarKwh: 0,
+        batteryDegradationCostPencePerKwh: 1,
+      }),
+    );
+
+    expect(lowWear.decisions[0]?.action).toBe("discharge_battery");
+    expect(highWear.decisions[0]?.action).toBe("hold");
+  });
+
+  it("rejects charge arbitrage when degradation cost erodes forward spread", () => {
+    const noWearCost = optimize(
+      buildInput({
+        mode: "balanced",
+        importRates: [12, 15.5],
+        exportRates: [0, 0],
+        loadKwh: 1,
+        solarKwh: 0,
+        batteryDegradationCostPencePerKwh: 0,
+      }),
+    );
+
+    const withWearCost = optimize(
+      buildInput({
+        mode: "balanced",
+        importRates: [12, 15.5],
+        exportRates: [0, 0],
+        loadKwh: 1,
+        solarKwh: 0,
+        batteryDegradationCostPencePerKwh: 2,
+      }),
+    );
+
+    expect(noWearCost.decisions[0]?.action).toBe("charge_battery");
+    expect(withWearCost.decisions[0]?.action).toBe("hold");
+  });
+
+  it("includes battery degradation cost in expected net plan value", () => {
+    const withoutWear = optimize(
+      buildInput({
+        mode: "cost",
+        importRates: [30, 10],
+        exportRates: [5, 5],
+        loadKwh: 1,
+        solarKwh: 0,
+        batteryDegradationCostPencePerKwh: 0,
+      }),
+    );
+
+    const withWear = optimize(
+      buildInput({
+        mode: "cost",
+        importRates: [30, 10],
+        exportRates: [5, 5],
+        loadKwh: 1,
+        solarKwh: 0,
+        batteryDegradationCostPencePerKwh: 2,
+      }),
+    );
+
+    expect(withWear.summary.expectedBatteryDegradationCostPence).toBeGreaterThan(0);
+    expect(withWear.summary.expectedNetValuePence).toBeLessThan(withoutWear.summary.expectedNetValuePence);
+  });
+
+  it("emits executable concrete device ids in decisions and commands", () => {
+    const result = optimize(
+      buildInput({
+        mode: "cost",
+        importRates: [9, 10],
+        exportRates: [6, 6],
+        loadKwh: 1,
+        solarKwh: 0,
+      }),
+    );
+
+    expect(result.decisions[0]?.targetDeviceIds).toEqual(["battery-1"]);
+    expect(result.recommendedCommands[0]?.deviceId).toBe("battery-1");
+  });
+
+  it("rejects low-margin heuristic cycling when planning confidence is reduced", () => {
+    const completeCoverage = optimize(
+      buildInput({
+        mode: "cost",
+        importRates: [9, 10],
+        exportRates: [6, 6],
+        loadKwh: 1,
+        solarKwh: 0,
+      }),
+    );
+
+    const weakCoverage = optimize(
+      buildInput({
+        mode: "cost",
+        importRates: [9, 10],
+        exportRates: [6, 6],
+        loadKwh: 1,
+        solarKwh: 0,
+        loadSlotsCount: 1,
+      }),
+    );
+
+    expect(completeCoverage.decisions[0]?.action).toBe("charge_battery");
+    expect(weakCoverage.decisions[0]?.action).toBe("hold");
+    expect(weakCoverage.planningConfidenceLevel).toBe("low");
+    expect(weakCoverage.conservativeAdjustmentApplied).toBe(true);
+  });
+
+  it("softens export-driven action under partial export tariff coverage", () => {
+    const fullCoverage = optimize(
+      buildInput({
+        mode: "cost",
+        importRates: [20, 20],
+        exportRates: [18, 18],
+        loadKwh: 1,
+        solarKwh: 3,
+      }),
+    );
+
+    const partialCoverage = optimize(
+      buildInput({
+        mode: "cost",
+        importRates: [20, 20],
+        exportRates: [18],
+        loadKwh: 1,
+        solarKwh: 3,
+      }),
+    );
+
+    expect(fullCoverage.decisions[0]?.action).toBe("export_to_grid");
+    expect(partialCoverage.decisions[0]?.action).toBe("consume_solar");
+    expect(partialCoverage.decisions[0]?.reason).toContain("Conservative adjustment active");
+  });
+
+  it("does not apply conservatism penalty with complete coverage", () => {
+    const result = optimize(
+      buildInput({
+        mode: "balanced",
+        importRates: [15, 15],
+        exportRates: [5, 40],
+        loadKwh: 1,
+        solarKwh: 0,
+      }),
+    );
+
+    expect(result.planningConfidenceLevel).toBe("high");
+    expect(result.conservativeAdjustmentApplied).toBe(false);
+  });
+
+  it("produces identical optimizer output for same logical input and planning timestamp", () => {
+    const input = buildInput({
+      mode: "cost",
+      importRates: [9, 10],
+      exportRates: [6, 6],
+      loadKwh: 1,
+      solarKwh: 0,
+      capturedAt: "2026-03-16T10:05:00.000Z",
+    });
+
+    const first = optimize(input);
+    const second = optimize(input);
+
+    expect(first).toEqual(second);
+  });
+
+  it("changes generated metadata when injected planning timestamp changes", () => {
+    const baseParams = {
+      mode: "cost" as const,
+      importRates: [9, 10],
+      exportRates: [6, 6],
+      loadKwh: 1,
+      solarKwh: 0,
+    };
+
+    const first = optimize(
+      buildInput({
+        ...baseParams,
+        capturedAt: "2026-03-16T10:05:00.000Z",
+      }),
+    );
+    const second = optimize(
+      buildInput({
+        ...baseParams,
+        capturedAt: "2026-03-16T10:35:00.000Z",
+      }),
+    );
+
+    expect(first.generatedAt).toBe("2026-03-16T10:05:00.000Z");
+    expect(second.generatedAt).toBe("2026-03-16T10:35:00.000Z");
+    expect(first.planId).not.toBe(second.planId);
   });
 });

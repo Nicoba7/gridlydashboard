@@ -1,6 +1,8 @@
 import type {
   DeviceCapability,
   DeviceCommand,
+  PlanningConfidenceLevel,
+  PlanningInputCoverage,
   OptimizerDecision,
   OptimizerDecisionTarget,
   OptimizerDiagnostic,
@@ -9,6 +11,7 @@ import type {
   OptimizerSummary,
   TimeWindow,
 } from "../domain";
+import { buildMarginalStoredEnergyValueProfile } from "./marginalStoredEnergyValue";
 
 export interface CanonicalRuntimeResult {
   schemaVersion: string;
@@ -28,6 +31,10 @@ export interface CanonicalRuntimeResult {
   recommendedCommands: DeviceCommand[];
   summary: OptimizerSummary;
   diagnostics: OptimizerDiagnostic[];
+  planningInputCoverage: PlanningInputCoverage;
+  planningConfidenceLevel?: PlanningConfidenceLevel;
+  conservativeAdjustmentApplied?: boolean;
+  conservativeAdjustmentReason?: string;
   confidence: number;
 }
 
@@ -43,8 +50,190 @@ function average(values: number[]): number {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
-function toPlanId(siteId: string, generatedAt: string): string {
-  return `${siteId}-${generatedAt.replace(/[-:.TZ]/g, "")}`;
+function toCoverageMetric(availableSlots: number, totalPlannedSlots: number): PlanningInputCoverage["tariffImport"] {
+  if (totalPlannedSlots <= 0) {
+    return {
+      availableSlots,
+      totalPlannedSlots,
+      coveragePercent: 0,
+    };
+  }
+
+  return {
+    availableSlots,
+    totalPlannedSlots,
+    coveragePercent: Number(((availableSlots / totalPlannedSlots) * 100).toFixed(1)),
+  };
+}
+
+interface PlanningCoverageCounts {
+  importCoverageCount: number;
+  exportCoverageCount: number;
+  loadCoverageCount: number;
+  solarCoverageCount: number;
+  fallbackSlotCount: number;
+  fallbackExportRateSlots: number;
+  fallbackLoadForecastSlots: number;
+  fallbackSolarForecastSlots: number;
+}
+
+interface ConservatismPolicy {
+  planningConfidenceLevel: PlanningConfidenceLevel;
+  conservativeAdjustmentApplied: boolean;
+  conservativeAdjustmentReason?: string;
+  minValueSpreadPencePerKwh: number;
+  exportAttractivenessPremiumRatio: number;
+  allowHeuristicCycling: boolean;
+}
+
+function computePlanningCoverageCounts(input: OptimizerInput, slotCount: number): PlanningCoverageCounts {
+  const importCoverageCount = input.tariffSchedule.importRates.slice(0, slotCount).filter((rate) => rate !== undefined).length;
+  const exportCoverageCount = (input.tariffSchedule.exportRates ?? []).slice(0, slotCount).filter((rate) => rate !== undefined).length;
+  const loadCoverageCount = input.forecasts.householdLoadKwh.slice(0, slotCount).filter((slot) => slot !== undefined).length;
+  const solarCoverageCount = input.forecasts.solarGenerationKwh.slice(0, slotCount).filter((slot) => slot !== undefined).length;
+
+  let fallbackSlotCount = 0;
+  let fallbackExportRateSlots = 0;
+  let fallbackLoadForecastSlots = 0;
+  let fallbackSolarForecastSlots = 0;
+
+  for (let index = 0; index < slotCount; index += 1) {
+    const missingExport = !input.tariffSchedule.exportRates?.[index];
+    const missingLoad = !input.forecasts.householdLoadKwh[index];
+    const missingSolar = !input.forecasts.solarGenerationKwh[index];
+
+    if (missingExport) fallbackExportRateSlots += 1;
+    if (missingLoad) fallbackLoadForecastSlots += 1;
+    if (missingSolar) fallbackSolarForecastSlots += 1;
+    if (missingExport || missingLoad || missingSolar) fallbackSlotCount += 1;
+  }
+
+  return {
+    importCoverageCount,
+    exportCoverageCount,
+    loadCoverageCount,
+    solarCoverageCount,
+    fallbackSlotCount,
+    fallbackExportRateSlots,
+    fallbackLoadForecastSlots,
+    fallbackSolarForecastSlots,
+  };
+}
+
+function buildPlanningInputCoverage(slotCount: number, counts: PlanningCoverageCounts): PlanningInputCoverage {
+  const coverage: PlanningInputCoverage = {
+    plannedSlotCount: slotCount,
+    tariffImport: toCoverageMetric(counts.importCoverageCount, slotCount),
+    tariffExport: toCoverageMetric(counts.exportCoverageCount, slotCount),
+    forecastLoad: toCoverageMetric(counts.loadCoverageCount, slotCount),
+    forecastSolar: toCoverageMetric(counts.solarCoverageCount, slotCount),
+    fallbackSlotCount: counts.fallbackSlotCount,
+    fallbackByType: {
+      exportRateSlots: counts.fallbackExportRateSlots,
+      loadForecastSlots: counts.fallbackLoadForecastSlots,
+      solarForecastSlots: counts.fallbackSolarForecastSlots,
+    },
+    caveats: [],
+  };
+
+  if (coverage.tariffExport.availableSlots > 0 && coverage.tariffExport.availableSlots < slotCount) {
+    coverage.caveats.push("Export tariff coverage is partial; missing export slots used fallback assumptions.");
+  }
+
+  if (coverage.fallbackSlotCount > 0) {
+    coverage.caveats.push("Fallback/default slot values were used for at least one planned slot.");
+  }
+
+  return coverage;
+}
+
+function buildConservatismPolicy(coverage: PlanningInputCoverage): ConservatismPolicy {
+  const reasons: string[] = [];
+  let planningConfidenceLevel: PlanningConfidenceLevel = "high";
+
+  if (coverage.tariffExport.availableSlots === 0) {
+    planningConfidenceLevel = "low";
+    reasons.push("No export tariff rates available across planned horizon.");
+  } else if (coverage.tariffExport.availableSlots < coverage.plannedSlotCount) {
+    planningConfidenceLevel = "medium";
+    reasons.push("Export tariff coverage is partial.");
+  }
+
+  if (coverage.fallbackSlotCount > 0) {
+    planningConfidenceLevel = planningConfidenceLevel === "low" ? "low" : "medium";
+    reasons.push("Fallback/default forecast or tariff values were used.");
+  }
+
+  if (coverage.fallbackSlotCount >= Math.ceil(coverage.plannedSlotCount * 0.5)) {
+    planningConfidenceLevel = "low";
+    reasons.push("Fallback/default slots represent a large share of the planning horizon.");
+  }
+
+  if (planningConfidenceLevel === "low") {
+    return {
+      planningConfidenceLevel,
+      conservativeAdjustmentApplied: true,
+      conservativeAdjustmentReason: reasons.join(" "),
+      minValueSpreadPencePerKwh: 2,
+      exportAttractivenessPremiumRatio: 0.25,
+      allowHeuristicCycling: false,
+    };
+  }
+
+  if (planningConfidenceLevel === "medium") {
+    return {
+      planningConfidenceLevel,
+      conservativeAdjustmentApplied: true,
+      conservativeAdjustmentReason: reasons.join(" "),
+      minValueSpreadPencePerKwh: 1.25,
+      exportAttractivenessPremiumRatio: 0.12,
+      allowHeuristicCycling: false,
+    };
+  }
+
+  return {
+    planningConfidenceLevel,
+    conservativeAdjustmentApplied: false,
+    conservativeAdjustmentReason: undefined,
+    minValueSpreadPencePerKwh: 0.5,
+    exportAttractivenessPremiumRatio: 0,
+    allowHeuristicCycling: true,
+  };
+}
+
+function isFiniteTimestamp(timestamp: string | undefined): boolean {
+  if (!timestamp) {
+    return false;
+  }
+
+  return Number.isFinite(new Date(timestamp).getTime());
+}
+
+function resolvePlanningTimestamp(input: OptimizerInput): string {
+  if (isFiniteTimestamp(input.systemState.capturedAt)) {
+    return input.systemState.capturedAt;
+  }
+
+  const firstImportStart = input.tariffSchedule.importRates[0]?.startAt;
+  if (isFiniteTimestamp(firstImportStart)) {
+    return firstImportStart as string;
+  }
+
+  if (isFiniteTimestamp(input.forecasts.horizonStartAt)) {
+    return input.forecasts.horizonStartAt;
+  }
+
+  return "1970-01-01T00:00:00.000Z";
+}
+
+function toPlanToken(value: string): string {
+  return value.replace(/[^a-zA-Z0-9]/g, "").slice(0, 32) || "na";
+}
+
+function toPlanId(siteId: string, generatedAt: string, mode: OptimizationMode, horizonStartAt: string, horizonEndAt: string): string {
+  return [siteId, mode, generatedAt, horizonStartAt, horizonEndAt]
+    .map((value) => toPlanToken(value))
+    .join("-");
 }
 
 interface ModePolicy {
@@ -111,9 +300,8 @@ function mapDecisionTargets(
   const requiredCapabilities = requiredCapabilitiesForAction(action);
 
   return targetDeviceIds.map((deviceId) => {
-    const normalizedId = deviceId === "ev" ? "ev_charger" : deviceId;
     const matchedDevice = input.systemState.devices.find(
-      (device) => device.deviceId === deviceId || device.kind === normalizedId,
+      (device) => device.deviceId === deviceId,
     );
 
     return {
@@ -154,10 +342,15 @@ function buildCommands(decisions: OptimizerDecision[], generatedAt: string, plan
   const commands: DeviceCommand[] = [];
 
   decisions.forEach((decision, index) => {
+    const primaryTargetDeviceId = decision.targetDeviceIds[0];
+    if (!primaryTargetDeviceId) {
+      return;
+    }
+
     if (decision.action === "charge_battery") {
       commands.push({
         commandId: `${planId}-battery-${index}`,
-        deviceId: "battery",
+        deviceId: primaryTargetDeviceId,
         issuedAt: generatedAt,
         type: "set_mode",
         mode: "charge",
@@ -167,7 +360,7 @@ function buildCommands(decisions: OptimizerDecision[], generatedAt: string, plan
     } else if (decision.action === "discharge_battery") {
       commands.push({
         commandId: `${planId}-discharge-${index}`,
-        deviceId: "battery",
+        deviceId: primaryTargetDeviceId,
         issuedAt: generatedAt,
         type: "set_mode",
         mode: "discharge",
@@ -177,7 +370,7 @@ function buildCommands(decisions: OptimizerDecision[], generatedAt: string, plan
     } else if (decision.action === "export_to_grid") {
       commands.push({
         commandId: `${planId}-export-${index}`,
-        deviceId: "battery",
+        deviceId: primaryTargetDeviceId,
         issuedAt: generatedAt,
         type: "set_mode",
         mode: "export",
@@ -187,7 +380,7 @@ function buildCommands(decisions: OptimizerDecision[], generatedAt: string, plan
     } else if (decision.action === "charge_ev") {
       commands.push({
         commandId: `${planId}-ev-${index}`,
-        deviceId: "ev",
+        deviceId: primaryTargetDeviceId,
         issuedAt: generatedAt,
         type: "schedule_window",
         window: { startAt: decision.startAt, endAt: decision.endAt },
@@ -201,7 +394,19 @@ function buildCommands(decisions: OptimizerDecision[], generatedAt: string, plan
   return commands;
 }
 
-function buildDiagnostics(input: OptimizerInput, decisions: OptimizerDecision[]): OptimizerDiagnostic[] {
+function findPrimaryDeviceId(input: OptimizerInput, kind: "battery" | "ev_charger" | "solar_inverter" | "smart_meter"): string | undefined {
+  return input.systemState.devices.find(
+    (device) =>
+      device.kind === kind &&
+      (device.connectionStatus === "online" || device.connectionStatus === "degraded"),
+  )?.deviceId;
+}
+
+function buildDiagnostics(
+  input: OptimizerInput,
+  decisions: OptimizerDecision[],
+  planningInputCoverage: PlanningInputCoverage,
+): OptimizerDiagnostic[] {
   const diagnostics: OptimizerDiagnostic[] = [
     {
       code: "MODE_SELECTION",
@@ -218,12 +423,46 @@ function buildDiagnostics(input: OptimizerInput, decisions: OptimizerDecision[])
       message: `Computed ${decisions.length} canonical decision slots for this planning horizon.`,
       severity: "info",
     },
+    {
+      code: "TARIFF_IMPORT_COVERAGE",
+      message: `Import tariff coverage: ${planningInputCoverage.tariffImport.availableSlots}/${planningInputCoverage.tariffImport.totalPlannedSlots} slots (${planningInputCoverage.tariffImport.coveragePercent.toFixed(1)}%).`,
+      severity: "info",
+    },
+    {
+      code: "TARIFF_EXPORT_COVERAGE",
+      message: `Export tariff coverage: ${planningInputCoverage.tariffExport.availableSlots}/${planningInputCoverage.tariffExport.totalPlannedSlots} slots (${planningInputCoverage.tariffExport.coveragePercent.toFixed(1)}%).`,
+      severity: "info",
+    },
+    {
+      code: "FORECAST_LOAD_COVERAGE",
+      message: `Load forecast coverage: ${planningInputCoverage.forecastLoad.availableSlots}/${planningInputCoverage.forecastLoad.totalPlannedSlots} slots (${planningInputCoverage.forecastLoad.coveragePercent.toFixed(1)}%).`,
+      severity: "info",
+    },
+    {
+      code: "FORECAST_SOLAR_COVERAGE",
+      message: `Solar forecast coverage: ${planningInputCoverage.forecastSolar.availableSlots}/${planningInputCoverage.forecastSolar.totalPlannedSlots} slots (${planningInputCoverage.forecastSolar.coveragePercent.toFixed(1)}%).`,
+      severity: "info",
+    },
   ];
 
-  if (!input.tariffSchedule.exportRates?.length) {
+  if (planningInputCoverage.tariffExport.availableSlots === 0) {
     diagnostics.push({
       code: "MISSING_EXPORT_RATES",
       message: "No export rates were supplied; export value uses conservative assumptions.",
+      severity: "warning",
+    });
+  } else if (planningInputCoverage.tariffExport.availableSlots < planningInputCoverage.plannedSlotCount) {
+    diagnostics.push({
+      code: "PARTIAL_EXPORT_RATE_COVERAGE",
+      message: "Export tariff coverage is partial for this planning horizon; missing slots use fallback export assumptions.",
+      severity: "warning",
+    });
+  }
+
+  if (planningInputCoverage.fallbackSlotCount > 0) {
+    diagnostics.push({
+      code: "FALLBACK_SLOT_DEFAULTS_APPLIED",
+      message: `Fallback/default values were used for ${planningInputCoverage.fallbackSlotCount} slots across forecast/tariff inputs.`,
       severity: "warning",
     });
   }
@@ -249,28 +488,46 @@ function buildDiagnostics(input: OptimizerInput, decisions: OptimizerDecision[])
  * Produces canonical runtime planning artifacts without using legacy bridge code.
  */
 export function buildCanonicalRuntimeResult(input: OptimizerInput): CanonicalRuntimeResult {
-  const generatedAt = new Date().toISOString();
-  const planId = toPlanId(input.systemState.siteId, generatedAt);
+  const generatedAt = resolvePlanningTimestamp(input);
   const slotCount = input.tariffSchedule.importRates.length;
+  const planningCoverageCounts = computePlanningCoverageCounts(input, slotCount);
+  const planningInputCoverage = buildPlanningInputCoverage(slotCount, planningCoverageCounts);
+  const conservatismPolicy = buildConservatismPolicy(planningInputCoverage);
+  const horizonStartAt =
+    input.tariffSchedule.importRates[0]?.startAt ??
+    input.forecasts.horizonStartAt ??
+    generatedAt;
+  const horizonEndAt =
+    input.tariffSchedule.importRates[slotCount - 1]?.endAt ??
+    input.forecasts.horizonEndAt ??
+    generatedAt;
+  const planId = toPlanId(input.systemState.siteId, generatedAt, input.constraints.mode, horizonStartAt, horizonEndAt);
   const slotHours = input.forecasts.slotDurationMinutes / 60;
   const modePolicy = buildModePolicy(input.constraints.mode);
+  const batteryDeviceId = findPrimaryDeviceId(input, "battery");
+  const evChargerDeviceId = findPrimaryDeviceId(input, "ev_charger");
+  const solarDeviceId = findPrimaryDeviceId(input, "solar_inverter");
+  const gridDeviceId = findPrimaryDeviceId(input, "smart_meter");
 
-  const hasBattery = input.systemState.devices.some(
-    (device) =>
-      device.kind === "battery" &&
-      (device.connectionStatus === "online" || device.connectionStatus === "degraded"),
-  );
+  const hasBattery = Boolean(batteryDeviceId);
   const hasEv =
     input.constraints.allowAutomaticEvCharging &&
     Boolean(input.systemState.evConnected) &&
-    input.systemState.devices.some(
-      (device) =>
-        device.kind === "ev_charger" &&
-        (device.connectionStatus === "online" || device.connectionStatus === "degraded"),
-    );
+    Boolean(evChargerDeviceId);
 
   const importRates = input.tariffSchedule.importRates;
   const exportRates = input.tariffSchedule.exportRates ?? [];
+  const marginalStoredValue = buildMarginalStoredEnergyValueProfile({
+    importRates,
+    exportRates: input.tariffSchedule.exportRates,
+    mode: input.constraints.mode,
+    roundTripEfficiency: 0.9,
+    batteryDegradationCostPencePerKwh: input.constraints.batteryDegradationCostPencePerKwh,
+  });
+  const forwardEffectiveValue = marginalStoredValue.points.map((_, index) =>
+    Math.max(...marginalStoredValue.points.slice(index).map((point) => point.effectiveStoredEnergyValuePencePerKwh), 0),
+  );
+
   const avgImportRate = average(importRates.map((rate) => rate.unitRatePencePerKwh));
   const lowImportThreshold = avgImportRate * modePolicy.lowImportThresholdFactor;
   const highImportThreshold = avgImportRate * modePolicy.highImportThresholdFactor;
@@ -284,6 +541,7 @@ export function buildCanonicalRuntimeResult(input: OptimizerInput): CanonicalRun
 
   let expectedImportCostPence = 0;
   let expectedExportRevenuePence = 0;
+  let expectedBatteryDegradationCostPence = 0;
   let expectedSolarSelfConsumptionKwh = 0;
   let batteryThroughputKwh = 0;
 
@@ -322,44 +580,116 @@ export function buildCanonicalRuntimeResult(input: OptimizerInput): CanonicalRun
       evSoc < (input.constraints.evTargetSocPercent ?? 85) &&
       importRate <= avgImportRate * modePolicy.evChargeThresholdFactor;
 
-    const exportAttractiveEnough = exportRate >= importRate * modePolicy.exportAttractivenessRatio;
+    const exportAttractivenessRatio = modePolicy.exportAttractivenessRatio + conservatismPolicy.exportAttractivenessPremiumRatio;
+    const exportAttractiveEnough = exportRate >= importRate * exportAttractivenessRatio;
+    const valuePoint = marginalStoredValue.points[index];
+    const futureRetentionValue = forwardEffectiveValue[index + 1] ?? 0;
+    const futureRetentionGrossValue = Math.max(
+      ...marginalStoredValue.points.slice(index + 1).map((point) => point.grossStoredEnergyValuePencePerKwh),
+      0,
+    );
+    const batteryDegradationCostPencePerKwh = valuePoint?.batteryDegradationCostPencePerKwh ?? 0;
+    const immediateDischargeRealizedValue = Math.max(
+      0,
+      (valuePoint?.grossStoredEnergyValuePencePerKwh ?? 0) - batteryDegradationCostPencePerKwh,
+    );
+    const currentImportCostToStore = importRate / marginalStoredValue.assumptions.roundTripEfficiency;
 
-    if (solarSurplusKwh > 0.05 && input.constraints.allowBatteryExport && exportAttractiveEnough) {
+    const chargeValueSpread = futureRetentionValue - currentImportCostToStore;
+    const dischargeValueSpread = immediateDischargeRealizedValue - futureRetentionGrossValue;
+
+    const chargeForValue = chargeValueSpread >= conservatismPolicy.minValueSpreadPencePerKwh;
+    const dischargeForValue = dischargeValueSpread >= conservatismPolicy.minValueSpreadPencePerKwh;
+
+    if (hasBattery && solarSurplusKwh > 0.05 && input.constraints.allowBatteryExport && exportAttractiveEnough) {
       action = "export_to_grid";
       reason = "Solar surplus and favorable export pricing support grid export.";
       expectedImportKwh = 0;
       expectedExportKwh = solarSurplusKwh;
-      targetDeviceIds = ["battery", "grid"];
+      targetDeviceIds = [batteryDeviceId, gridDeviceId].filter((deviceId): deviceId is string => Boolean(deviceId));
     } else if (solarKwh >= loadKwh * 0.9) {
       action = "consume_solar";
       reason = "Solar generation can cover most current demand.";
       expectedImportKwh = Math.max(0, loadKwh - solarKwh);
-      targetDeviceIds = ["solar"];
+      targetDeviceIds = solarDeviceId ? [solarDeviceId] : [];
     } else if (shouldChargeEv) {
       action = "charge_ev";
       reason = "Charging EV during a lower-cost import window.";
       const evChargeKwh = Math.min(2.0 * slotHours, Math.max(0, ((input.constraints.evTargetSocPercent ?? 85) - (evSoc ?? 0)) / 100 * evCapacityKwh));
       expectedImportKwh = Math.max(0, loadKwh - solarKwh) + evChargeKwh;
-      targetDeviceIds = ["ev"];
+      targetDeviceIds = evChargerDeviceId ? [evChargerDeviceId] : [];
       if (evSoc !== undefined && evChargeKwh > 0) {
         evSoc = clamp(evSoc + (evChargeKwh / evCapacityKwh) * 100, 0, 100);
       }
-    } else if (canChargeBattery) {
+    } else if (
+      hasBattery &&
+      input.constraints.allowGridBatteryCharging &&
+      batterySoc < 96 &&
+      (
+        chargeForValue ||
+        (conservatismPolicy.allowHeuristicCycling && canChargeBattery)
+      )
+    ) {
       action = "charge_battery";
-      reason = "Charging battery while import rates are below the daily average.";
+      reason = chargeForValue
+        ? `Charging battery because forward net stored-energy value (${futureRetentionValue.toFixed(2)}p/kWh) exceeds current storage cost (${currentImportCostToStore.toFixed(2)}p/kWh).`
+        : "Charging battery while import rates are below the daily average.";
+      if (conservatismPolicy.conservativeAdjustmentApplied && !chargeForValue) {
+        action = "hold";
+        reason = `Holding because planning confidence is ${conservatismPolicy.planningConfidenceLevel} and value spread is not strong enough under conservative thresholds.`;
+      }
       const batteryChargeKwh = Math.min(1.6 * slotHours, ((100 - batterySoc) / 100) * batteryCapacityKwh);
-      expectedImportKwh = Math.max(0, loadKwh - solarKwh) + batteryChargeKwh;
-      targetDeviceIds = ["battery"];
-      batterySoc = clamp(batterySoc + (batteryChargeKwh / batteryCapacityKwh) * 100, 0, 100);
-      batteryThroughputKwh += batteryChargeKwh;
-    } else if (canDischargeBattery) {
+      if (action === "charge_battery") {
+        expectedImportKwh = Math.max(0, loadKwh - solarKwh) + batteryChargeKwh;
+        targetDeviceIds = batteryDeviceId ? [batteryDeviceId] : [];
+        batterySoc = clamp(batterySoc + (batteryChargeKwh / batteryCapacityKwh) * 100, 0, 100);
+        batteryThroughputKwh += batteryChargeKwh;
+      }
+    } else if (
+      hasBattery &&
+      batterySoc > batteryReserve + 4 &&
+      (
+        dischargeForValue ||
+        (conservatismPolicy.allowHeuristicCycling && canDischargeBattery)
+      )
+    ) {
       action = "discharge_battery";
-      reason = "Using battery energy to reduce higher-cost import.";
+      reason = dischargeForValue
+        ? `Discharging battery because immediate net discharge value (${immediateDischargeRealizedValue.toFixed(2)}p/kWh) exceeds retained future gross value (${futureRetentionGrossValue.toFixed(2)}p/kWh) after wear cost (${batteryDegradationCostPencePerKwh.toFixed(2)}p/kWh).`
+        : "Using battery energy to reduce higher-cost import.";
+      if (conservatismPolicy.conservativeAdjustmentApplied && !dischargeForValue) {
+        action = "hold";
+        reason = `Holding because planning confidence is ${conservatismPolicy.planningConfidenceLevel} and discharge value spread is not strong enough under conservative thresholds.`;
+      }
       const dischargeKwh = Math.min(1.4 * slotHours, ((batterySoc - batteryReserve) / 100) * batteryCapacityKwh);
-      expectedImportKwh = Math.max(0, loadKwh - solarKwh - dischargeKwh);
-      targetDeviceIds = ["battery"];
-      batterySoc = clamp(batterySoc - (dischargeKwh / batteryCapacityKwh) * 100, batteryReserve, 100);
-      batteryThroughputKwh += dischargeKwh;
+      if (action === "discharge_battery") {
+        expectedImportKwh = Math.max(0, loadKwh - solarKwh - dischargeKwh);
+        targetDeviceIds = batteryDeviceId ? [batteryDeviceId] : [];
+        batterySoc = clamp(batterySoc - (dischargeKwh / batteryCapacityKwh) * 100, batteryReserve, 100);
+        batteryThroughputKwh += dischargeKwh;
+        expectedBatteryDegradationCostPence += dischargeKwh * batteryDegradationCostPencePerKwh;
+      }
+    }
+
+    if (
+      action === "export_to_grid" &&
+      conservatismPolicy.conservativeAdjustmentApplied &&
+      planningInputCoverage.tariffExport.availableSlots < slotCount
+    ) {
+      action = "consume_solar";
+      reason = `Holding export aggressiveness because planning confidence is ${conservatismPolicy.planningConfidenceLevel} with partial export tariff coverage.`;
+      expectedExportKwh = 0;
+      targetDeviceIds = solarDeviceId ? [solarDeviceId] : [];
+      expectedImportKwh = Math.max(0, loadKwh - solarKwh);
+    }
+
+    if (
+      conservatismPolicy.conservativeAdjustmentApplied &&
+      (action === "hold" || action === "consume_solar") &&
+      conservatismPolicy.conservativeAdjustmentReason &&
+      !reason.includes("Conservative adjustment active")
+    ) {
+      reason = `${reason} Conservative adjustment active: ${conservatismPolicy.conservativeAdjustmentReason}`;
     }
 
     expectedImportCostPence += expectedImportKwh * importRate;
@@ -393,11 +723,20 @@ export function buildCanonicalRuntimeResult(input: OptimizerInput): CanonicalRun
       // TODO: replace heuristic EV projection with deadline-aware canonical EV model.
       expectedEvSocPercent: evSoc !== undefined ? Number(evSoc.toFixed(1)) : undefined,
       reason,
+      marginalImportAvoidancePencePerKwh: valuePoint?.importAvoidancePencePerKwh,
+      marginalExportValuePencePerKwh: valuePoint?.exportOpportunityPencePerKwh,
+      grossStoredEnergyValuePencePerKwh: valuePoint?.grossStoredEnergyValuePencePerKwh,
+      netStoredEnergyValuePencePerKwh: valuePoint?.netStoredEnergyValuePencePerKwh,
+      batteryDegradationCostPencePerKwh: valuePoint?.batteryDegradationCostPencePerKwh,
+      effectiveStoredEnergyValuePencePerKwh: valuePoint?.effectiveStoredEnergyValuePencePerKwh,
+      planningConfidenceLevel: conservatismPolicy.planningConfidenceLevel,
+      conservativeAdjustmentApplied: conservatismPolicy.conservativeAdjustmentApplied,
+      conservativeAdjustmentReason: conservatismPolicy.conservativeAdjustmentReason,
       confidence,
     });
   }
 
-  const diagnostics = buildDiagnostics(input, decisions);
+  const diagnostics = buildDiagnostics(input, decisions, planningInputCoverage);
   const warningCodes = diagnostics
     .filter((diagnostic) => diagnostic.severity === "warning")
     .map((diagnostic) => diagnostic.code);
@@ -421,10 +760,27 @@ export function buildCanonicalRuntimeResult(input: OptimizerInput): CanonicalRun
     "Tariff rates are treated as fixed for the planned horizon.",
     "Forecast confidence is aggregated into heuristic per-slot confidence scores.",
     "Optimization mode adjusts economic action thresholds in the canonical runtime planner.",
+    "Stored-energy marginal value uses a canonical round-trip efficiency assumption of 90%.",
   ];
 
   if (!input.tariffSchedule.exportRates?.length) {
     assumptions.push("Export pricing uses a conservative fallback ratio when export slots are unavailable.");
+  }
+
+  if (planningInputCoverage.tariffExport.availableSlots > 0 && planningInputCoverage.tariffExport.availableSlots < slotCount) {
+    assumptions.push("Export pricing is partially fallback-derived where export tariff slots are missing.");
+  }
+
+  if (planningInputCoverage.fallbackSlotCount > 0) {
+    assumptions.push("One or more planned slots used canonical default/fallback load, solar, or export-rate inputs.");
+  }
+
+  if (conservatismPolicy.conservativeAdjustmentApplied && conservatismPolicy.conservativeAdjustmentReason) {
+    assumptions.push(`Conservative planning adjustment applied: ${conservatismPolicy.conservativeAdjustmentReason}`);
+  }
+
+  if (marginalStoredValue.assumptions.degradationCostFallbackApplied) {
+    assumptions.push("Battery degradation cost uses a canonical fallback of 2.0p/kWh when not configured.");
   }
 
   const feasibility = {
@@ -448,13 +804,20 @@ export function buildCanonicalRuntimeResult(input: OptimizerInput): CanonicalRun
     summary: {
       expectedImportCostPence: Math.round(expectedImportCostPence),
       expectedExportRevenuePence: Math.round(expectedExportRevenuePence),
-      expectedNetValuePence: Math.round(expectedExportRevenuePence - expectedImportCostPence),
+      expectedBatteryDegradationCostPence: Math.round(expectedBatteryDegradationCostPence),
+      expectedNetValuePence: Math.round(
+        expectedExportRevenuePence - expectedImportCostPence - expectedBatteryDegradationCostPence,
+      ),
       expectedSolarSelfConsumptionKwh: Number(expectedSolarSelfConsumptionKwh.toFixed(2)),
       expectedBatteryCycles: batteryCapacityKwh > 0
         ? Number((batteryThroughputKwh / (2 * batteryCapacityKwh)).toFixed(2))
         : undefined,
     },
     diagnostics,
+    planningInputCoverage,
+    planningConfidenceLevel: conservatismPolicy.planningConfidenceLevel,
+    conservativeAdjustmentApplied: conservatismPolicy.conservativeAdjustmentApplied,
+    conservativeAdjustmentReason: conservatismPolicy.conservativeAdjustmentReason,
     confidence,
   };
 }

@@ -60,6 +60,7 @@ function buildOptimizerOutput(summary: {
   expectedImportCostPence: number;
   expectedExportRevenuePence: number;
   expectedNetValuePence: number;
+  expectedBatteryDegradationCostPence?: number;
 }): OptimizerOutput {
   return {
     schemaVersion: "optimizer-output.v1.1",
@@ -98,10 +99,12 @@ describe("buildCanonicalValueLedger", () => {
     expect(ledger.optimizationMode).toBe("cost");
     expect(ledger.estimatedImportCostPence).toBe(120);
     expect(ledger.estimatedExportRevenuePence).toBe(40);
+    expect(ledger.estimatedBatteryDegradationCostPence).toBe(0);
     expect(ledger.estimatedNetCostPence).toBe(80);
     expect(ledger.baselineType).toBe("hold_current_state");
     expect(ledger.baselineImportCostPence).toBe(40);
     expect(ledger.baselineExportRevenuePence).toBe(24);
+    expect(ledger.baselineBatteryDegradationCostPence).toBe(0);
     expect(ledger.baselineNetCostPence).toBe(16);
     expect(ledger.estimatedSavingsVsBaselinePence).toBe(-64);
     expect(ledger.confidence).toBe(0.82);
@@ -120,11 +123,32 @@ describe("buildCanonicalValueLedger", () => {
     });
 
     expect(ledger.baselineExportRevenuePence).toBe(0);
+    expect(ledger.baselineBatteryDegradationCostPence).toBe(0);
     expect(ledger.caveats).toContain(
       "Baseline export revenue assumes zero value when export tariff slots are unavailable.",
     );
     expect(ledger.assumptions).toContain(
       "No export tariff schedule was available; baseline export value is conservatively treated as zero.",
+    );
+  });
+
+  it("includes optimizer degradation cost in estimated net cost and savings", () => {
+    const ledger = buildCanonicalValueLedger({
+      optimizationMode: "cost",
+      optimizerOutput: buildOptimizerOutput({
+        expectedImportCostPence: 100,
+        expectedExportRevenuePence: 20,
+        expectedNetValuePence: -82,
+        expectedBatteryDegradationCostPence: 2,
+      }),
+      forecasts: buildForecasts([1], [0]),
+      tariffSchedule: buildTariffSchedule([30], [8]),
+    });
+
+    expect(ledger.estimatedBatteryDegradationCostPence).toBe(2);
+    expect(ledger.estimatedNetCostPence).toBe(82);
+    expect(ledger.assumptions).toContain(
+      "Estimated optimized value includes battery degradation cost for planned discharge throughput.",
     );
   });
 });
