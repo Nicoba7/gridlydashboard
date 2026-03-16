@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Sun, Cloud, CloudRain, TrendingUp, Zap, Battery } from "lucide-react";
-import type { GridlyPlanSession } from "../lib/gridlyPlan";
+import type { GridlyPlanSession } from "../types/planCompat";
 import { getSessionActionLabel } from "../components/plan/planViewModels";
 
 // ── SANDBOX FORECAST DATA ─────────────────────────────────────────────────

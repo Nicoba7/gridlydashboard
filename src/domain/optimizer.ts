@@ -1,4 +1,4 @@
-import type { DeviceCommand } from "./device";
+import type { DeviceCapability, DeviceCommand, DeviceKind, TimeWindow } from "./device";
 import type { Forecasts } from "./forecasts";
 import type { SystemState } from "./system";
 import type { TariffSchedule } from "./tariff";
@@ -63,14 +63,20 @@ export interface OptimizerInput {
  * Decision for a single optimization slot.
  */
 export interface OptimizerDecision {
+  /** Stable decision ID for control-loop reconciliation and audit logs. */
+  decisionId: string;
   /** Inclusive start of the decision slot. */
   startAt: string;
   /** Exclusive end of the decision slot. */
   endAt: string;
+  /** Explicit execution window for schedulers and adapter dispatchers. */
+  executionWindow: TimeWindow;
   /** High-level action Gridly wants the site to take. */
   action: OptimizerAction;
   /** Devices expected to execute or participate in the action. */
   targetDeviceIds: string[];
+  /** Optional target metadata for capability-aware dispatch. */
+  targetDevices?: OptimizerDecisionTarget[];
   /** Expected import energy for the slot, in kWh. */
   expectedImportKwh?: number;
   /** Expected export energy for the slot, in kWh. */
@@ -107,13 +113,37 @@ export interface OptimizerDiagnostic {
 }
 
 /**
+ * Execution-oriented metadata for each targeted device.
+ */
+export interface OptimizerDecisionTarget {
+  deviceId: string;
+  kind?: DeviceKind;
+  requiredCapabilities?: DeviceCapability[];
+}
+
+/**
+ * Feasibility status for execution and downstream control loops.
+ */
+export interface OptimizerFeasibility {
+  executable: boolean;
+  reasonCodes: string[];
+  blockingCodes?: string[];
+}
+
+/**
  * Canonical output from the single Gridly optimizer engine.
  */
 export interface OptimizerOutput {
+  /** Contract schema version for persisted-plan compatibility checks. */
+  schemaVersion?: string;
+  /** Planner implementation version that generated this output. */
+  plannerVersion?: string;
   /** Stable plan ID for analytics, history, and control-loop tracing. */
   planId: string;
   /** Timestamp when the plan was generated. */
   generatedAt: string;
+  /** Canonical planning horizon represented by this plan. */
+  planningWindow?: TimeWindow;
   /** Overall optimizer status for the produced plan. */
   status: OptimizerStatus;
   /** Human-readable headline summarising the plan. */
@@ -126,6 +156,12 @@ export interface OptimizerOutput {
   summary: OptimizerSummary;
   /** Explainability and quality diagnostics. */
   diagnostics: OptimizerDiagnostic[];
+  /** Explicit feasibility outcome for execution-layer readiness checks. */
+  feasibility?: OptimizerFeasibility;
+  /** Assumptions made while generating this plan. */
+  assumptions?: string[];
+  /** Non-blocking warnings that execution systems should surface. */
+  warnings?: string[];
   /** Coarse plan confidence from 0 to 1. */
   confidence: number;
 }

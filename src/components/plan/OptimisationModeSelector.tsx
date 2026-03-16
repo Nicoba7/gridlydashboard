@@ -1,5 +1,5 @@
 import { OptimisationModeViewModel } from "./planViewModels";
-import { OptimisationMode } from "../../lib/gridlyPlan";
+import { OptimisationMode } from "../../types/planCompat";
 
 export default function OptimisationModeSelector({
   viewModel,

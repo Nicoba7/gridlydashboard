@@ -74,6 +74,7 @@ function pickAction(
   };
 }
 
+/** @deprecated use optimize(input) from src/optimizer/engine */
 export function optimizePlan(input: GridlyInput): GridlyOutput {
   const diagnostics: Diagnostic[] = [];
   const avgImportPrice = average(input.importPrice);

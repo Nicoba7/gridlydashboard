@@ -1,4 +1,4 @@
-import { GridlyPlanSession } from "./gridlyPlan";
+import type { GridlyPlanSession } from "../types/planCompat";
 
 type DecisionForecast = {
   solarForecastKwh?: number;

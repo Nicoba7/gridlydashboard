@@ -1,4 +1,4 @@
-import type { GridlyPlanSession } from "../../lib/gridlyPlan";
+import type { GridlyPlanSession } from "../../types/planCompat";
 import { ENERGY_COLORS } from "../energyColors";
 import { FlowConnector, FlowNode } from "../flowPrimitives";
 

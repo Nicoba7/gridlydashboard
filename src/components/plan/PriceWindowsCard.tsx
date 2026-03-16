@@ -1,6 +1,6 @@
 import { PriceWindowsViewModel, getBarColor } from "./planViewModels";
 import { useState } from "react";
-import type { GridlyPlanSession } from "../../lib/gridlyPlan";
+import type { GridlyPlanSession } from "../../types/planCompat";
 
 function toSlotIndex(time: string) {
   const [hours, minutes] = time.split(":").map(Number);

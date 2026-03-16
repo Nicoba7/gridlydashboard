@@ -34,9 +34,5 @@ export {
 export {
   buildCanonicalPlan,
   type CanonicalPlanBuildResult,
-  type GridlyPlanSession,
-  type PlanSlot,
-  type PlanSummary,
-  type PlanWithSessions,
 } from "./planBuilder";
 export { optimizeForLegacyPlanUi, type LegacyPlanUiResult } from "./uiAdapter";

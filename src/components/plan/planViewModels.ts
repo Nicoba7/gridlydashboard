@@ -1,5 +1,5 @@
 import { PricingState } from "../../hooks/useAgileRates";
-import { PlanSlot, PlanSummary, ConnectedDeviceId, OptimisationMode, GridlyPlanSummary, GridlyPlanSession } from "../../lib/gridlyPlan";
+import { PlanSlot, PlanSummary, ConnectedDeviceId, OptimisationMode, GridlyPlanSummary, GridlyPlanSession } from "../../types/planCompat";
 import { buildDecisionExplanation } from "../../lib/decisionExplanation";
 
 export type PlanHeroViewModel = {
