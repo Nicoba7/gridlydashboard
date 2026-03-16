@@ -15,6 +15,29 @@ Optimizer
   -> DeviceAdapters (future)
 ```
 
+## Execution Decision Pipeline
+
+Gridly executes canonical commands through an ordered set of separate architectural layers. Each stage has a single responsibility and produces a normalized outcome for the next stage.
+
+```text
+Canonical command request
+  -> [1] Capability validation
+  -> [2] Reconciliation
+  -> [3] Execution policy
+  -> [4] Dispatch
+  -> [5] Acknowledgement projection
+  -> [6] Shadow update
+  -> [7] Execution journal
+```
+
+- Capability validation: confirms the command is valid for the target device capability contract.
+- Reconciliation: compares desired command intent with current Gridly shadow belief and can skip already-satisfied work.
+- Execution policy: applies platform-level allow/deny rules (timing, feasibility, conflict, staleness) before dispatch.
+- Dispatch: sends only allowed canonical commands through the executor/adapter boundary.
+- Acknowledgement projection: interprets raw execution outcomes into canonical acknowledgement semantics.
+- Shadow update: updates device shadow only when acknowledgement projection marks the outcome as acknowledgement-sufficient.
+- Execution journal: records canonical execution history and reason codes across stages for traceability.
+
 ## Layer Responsibilities
 
 ### Optimizer

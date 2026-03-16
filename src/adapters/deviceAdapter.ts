@@ -7,6 +7,8 @@ export type DeviceAdapterFailureReasonCode =
   | "COMMAND_REJECTED"
   | "COMMAND_FAILED"
   | "INVALID_COMMAND"
+  | "NO_ADAPTER_FOUND"
+  | "MULTIPLE_ADAPTERS_FOUND"
   | "UNKNOWN_ERROR";
 
 export interface DeviceAdapterExecutionContext {

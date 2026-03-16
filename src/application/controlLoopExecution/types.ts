@@ -27,6 +27,7 @@ export interface CommandExecutionResult {
   status: CommandExecutionStatus;
   message?: string;
   errorCode?: string;
+  reasonCodes?: string[];
 }
 
 /**
