@@ -2,7 +2,12 @@ import { useAgileRates } from "../hooks/useAgileRates";
 import { useMemo, useState, type ReactNode } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { SANDBOX, DeviceConfig } from "../pages/SimplifiedDashboard";
-import { buildGridlyPlan, ConnectedDeviceId, OptimisationMode } from "../lib/gridlyPlan";
+import {
+  buildOptimizerInputFromLegacyPlanContext,
+  optimizeForLegacyPlanUi,
+  type LegacyConnectedDeviceId,
+  type LegacyPlanningStyle,
+} from "../optimizer";
 import {
   buildAIInsightViewModel,
   buildPlanHeroViewModel,
@@ -79,7 +84,7 @@ function CollapsibleSection({
 export default function PlanTab({ connectedDevices, now }: { connectedDevices: DeviceConfig[]; now: Date }) {
   const { rates, loading, status } = useAgileRates();
   const currentSlot = Math.min(Math.floor((now.getHours() * 60 + now.getMinutes()) / 30), 47);
-  const [optimisationMode, setOptimisationMode] = useState<OptimisationMode>("BALANCED");
+  const [optimisationMode, setOptimisationMode] = useState<LegacyPlanningStyle>("BALANCED");
   const planningStyle = optimisationMode;
 
   const baseForecastKwh = SANDBOX?.solarForecast?.kwh ?? 0;
@@ -91,28 +96,43 @@ export default function PlanTab({ connectedDevices, now }: { connectedDevices: D
 
   const forecastKwh = ENABLE_PLAN_SIMULATION ? livePlanContext.solarForecastKwh : baseForecastKwh;
   const batteryStartPct = ENABLE_PLAN_SIMULATION ? livePlanContext.batteryStartPct : baseBatteryPct;
-  const connectedDeviceIds = useMemo(
-    () => connectedDevices.map((d) => d.id) as ConnectedDeviceId[],
-    [connectedDevices]
-  );
+  const connectedDeviceIds = useMemo(() => {
+    const allowed = new Set<LegacyConnectedDeviceId>(["solar", "battery", "ev", "grid"]);
+    return connectedDevices
+      .map((device) => device.id)
+      .filter((id): id is LegacyConnectedDeviceId => allowed.has(id as LegacyConnectedDeviceId));
+  }, [connectedDevices]);
 
   const connectedDeviceKey = connectedDeviceIds.join("|");
 
-  const { plan, summary, gridlySummary } = useMemo(
-    () =>
-      buildGridlyPlan(rates, connectedDeviceIds, forecastKwh, planningStyle, {
-        batteryCapacityKwh: 10,
-        batteryStartPct,
-        batteryReservePct: planningStyle === "GREENEST" ? 35 : planningStyle === "BALANCED" ? 30 : 22,
-        maxBatteryCyclesPerDay: planningStyle === "GREENEST" ? 1 : 2,
-        evTargetKwh: 16,
-        evReadyBy: "07:00",
-        exportPriceRatio: 0.72,
-        nowSlotIndex: currentSlot,
-        carbonIntensity: SANDBOX?.carbonIntensity,
-      }),
-    [rates, connectedDeviceIds, connectedDeviceKey, forecastKwh, planningStyle, currentSlot, batteryStartPct]
-  );
+  const { plan, summary, gridlySummary } = useMemo(() => {
+    const optimizerInput = buildOptimizerInputFromLegacyPlanContext({
+      now,
+      rates,
+      connectedDeviceIds,
+      planningStyle,
+      solarForecastKwh: forecastKwh,
+      batteryStartPct,
+      batteryCapacityKwh: 10,
+      batteryReservePct: planningStyle === "GREENEST" ? 35 : planningStyle === "BALANCED" ? 30 : 22,
+      maxBatteryCyclesPerDay: planningStyle === "GREENEST" ? 1 : 2,
+      evTargetKwh: 16,
+      evReadyBy: "07:00",
+      exportPriceRatio: 0.72,
+      carbonIntensity: SANDBOX?.carbonIntensity,
+    });
+
+    return optimizeForLegacyPlanUi(optimizerInput);
+  }, [
+    rates,
+    connectedDeviceIds,
+    connectedDeviceKey,
+    forecastKwh,
+    planningStyle,
+    currentSlot,
+    batteryStartPct,
+    now,
+  ]);
 
   const groupedDisplaySessions = useMemo(() => {
     const sessions = plan.sessions;
