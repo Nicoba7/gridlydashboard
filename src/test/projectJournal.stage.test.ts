@@ -37,7 +37,20 @@ describe("projectJournal stage", () => {
     };
 
     const output = projectJournal({
-      requestLookup: new Map([[request.executionRequestId, request]]),
+      executionEdgeContexts: [
+        {
+          opportunityId: "opp-1",
+          decisionId: "decision-1",
+          planId: "plan-1",
+          executionAuthorityMode: "full_canonical",
+          canonicalCommand: request.canonicalCommand,
+          targetDeviceId: "battery",
+          executionRequestId: "req-1",
+          requestedAt: "2026-03-16T10:05:00.000Z",
+          commandId: "cmd-1",
+          idempotencyKey: "idem-1",
+        },
+      ],
       outcomes: [],
       recordedAt: "2026-03-16T10:05:00.000Z",
       executionPosture: "normal",
@@ -47,5 +60,33 @@ describe("projectJournal stage", () => {
     });
 
     expect(output.projection.narrative.eligibilityRejections).toHaveLength(1);
+  });
+
+  it("marks incomplete identity when context is missing without promoting executionRequestId", () => {
+    const output = projectJournal({
+      executionEdgeContexts: [],
+      outcomes: [],
+      recordedAt: "2026-03-16T10:05:00.000Z",
+      executionPosture: "normal",
+      failClosedTriggered: false,
+      rejectedOpportunities: [],
+      legacyCompatibilityOutcomes: [
+        {
+          executionRequestId: "req-unknown",
+          requestId: "req-unknown",
+          idempotencyKey: "idem-unknown",
+          targetDeviceId: "battery",
+          commandId: "cmd-unknown",
+          deviceId: "battery",
+          status: "skipped",
+          reasonCodes: ["COMMAND_STALE"],
+          message: "denied",
+        },
+      ],
+    });
+
+    expect(output.projection.narrative.eligibilityRejections).toHaveLength(1);
+    expect(output.projection.narrative.eligibilityRejections[0].opportunityId).toBe("incomplete_identity");
+    expect(output.projection.narrative.eligibilityRejections[0].opportunityId).not.toBe("req-unknown");
   });
 });

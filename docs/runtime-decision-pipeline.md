@@ -113,6 +113,7 @@ Does not own:
 ## Runtime Invariants
 
 - Opportunities are the canonical decision unit throughout the runtime pipeline.
+- Canonical stages require full execution authority (`opportunityId + decisionId + planId`) and fail closed when identity is insufficient.
 - Economic reasoning must be complete before adapter execution begins.
 - `selected_opportunity` is the only household decision shape that may lead to an executable plan.
 - Executable plans represent dispatchable work; non-executable plans do not.
@@ -144,7 +145,27 @@ The intended rejection accumulation order is:
 
 ## Compatibility Boundaries
 
-The runtime still produces request-centric compatibility outcomes for current adapter, journal, and store flows.
+Legacy command-only requests are canonicalized at a single explicit boundary:
+
+- `legacyExecutionCompatibilityAdapter.ts`
+
+Canonicalization rules:
+- if `opportunityId` is present, identity is treated as native canonical
+- if `opportunityId` is missing but `decisionId` exists, synthesize canonical opportunity identity as
+  `planId:decision:decisionId:command:commandId`
+- if both `opportunityId` and `decisionId` are missing, authority is insufficient and execution is denied
+
+Determinism rules:
+- canonicalized legacy identity is pure from stable input fields (`planId`, `decisionId`, `commandId`)
+- execution identity is deterministic from canonical opportunity identity + target + command intent + effective window
+- retries/replays of the same legacy input must produce the same canonicalized opportunity identity
+
+Provenance rules:
+- compatibility-canonicalized opportunities must carry explicit provenance metadata
+  (`kind`, `canonicalizedFromLegacy`, `legacySourceType`, `adaptationReason`, `sourceCommandLineage`, `canonicalizationVersion`)
+- native canonical opportunities must be explicitly marked as native
+- provenance must survive adapter execution normalization and journal projection
+
 These compatibility payloads are transitional edge artifacts.
 They are not canonical runtime objects and should stay isolated at stage edges.
 
@@ -152,6 +173,39 @@ This means:
 - canonical pipeline types should remain opportunity/plan/result oriented
 - compatibility outcome shaping should stay inside stage modules or narrow edge helpers
 - adapters should consume execution requests, not re-interpret economic intent
+
+## Journal Accountability Semantics
+
+Execution journal entries must preserve canonical opportunity identity and provenance without promoting execution artifacts to authority.
+
+Required properties:
+- `executionRequestId` and `idempotencyKey` are correlation fields only
+- `opportunityId` remains the canonical decision identity used for accountability
+- `opportunityProvenance` explicitly distinguishes `native_canonical` vs `compatibility_canonicalized`
+- journal projection may fill missing provenance from canonical execution context, but must not infer canonical identity from execution IDs
+
+## Audit Checklist
+
+Use this checklist for fast compatibility-canonicalization audits:
+
+- Authority strictness
+  - canonical stages reject requests missing full authority (`opportunityId + decisionId + planId`)
+  - no stage relies on `executionRequestId` or `idempotencyKey` for canonical identity
+- Compatibility boundary isolation
+  - legacy identity upgrades happen only in `legacyExecutionCompatibilityAdapter.ts`
+  - no other stage synthesizes canonical opportunity IDs from raw command-only payloads
+- Determinism
+  - identical legacy inputs produce identical canonicalized `opportunityId`
+  - identical legacy inputs produce stable `executionRequestId`/`idempotencyKey`
+  - retries/replays do not create misleading new canonical identities
+- Provenance completeness
+  - compatibility-canonicalized entries include source type, adaptation reason, lineage, and canonicalization version
+  - native canonical entries are explicitly marked as native
+  - provenance survives request -> context -> result -> journal flow
+- Journal safety
+  - journal entries preserve canonical `opportunityId` as accountability key
+  - `opportunityProvenance` is present and consistent with source path
+  - execution IDs remain correlation-only fields
 
 ## Future Cleanup Phase
 

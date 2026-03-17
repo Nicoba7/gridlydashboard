@@ -15,6 +15,7 @@ function makeCandidate(
   } = {},
 ): EconomicActionCandidate {
   return {
+    opportunityId: id,
     executionRequestId: id,
     targetDeviceId: "device-1",
     action: opts.action,
@@ -60,9 +61,11 @@ describe("evaluateEconomicActionPreference", () => {
       const result = evaluateEconomicActionPreference(candidates, normalContext);
 
       expect(result).not.toBeNull();
+      expect(result!.preferredOpportunityId).toBe("req-high");
       expect(result!.preferredRequestId).toBe("req-high");
       expect(result!.isFallback).toBe(false);
       expect(result!.rejections).toHaveLength(1);
+      expect(result!.rejections[0].opportunityId).toBe("req-low");
       expect(result!.rejections[0].executionRequestId).toBe("req-low");
       expect(result!.rejections[0].reasonCode).toBe("INFERIOR_ECONOMIC_VALUE");
       expect(result!.rejections[0].inferiorByPencePerKwh).toBeCloseTo(11.7, 1);
@@ -76,7 +79,7 @@ describe("evaluateEconomicActionPreference", () => {
 
       const result = evaluateEconomicActionPreference(candidates, normalContext);
 
-      expect(result!.preferredRequestId).toBe("req-net-high");
+      expect(result!.preferredOpportunityId).toBe("req-net-high");
       expect(result!.selectionScore).toBeCloseTo(12.0);
     });
 
@@ -88,7 +91,7 @@ describe("evaluateEconomicActionPreference", () => {
 
       const result = evaluateEconomicActionPreference(candidates, normalContext);
 
-      expect(result!.preferredRequestId).toBe("req-margin-high");
+      expect(result!.preferredOpportunityId).toBe("req-margin-high");
     });
 
     it("effectiveStoredEnergyValue takes precedence over netStoredEnergyValue", () => {
@@ -108,7 +111,7 @@ describe("evaluateEconomicActionPreference", () => {
       const result = evaluateEconomicActionPreference(candidates, normalContext);
 
       // effectiveStoredEnergyValue is the decisive score (14 > 3)
-      expect(result!.preferredRequestId).toBe("req-effective-dominant");
+      expect(result!.preferredOpportunityId).toBe("req-effective-dominant");
     });
 
     it("prefers candidate with 0.0 explicit value over undefined (only one has data)", () => {
@@ -120,7 +123,7 @@ describe("evaluateEconomicActionPreference", () => {
 
       const result = evaluateEconomicActionPreference(candidates, normalContext);
 
-      expect(result!.preferredRequestId).toBe("req-positive");
+      expect(result!.preferredOpportunityId).toBe("req-positive");
     });
 
     it("selects the first candidate on an exact tie (deterministic tiebreak)", () => {
@@ -131,7 +134,7 @@ describe("evaluateEconomicActionPreference", () => {
 
       const result = evaluateEconomicActionPreference(candidates, normalContext);
 
-      expect(result!.preferredRequestId).toBe("req-first");
+      expect(result!.preferredOpportunityId).toBe("req-first");
       expect(result!.rejections[0].reasonCode).toBe("ECONOMIC_PREFERENCE_TIE_BROKEN");
       expect(result!.isFallback).toBe(false);
     });
@@ -145,9 +148,9 @@ describe("evaluateEconomicActionPreference", () => {
 
       const result = evaluateEconomicActionPreference(candidates, normalContext);
 
-      expect(result!.preferredRequestId).toBe("req-best");
+      expect(result!.preferredOpportunityId).toBe("req-best");
       expect(result!.rejections).toHaveLength(2);
-      const rejectedIds = result!.rejections.map((r) => r.executionRequestId);
+      const rejectedIds = result!.rejections.map((r) => r.opportunityId);
       expect(rejectedIds).toContain("req-mid");
       expect(rejectedIds).toContain("req-worst");
       expect(result!.alternativesConsidered).toBe(3);
@@ -174,9 +177,9 @@ describe("evaluateEconomicActionPreference", () => {
 
       const result = evaluateEconomicActionPreference(candidates, lowConfidenceContext);
 
-      expect(result!.preferredRequestId).toBe("req-hold");
+      expect(result!.preferredOpportunityId).toBe("req-hold");
       expect(result!.isFallback).toBe(true);
-      expect(result!.rejections[0].executionRequestId).toBe("req-charge");
+      expect(result!.rejections[0].opportunityId).toBe("req-charge");
       expect(result!.rejections[0].reasonCode).toBe("INFERIOR_ECONOMIC_VALUE");
       expect(result!.selectionReason).toContain("Low planning confidence");
     });
@@ -196,7 +199,7 @@ describe("evaluateEconomicActionPreference", () => {
       const result = evaluateEconomicActionPreference(candidates, lowConfidenceContext);
 
       // No hold action available; first candidate is used as conservative fallback
-      expect(result!.preferredRequestId).toBe("req-first");
+      expect(result!.preferredOpportunityId).toBe("req-first");
       expect(result!.isFallback).toBe(true);
     });
 
@@ -214,9 +217,9 @@ describe("evaluateEconomicActionPreference", () => {
       // req-aggressive has economic data so hasEconomicData is true.
       // Under low confidence the function selects the hold-like (undefined action) candidate.
       expect(result).not.toBeNull();
-      expect(result!.preferredRequestId).toBe("req-unmatched");
+      expect(result!.preferredOpportunityId).toBe("req-unmatched");
       expect(result!.isFallback).toBe(true);
-      expect(result!.rejections[0].executionRequestId).toBe("req-aggressive");
+      expect(result!.rejections[0].opportunityId).toBe("req-aggressive");
     });
   });
 
@@ -232,8 +235,8 @@ describe("evaluateEconomicActionPreference", () => {
       // hasEconomicData is true because req-with-data has value
       // req-no-data scores 0, req-with-data scores 10 → req-with-data wins
       expect(result).not.toBeNull();
-      expect(result!.preferredRequestId).toBe("req-with-data");
-      expect(result!.rejections[0].executionRequestId).toBe("req-no-data");
+      expect(result!.preferredOpportunityId).toBe("req-with-data");
+      expect(result!.rejections[0].opportunityId).toBe("req-no-data");
       expect(result!.rejections[0].inferiorByPencePerKwh).toBeCloseTo(10.0);
     });
 
@@ -261,7 +264,7 @@ describe("evaluateEconomicActionPreference", () => {
       const result = evaluateEconomicActionPreference(candidates, normalContext);
 
       expect(result!.alternativesConsidered).toBe(4);
-      expect(result!.preferredRequestId).toBe("r4");
+      expect(result!.preferredOpportunityId).toBe("r4");
       expect(result!.rejections).toHaveLength(3);
     });
   });

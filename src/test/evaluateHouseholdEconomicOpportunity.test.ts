@@ -14,6 +14,7 @@ function buildCandidate(
   },
 ): EconomicActionCandidate {
   return {
+    opportunityId: executionRequestId,
     executionRequestId,
     targetDeviceId: input.targetDeviceId,
     action: input.action,
@@ -83,9 +84,11 @@ describe("evaluateHouseholdEconomicOpportunity", () => {
     );
 
     expect(result).not.toBeNull();
+    expect(result!.preferredOpportunityId).toBe("req-export");
     expect(result!.preferredRequestId).toBe("req-export");
     expect(result!.selectionScore).toBeCloseTo(18.4);
     expect(result!.rejections).toHaveLength(1);
+    expect(result!.rejections[0].opportunityId).toBe("req-ev");
     expect(result!.rejections[0].executionRequestId).toBe("req-ev");
     expect(result!.rejections[0].inferiorByPencePerKwh).toBeCloseTo(9.2);
   });
@@ -107,7 +110,7 @@ describe("evaluateHouseholdEconomicOpportunity", () => {
       { planningConfidenceLevel: "high", optimizationMode: "cost" },
     );
 
-    expect(result!.preferredRequestId).toBe("req-export");
+    expect(result!.preferredOpportunityId).toBe("req-export");
   });
 
   it("ignores non-value-seeking actions when arbitrating household opportunities", () => {
@@ -132,7 +135,7 @@ describe("evaluateHouseholdEconomicOpportunity", () => {
       { planningConfidenceLevel: "high", optimizationMode: "balanced" },
     );
 
-    expect(result!.preferredRequestId).toBe("req-export");
+    expect(result!.preferredOpportunityId).toBe("req-export");
     expect(result!.alternativesConsidered).toBe(2);
     expect(result!.rejections).toHaveLength(1);
   });

@@ -5,6 +5,7 @@ import type { CommandExecutionResult } from "./types";
 import { projectExecutionOutcome } from "./projectExecutionOutcome";
 
 const PREFLIGHT_REASON_CODES = new Set([
+  "EXECUTION_AUTHORITY_IDENTITY_INSUFFICIENT",
   "CAPABILITIES_NOT_FOUND",
   "COMMAND_KIND_NOT_SUPPORTED",
   "POWER_SETPOINT_OUT_OF_RANGE",
@@ -83,6 +84,7 @@ export function toExecutionJournalEntry(
     cycleId,
     recordedAt,
     opportunityId: executionResult.opportunityId,
+    opportunityProvenance: executionResult.opportunityProvenance,
     decisionId: executionResult.decisionId,
     executionRequestId: executionResult.executionRequestId,
     idempotencyKey: executionResult.idempotencyKey,
@@ -93,6 +95,7 @@ export function toExecutionJournalEntry(
     acknowledgementStatus: outcomeProjection.acknowledgementStatus,
     reasonCodes: executionResult.reasonCodes,
     stage: inferStage(executionResult.reasonCodes, executionResult.status),
+    telemetryCoherence: executionResult.telemetryCoherence,
     cycleFinancialContext,
     economicArbitration: executionResult.economicArbitration,
     schemaVersion: "execution-journal.v1",

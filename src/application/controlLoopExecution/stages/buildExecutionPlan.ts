@@ -2,9 +2,9 @@ import type { ControlLoopInput, ControlLoopResult } from "../../../controlLoop/c
 import { evaluateExecutionPolicy } from "../evaluateExecutionPolicy";
 import type { ExecutionPolicyReasonCode } from "../executionPolicyTypes";
 import type {
-  CommandExecutionRequest,
   CommandExecutionResult,
 } from "../types";
+import { buildExecutionIdentity } from "../edge/buildExecutionRequestsFromPlan";
 import type {
   DeviceArbitratedOpportunity,
   EligibleOpportunity,
@@ -16,14 +16,14 @@ import type {
 } from "../pipelineTypes";
 
 function buildPlanningRejection(
-  request: CommandExecutionRequest,
+  opportunity: EligibleOpportunity,
   reasonCodes: OpportunityReasonCode[],
   decisionReason: string,
 ): RejectedOpportunity {
   return {
-    opportunityId: request.opportunityId ?? request.executionRequestId,
-    decisionId: request.decisionId,
-    targetDeviceId: request.targetDeviceId,
+    opportunityId: opportunity.opportunityId,
+    decisionId: opportunity.decisionId,
+    targetDeviceId: opportunity.targetDeviceId,
     stage: "execution_planning",
     reasonCodes,
     decisionReason,
@@ -31,18 +31,20 @@ function buildPlanningRejection(
 }
 
 function mapPlanningDeniedOutcome(
-  request: CommandExecutionRequest,
+  opportunity: EligibleOpportunity,
   reasonCodes: OpportunityReasonCode[],
 ): CommandExecutionResult {
+  const identity = buildExecutionIdentity(opportunity);
+
   return {
-    opportunityId: request.opportunityId,
-    executionRequestId: request.executionRequestId,
-    requestId: request.requestId,
-    idempotencyKey: request.idempotencyKey,
-    decisionId: request.decisionId,
-    targetDeviceId: request.targetDeviceId,
-    commandId: request.commandId,
-    deviceId: request.targetDeviceId,
+    opportunityId: opportunity.opportunityId,
+    executionRequestId: identity.executionRequestId,
+    requestId: identity.executionRequestId,
+    idempotencyKey: identity.idempotencyKey,
+    decisionId: opportunity.decisionId,
+    targetDeviceId: opportunity.targetDeviceId,
+    commandId: opportunity.commandId,
+    deviceId: opportunity.targetDeviceId,
     status: "skipped",
     message: "Command denied by canonical execution policy.",
     errorCode: reasonCodes[0],
@@ -62,7 +64,7 @@ function toCompatibilitySelectedDecision(
     deviceArbitration: {
       arbitrationScope: "device",
       deviceContentionKey:
-        selectedOpportunity.targetDeviceId ?? selectedOpportunity.request.targetDeviceId,
+        selectedOpportunity.targetDeviceId,
       alternativesConsidered: 1,
       decisionReason: "Selected for execution planning dispatch.",
     },
@@ -113,7 +115,7 @@ export interface BuildExecutionPlanOutput {
   /** Canonical rejected opportunities owned by execution planning stage. */
   rejected: RejectedOpportunity[];
   /** Transitional edge payload for adapter execution input; not part of canonical plan model. */
-  dispatchableRequests: CommandExecutionRequest[];
+  dispatchableOpportunities: EligibleOpportunity[];
   /** Transitional edge payload for request-centric journal/adapter/store compatibility. */
   compatibilityOutcomes: CommandExecutionResult[];
 }
@@ -123,18 +125,18 @@ export interface BuildExecutionPlanOutput {
  *
  * Owns: reserved-device conflict handling and command-set construction for
  * downstream adapter execution.
- *
+  * - `plan.kind === "non_executable"` implies no dispatchable opportunities
  * Must not: perform new economic reasoning or call adapters.
  *
  * Invariants:
- * - `plan.kind === "executable"` implies `dispatchableRequests.length > 0`
+ * - `plan.kind === "executable"` implies `dispatchableOpportunities.length > 0`
  * - compatibility outcomes are edge-only transitional payloads and do not
  *   participate in canonical decision semantics.
  */
 export function buildExecutionPlan(
   params: BuildExecutionPlanInput,
 ): BuildExecutionPlanOutput {
-  const dispatchableRequests: CommandExecutionRequest[] = [];
+  const dispatchableOpportunities: EligibleOpportunity[] = [];
   const reservedDeviceIds = new Set<string>();
   const rejected: RejectedOpportunity[] = [];
   const compatibilityOutcomes: CommandExecutionResult[] = [];
@@ -142,7 +144,12 @@ export function buildExecutionPlan(
   for (const opportunity of params.opportunities) {
     const policyDecision = evaluateExecutionPolicy({
       now: params.input.now,
-      request: opportunity.request,
+      request: {
+        decisionId: opportunity.decisionId,
+        targetDeviceId: opportunity.targetDeviceId,
+        requestedAt: opportunity.requestedAt,
+        canonicalCommand: opportunity.canonicalCommand,
+      },
       controlLoopResult: params.controlLoopResult,
       optimizerOutput: params.input.optimizerOutput,
       observedStateFreshness: params.input.observedStateFreshness,
@@ -152,13 +159,13 @@ export function buildExecutionPlan(
     if (!policyDecision.allowed) {
       compatibilityOutcomes.push(
         mapPlanningDeniedOutcome(
-          opportunity.request,
+          opportunity,
           policyDecision.reasonCodes as OpportunityReasonCode[],
         ),
       );
       rejected.push(
         buildPlanningRejection(
-          opportunity.request,
+          opportunity,
           policyDecision.reasonCodes as ExecutionPolicyReasonCode[],
           "Command denied by canonical execution policy.",
         ),
@@ -166,40 +173,25 @@ export function buildExecutionPlan(
       continue;
     }
 
-    reservedDeviceIds.add(opportunity.request.targetDeviceId);
-    dispatchableRequests.push(opportunity.request);
+    reservedDeviceIds.add(opportunity.targetDeviceId);
+    dispatchableOpportunities.push(opportunity);
   }
 
-  if (!dispatchableRequests.length) {
+  if (!dispatchableOpportunities.length) {
     return {
       plan: buildNonExecutablePlan(rejected),
       rejected,
-      dispatchableRequests,
+      dispatchableOpportunities,
       compatibilityOutcomes,
     };
   }
 
-  const selectedRequest = dispatchableRequests[0];
-  if (!selectedRequest) {
-    return {
-      plan: buildNonExecutablePlan(rejected),
-      rejected,
-      dispatchableRequests: [],
-      compatibilityOutcomes,
-    };
-  }
-
-  const selectedOpportunity =
-    params.opportunities.find(
-      (opportunity) =>
-        opportunity.request.executionRequestId === selectedRequest.executionRequestId,
-    ) ?? params.opportunities[0];
-
+  const selectedOpportunity = dispatchableOpportunities[0];
   if (!selectedOpportunity) {
     return {
       plan: buildNonExecutablePlan(rejected),
       rejected,
-      dispatchableRequests: [],
+      dispatchableOpportunities: [],
       compatibilityOutcomes,
     };
   }
@@ -208,12 +200,12 @@ export function buildExecutionPlan(
     plan: {
       kind: "executable",
       householdDecision: toCompatibilitySelectedDecision(selectedOpportunity, rejected),
-      selectedOpportunityId: selectedRequest.opportunityId,
-      selectedDecisionId: selectedRequest.decisionId,
-      commands: dispatchableRequests.map((request) => request.canonicalCommand),
+      selectedOpportunityId: selectedOpportunity.opportunityId,
+      selectedDecisionId: selectedOpportunity.decisionId,
+      commands: dispatchableOpportunities.map((opportunity) => opportunity.canonicalCommand),
     },
     rejected,
-    dispatchableRequests,
+    dispatchableOpportunities,
     compatibilityOutcomes,
   };
 }

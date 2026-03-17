@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SystemState } from "../domain";
-import type { OptimizerDecision, OptimizerOutput } from "../domain/optimizer";
+import type { OptimizerDecision, OptimizerOpportunity, OptimizerOutput } from "../domain/optimizer";
 import type {
   CommandExecutionRequest,
   CommandExecutionResult,
@@ -49,7 +49,11 @@ function buildDecision(params: {
   };
 }
 
-function buildOutput(decisions: OptimizerDecision[], commands: OptimizerOutput["recommendedCommands"]): OptimizerOutput {
+function buildOutput(
+  decisions: OptimizerDecision[],
+  commands: OptimizerOutput["recommendedCommands"],
+  opportunities?: OptimizerOpportunity[],
+): OptimizerOutput {
   return {
     schemaVersion: "optimizer-output.v1.1",
     plannerVersion: "canonical-runtime.v1",
@@ -62,6 +66,7 @@ function buildOutput(decisions: OptimizerDecision[], commands: OptimizerOutput["
     status: "ok",
     headline: "Mixed heterogeneous cycle",
     decisions,
+    opportunities,
     recommendedCommands: commands,
     summary: {
       expectedImportCostPence: 110,
@@ -110,6 +115,7 @@ describe("runControlLoopExecutionService mixed heterogeneous outcomes", () => {
         requests.map((request): CommandExecutionResult => {
           if (request.targetDeviceId === "ev-1") {
             return {
+              opportunityId: request.executionRequestId,
               executionRequestId: request.executionRequestId,
               requestId: request.requestId,
               idempotencyKey: request.idempotencyKey,
@@ -124,6 +130,7 @@ describe("runControlLoopExecutionService mixed heterogeneous outcomes", () => {
           }
 
           return {
+            opportunityId: request.executionRequestId,
             executionRequestId: request.executionRequestId,
             requestId: request.requestId,
             idempotencyKey: request.idempotencyKey,
@@ -158,39 +165,108 @@ describe("runControlLoopExecutionService mixed heterogeneous outcomes", () => {
       }),
     ];
 
-    const output = buildOutput(decisions, [
-      {
-        commandId: "cmd-battery-1",
-        deviceId: "battery-1",
-        issuedAt: NOW,
-        type: "set_mode",
-        mode: "charge",
-        effectiveWindow: {
-          startAt: "2026-03-16T10:00:00.000Z",
-          endAt: "2026-03-16T10:30:00.000Z",
+    const output = buildOutput(
+      decisions,
+      [
+        {
+          commandId: "cmd-battery-1",
+          deviceId: "battery-1",
+          issuedAt: NOW,
+          type: "set_mode",
+          mode: "charge",
+          effectiveWindow: {
+            startAt: "2026-03-16T10:00:00.000Z",
+            endAt: "2026-03-16T10:30:00.000Z",
+          },
         },
-      },
-      {
-        commandId: "cmd-ev-refresh",
-        deviceId: "ev-1",
-        issuedAt: NOW,
-        type: "refresh_state",
-        effectiveWindow: {
-          startAt: "2026-03-16T10:00:00.000Z",
-          endAt: "2026-03-16T10:30:00.000Z",
+        {
+          commandId: "cmd-ev-refresh",
+          deviceId: "ev-1",
+          issuedAt: NOW,
+          type: "refresh_state",
+          effectiveWindow: {
+            startAt: "2026-03-16T10:00:00.000Z",
+            endAt: "2026-03-16T10:30:00.000Z",
+          },
         },
-      },
-      {
-        commandId: "cmd-solar-refresh",
-        deviceId: "solar-1",
-        issuedAt: NOW,
-        type: "refresh_state",
-        effectiveWindow: {
-          startAt: "2026-03-16T10:00:00.000Z",
-          endAt: "2026-03-16T10:30:00.000Z",
+        {
+          commandId: "cmd-solar-refresh",
+          deviceId: "solar-1",
+          issuedAt: NOW,
+          type: "refresh_state",
+          effectiveWindow: {
+            startAt: "2026-03-16T10:00:00.000Z",
+            endAt: "2026-03-16T10:30:00.000Z",
+          },
         },
-      },
-    ]);
+      ],
+      [
+        {
+          opportunityId: "opp-battery-1",
+          decisionId: "decision-battery",
+          action: "charge_battery",
+          targetDeviceId: "battery-1",
+          targetKind: "battery",
+          requiredCapabilities: ["set_mode"],
+          command: {
+            commandId: "cmd-battery-1",
+            deviceId: "battery-1",
+            issuedAt: NOW,
+            type: "set_mode",
+            mode: "charge",
+            effectiveWindow: {
+              startAt: "2026-03-16T10:00:00.000Z",
+              endAt: "2026-03-16T10:30:00.000Z",
+            },
+          },
+          economicSignals: { effectiveStoredEnergyValuePencePerKwh: 11 },
+          planningConfidenceLevel: "high",
+          decisionReason: "Charge battery in value window",
+        },
+        {
+          opportunityId: "opp-ev-1",
+          decisionId: "decision-ev-refresh",
+          action: "hold",
+          targetDeviceId: "ev-1",
+          targetKind: "ev",
+          requiredCapabilities: ["refresh_state"],
+          command: {
+            commandId: "cmd-ev-refresh",
+            deviceId: "ev-1",
+            issuedAt: NOW,
+            type: "refresh_state",
+            effectiveWindow: {
+              startAt: "2026-03-16T10:00:00.000Z",
+              endAt: "2026-03-16T10:30:00.000Z",
+            },
+          },
+          economicSignals: {},
+          planningConfidenceLevel: "high",
+          decisionReason: "Refresh EV telemetry",
+        },
+        {
+          opportunityId: "opp-solar-1",
+          decisionId: "decision-solar-refresh",
+          action: "hold",
+          targetDeviceId: "solar-1",
+          targetKind: "solar",
+          requiredCapabilities: ["refresh_state"],
+          command: {
+            commandId: "cmd-solar-refresh",
+            deviceId: "solar-1",
+            issuedAt: NOW,
+            type: "refresh_state",
+            effectiveWindow: {
+              startAt: "2026-03-16T10:00:00.000Z",
+              endAt: "2026-03-16T10:30:00.000Z",
+            },
+          },
+          economicSignals: {},
+          planningConfidenceLevel: "high",
+          decisionReason: "Refresh solar telemetry",
+        },
+      ],
+    );
 
     const runtimeGuardrailContext: RuntimeExecutionGuardrailContext = {
       safeHoldMode: false,
@@ -243,12 +319,20 @@ describe("runControlLoopExecutionService mixed heterogeneous outcomes", () => {
     const skipped = result.executionResults.find((x) => x.status === "skipped");
     expect(skipped?.reasonCodes).toContain("RUNTIME_CONSERVATIVE_MODE_ACTIVE");
     expect(skipped?.targetDeviceId).toBe("battery-1");
+    expect(new Set(result.executionResults.map((entry) => entry.opportunityId))).toEqual(
+      new Set(["opp-battery-1", "opp-ev-1", "opp-solar-1"]),
+    );
+    expect(result.executionResults.some((entry) => entry.opportunityId === entry.executionRequestId)).toBe(false);
 
     const entries = journal.getAll();
     expect(entries).toHaveLength(3);
     expect(entries.filter((x) => x.status === "issued")).toHaveLength(1);
     expect(entries.filter((x) => x.status === "skipped")).toHaveLength(1);
     expect(entries.filter((x) => x.status === "failed")).toHaveLength(1);
+    expect(new Set(entries.map((entry) => entry.opportunityId))).toEqual(
+      new Set(["opp-battery-1", "opp-ev-1", "opp-solar-1"]),
+    );
+    expect(entries.some((entry) => entry.opportunityId === entry.executionRequestId)).toBe(false);
 
     const heartbeat = journal.getCycleHeartbeats();
     expect(heartbeat).toHaveLength(1);

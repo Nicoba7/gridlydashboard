@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SystemState } from "../domain";
-import type { OptimizerDecision, OptimizerOutput } from "../domain/optimizer";
+import type { OptimizerDecision, OptimizerOpportunity, OptimizerOutput } from "../domain/optimizer";
 import { runControlLoopExecutionService } from "../application/controlLoopExecution/service";
 import type {
   CommandExecutionRequest,
@@ -51,7 +51,11 @@ function buildDecision(id: string, deviceId: string): OptimizerDecision {
   };
 }
 
-function buildOutput(commands: OptimizerOutput["recommendedCommands"], decisions?: OptimizerDecision[]): OptimizerOutput {
+function buildOutput(
+  commands: OptimizerOutput["recommendedCommands"],
+  decisions?: OptimizerDecision[],
+  opportunities?: OptimizerOpportunity[],
+): OptimizerOutput {
   const normalizedDecisions = decisions ?? [buildDecision("decision-1", "battery")];
   return {
     schemaVersion: "optimizer-output.v1.1",
@@ -65,6 +69,7 @@ function buildOutput(commands: OptimizerOutput["recommendedCommands"], decisions
     status: "ok",
     headline: "Test",
     decisions: normalizedDecisions,
+    opportunities,
     recommendedCommands: commands,
     summary: {
       expectedImportCostPence: 100,
@@ -104,6 +109,102 @@ function buildCapabilitiesProvider() {
 }
 
 describe("runControlLoopExecutionService journal", () => {
+  it("adapts command-only dispatch to canonical opportunity identity without partial authority mode", async () => {
+    const execute = vi.fn(async (requests: CommandExecutionRequest[]) =>
+      requests.map((request): CommandExecutionResult => ({
+        executionRequestId: request.executionRequestId,
+        requestId: request.requestId,
+        idempotencyKey: request.idempotencyKey,
+        decisionId: request.decisionId,
+        targetDeviceId: request.targetDeviceId,
+        commandId: request.commandId,
+        deviceId: request.targetDeviceId,
+        status: "issued",
+      })),
+    );
+    const executor: DeviceCommandExecutor = { execute };
+    const journal = new InMemoryExecutionJournalStore();
+
+    await runControlLoopExecutionService(
+      {
+        now: "2026-03-16T10:05:00.000Z",
+        systemState: buildSystemState(),
+        optimizerOutput: buildOutput([
+          {
+            commandId: "cmd-1",
+            deviceId: "battery",
+            issuedAt: "2026-03-16T10:00:00.000Z",
+            type: "set_mode",
+            mode: "charge",
+            effectiveWindow: { startAt: "2026-03-16T10:00:00.000Z", endAt: "2026-03-16T10:30:00.000Z" },
+          },
+        ]),
+      },
+      executor,
+      buildCapabilitiesProvider(),
+      undefined,
+      journal,
+    );
+
+    const entries = journal.getAll();
+    expect(entries).toHaveLength(1);
+    expect(entries[0].status).toBe("issued");
+    expect(entries[0].opportunityId).toContain("plan-1:decision:decision-1:command:cmd-1");
+    expect(entries[0].reasonCodes ?? []).not.toContain("EXECUTION_AUTHORITY_PARTIAL_IDENTITY_MODE");
+    expect(entries[0].opportunityProvenance).toEqual({
+      kind: "compatibility_canonicalized",
+      canonicalizedFromLegacy: true,
+      legacySourceType: "command_execution_request",
+      adaptationReason: "missing_opportunity_id",
+      sourceCommandLineage: {
+        planId: "plan-1",
+        decisionId: "decision-1",
+        commandId: "cmd-1",
+        targetDeviceId: "battery",
+        sourceOpportunityId: undefined,
+      },
+      canonicalizationVersion: "legacy-opportunity-canonicalization.v1",
+    });
+  });
+
+  it("preserves compatibility decision-missing flow without authority denial", async () => {
+    const execute = vi.fn(async (_requests: CommandExecutionRequest[]) => [] as CommandExecutionResult[]);
+    const executor: DeviceCommandExecutor = { execute };
+    const journal = new InMemoryExecutionJournalStore();
+
+    await runControlLoopExecutionService(
+      {
+        now: "2026-03-16T10:05:00.000Z",
+        systemState: buildSystemState(),
+        optimizerOutput: {
+          ...buildOutput([
+            {
+              commandId: "cmd-1",
+              deviceId: "battery",
+              issuedAt: "2026-03-16T10:00:00.000Z",
+              type: "set_mode",
+              mode: "charge",
+              effectiveWindow: { startAt: "2026-03-16T10:00:00.000Z", endAt: "2026-03-16T10:30:00.000Z" },
+            },
+          ], []),
+          decisions: [],
+        },
+      },
+      executor,
+      buildCapabilitiesProvider(),
+      undefined,
+      journal,
+    );
+
+    expect(execute).not.toHaveBeenCalled();
+    const entries = journal.getAll();
+    expect(entries).toHaveLength(1);
+    expect(entries[0].status).toBe("skipped");
+    expect(entries[0].stage).toBe("dispatch");
+    expect(entries[0].opportunityProvenance?.kind).toBe("compatibility_canonicalized");
+    expect(entries[0].reasonCodes ?? []).not.toContain("EXECUTION_AUTHORITY_IDENTITY_INSUFFICIENT");
+  });
+
   it("records journal entry for preflight-invalid command", async () => {
     const execute = vi.fn(async (_requests: CommandExecutionRequest[]) => [] as CommandExecutionResult[]);
     const executor: DeviceCommandExecutor = { execute };
@@ -201,16 +302,45 @@ describe("runControlLoopExecutionService journal", () => {
       {
         now: "2026-03-16T10:05:00.000Z",
         systemState: buildSystemState(),
-        optimizerOutput: buildOutput([
-          {
-            commandId: "cmd-1",
-            deviceId: "battery",
-            issuedAt: "2026-03-16T10:00:00.000Z",
-            type: "set_mode",
-            mode: "charge",
-            effectiveWindow: { startAt: "2026-03-16T10:00:00.000Z", endAt: "2026-03-16T10:30:00.000Z" },
-          },
-        ]),
+        optimizerOutput: buildOutput(
+          [
+            {
+              commandId: "cmd-1",
+              deviceId: "battery",
+              issuedAt: "2026-03-16T10:00:00.000Z",
+              type: "set_mode",
+              mode: "charge",
+              effectiveWindow: { startAt: "2026-03-16T10:00:00.000Z", endAt: "2026-03-16T10:30:00.000Z" },
+            },
+          ],
+          undefined,
+          [
+            {
+              opportunityId: "opp-1",
+              decisionId: "decision-1",
+              action: "charge_battery",
+              targetDeviceId: "battery",
+              targetKind: "battery",
+              requiredCapabilities: ["set_mode"],
+              command: {
+                commandId: "cmd-1",
+                deviceId: "battery",
+                issuedAt: "2026-03-16T10:00:00.000Z",
+                type: "set_mode",
+                mode: "charge",
+                effectiveWindow: {
+                  startAt: "2026-03-16T10:00:00.000Z",
+                  endAt: "2026-03-16T10:30:00.000Z",
+                },
+              },
+              economicSignals: {
+                effectiveStoredEnergyValuePencePerKwh: 12.4,
+              },
+              planningConfidenceLevel: "medium",
+              decisionReason: "Test",
+            },
+          ],
+        ),
       },
       executor,
       buildCapabilitiesProvider(),
@@ -222,6 +352,12 @@ describe("runControlLoopExecutionService journal", () => {
     expect(entries).toHaveLength(1);
     expect(entries[0].stage).toBe("dispatch");
     expect(entries[0].status).toBe("issued");
+    expect(entries[0].opportunityId).toBe("opp-1");
+    expect(entries[0].opportunityProvenance).toEqual({
+      kind: "native_canonical",
+      canonicalizedFromLegacy: false,
+    });
+    expect(entries[0].decisionId).toBe("decision-1");
     expect(entries[0].acknowledgementStatus).toBe("acknowledged");
   });
 

@@ -2,7 +2,9 @@ import type { CanonicalDeviceCommand } from "../application/controlLoopExecution
 import type { CommandAcknowledgementStatus } from "../application/controlLoopExecution/projectExecutionOutcome";
 import type {
   CommandExecutionStatus,
+  ExecutionOpportunityProvenance,
   ExecutionEconomicArbitrationTrace,
+  TelemetryCoherenceStatus,
 } from "../application/controlLoopExecution/types";
 import type { RuntimeExecutionPosture } from "../application/controlLoopExecution/executionPolicyTypes";
 import type { PlanFreshnessStatus, ReplanTrigger } from "../application/continuousLoop/controlLoopRunnerTypes";
@@ -135,6 +137,7 @@ export interface ExecutionJournalEntry {
   cycleId?: string;
   recordedAt: string;
   opportunityId?: string;
+  opportunityProvenance?: ExecutionOpportunityProvenance;
   decisionId?: string;
   executionRequestId: string;
   idempotencyKey: string;
@@ -145,6 +148,12 @@ export interface ExecutionJournalEntry {
   acknowledgementStatus?: CommandAcknowledgementStatus;
   reasonCodes?: string[];
   stage?: "preflight_validation" | "reconciliation" | "dispatch";
+  /**
+   * Quality of device telemetry evidence at or after command dispatch.
+   * Informational only — never drives canonical identity or economic reasoning.
+   * Allows the audit trail to distinguish "command dispatched" from "device state converged".
+   */
+  telemetryCoherence?: TelemetryCoherenceStatus;
   cycleFinancialContext?: ExecutionCycleFinancialContext;
   economicArbitration?: ExecutionEconomicArbitrationTrace;
   schemaVersion: string;

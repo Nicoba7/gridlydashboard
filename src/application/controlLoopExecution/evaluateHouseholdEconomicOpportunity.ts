@@ -7,14 +7,18 @@ import {
 } from "./evaluateEconomicActionPreference";
 
 export interface HouseholdEconomicOpportunityRejection {
-  executionRequestId: string;
+  opportunityId: string;
+  /** Transitional compatibility metadata for execution-edge joins only. */
+  executionRequestId?: string;
   candidateScore: number;
   inferiorByPencePerKwh?: number;
   selectionReason: string;
 }
 
 export interface HouseholdEconomicOpportunityResult {
-  preferredRequestId: string;
+  preferredOpportunityId: string;
+  /** Transitional compatibility metadata for execution-edge joins only. */
+  preferredRequestId?: string;
   selectionScore: number;
   selectionReason: string;
   alternativesConsidered: number;
@@ -80,11 +84,13 @@ export function evaluateHouseholdEconomicOpportunity(
   const winner = scored[0];
 
   return {
+    preferredOpportunityId: winner.candidate.opportunityId,
     preferredRequestId: winner.candidate.executionRequestId,
     selectionScore: winner.score,
     selectionReason: `Highest-value household opportunity selected: ${winner.candidate.action} on ${winner.candidate.targetDeviceId} at ${winner.score.toFixed(2)} p/kWh.`,
     alternativesConsidered: scored.length,
     rejections: scored.slice(1).map(({ candidate, score }) => ({
+      opportunityId: candidate.opportunityId,
       executionRequestId: candidate.executionRequestId,
       candidateScore: score,
       inferiorByPencePerKwh: winner.score === score ? undefined : winner.score - score,

@@ -6,10 +6,16 @@ import type {
 } from "../types";
 import type { RuntimeExecutionPosture } from "../executionPolicyTypes";
 import type {
+  EligibleOpportunity,
+  ExecutionEdgeContext,
   ExecutionPlan,
   ExecutionResult,
   RejectedOpportunity,
 } from "../pipelineTypes";
+import {
+  buildExecutionEdgeContextsFromPlan,
+  buildExecutionRequestsFromContexts,
+} from "../edge/buildExecutionRequestsFromPlan";
 
 function withExecutionPosture(
   results: CommandExecutionResult[],
@@ -23,29 +29,91 @@ function withExecutionPosture(
 
 function attachEconomicArbitrationTraces(
   results: CommandExecutionResult[],
+  contextByExecutionRequestId: Map<string, ExecutionEdgeContext>,
   traces: Map<string, ExecutionEconomicArbitrationTrace>,
 ): CommandExecutionResult[] {
   return results.map((result) => {
-    const economicArbitration = traces.get(result.executionRequestId);
+    const context = contextByExecutionRequestId.get(result.executionRequestId);
+    const economicArbitration = context ? traces.get(context.opportunityId) : undefined;
     return economicArbitration ? { ...result, economicArbitration } : result;
   });
 }
 
+function normalizeAdapterResults(
+  results: CommandExecutionResult[],
+  contextByExecutionRequestId: Map<string, ExecutionEdgeContext>,
+): CommandExecutionResult[] {
+  return results.map((result) => {
+    const context = contextByExecutionRequestId.get(result.executionRequestId);
+    if (!context) {
+      return result;
+    }
+
+    return {
+      ...result,
+      opportunityId: context.opportunityId,
+      opportunityProvenance: context.opportunityProvenance,
+      requestId: result.requestId ?? context.executionRequestId,
+      idempotencyKey: result.idempotencyKey ?? context.idempotencyKey,
+      decisionId: context.decisionId,
+      targetDeviceId: context.targetDeviceId,
+      commandId: context.commandId,
+      deviceId: context.targetDeviceId,
+      reasonCodes: result.reasonCodes,
+    };
+  });
+}
+
+function evaluateExecutionAuthorityContexts(
+  contexts: ExecutionEdgeContext[],
+): {
+  dispatchable: ExecutionEdgeContext[];
+  rejectedOutcomes: CommandExecutionResult[];
+} {
+  const dispatchable: ExecutionEdgeContext[] = [];
+  const rejectedOutcomes: CommandExecutionResult[] = [];
+
+  for (const context of contexts) {
+    if (context.executionAuthorityMode === "insufficient_identity") {
+      rejectedOutcomes.push({
+        opportunityId: context.opportunityId,
+        executionRequestId: context.executionRequestId,
+        requestId: context.executionRequestId,
+        idempotencyKey: context.idempotencyKey,
+        decisionId: context.decisionId,
+        targetDeviceId: context.targetDeviceId,
+        commandId: context.commandId,
+        deviceId: context.targetDeviceId,
+        status: "skipped",
+        message:
+          "Execution authority denied: canonical identity chain incomplete (requires at least decisionId + planId).",
+        errorCode: "EXECUTION_AUTHORITY_IDENTITY_INSUFFICIENT",
+        reasonCodes: ["EXECUTION_AUTHORITY_IDENTITY_INSUFFICIENT"],
+      });
+      continue;
+    }
+
+    dispatchable.push(context);
+  }
+
+  return { dispatchable, rejectedOutcomes };
+}
+
 function mapFailedResults(
-  requests: CommandExecutionRequest[],
+  contexts: ExecutionEdgeContext[],
   error: unknown,
 ): CommandExecutionResult[] {
   const message = error instanceof Error ? error.message : "Device command execution failed.";
 
-  return requests.map((request) => ({
-    opportunityId: request.opportunityId,
-    executionRequestId: request.executionRequestId,
-    requestId: request.requestId,
-    idempotencyKey: request.idempotencyKey,
-    decisionId: request.decisionId,
-    targetDeviceId: request.targetDeviceId,
-    commandId: request.commandId,
-    deviceId: request.targetDeviceId,
+  return contexts.map((context) => ({
+    opportunityId: context.opportunityId,
+    executionRequestId: context.executionRequestId,
+    requestId: context.executionRequestId,
+    idempotencyKey: context.idempotencyKey,
+    decisionId: context.decisionId,
+    targetDeviceId: context.targetDeviceId,
+    commandId: context.commandId,
+    deviceId: context.targetDeviceId,
     status: "failed",
     message,
     errorCode: "EXECUTOR_ERROR",
@@ -61,8 +129,8 @@ function classifyExecutionResultKind(results: CommandExecutionResult[]): "execut
 export interface ExecutePlanInput {
   /** Canonical execution plan from planning stage. */
   plan: ExecutionPlan;
-  /** Transitional edge payload for adapter dispatch only; not canonical plan state. */
-  dispatchableRequests: CommandExecutionRequest[];
+  /** Canonical opportunities selected for execution planning dispatch. */
+  dispatchableOpportunities: EligibleOpportunity[];
   executor: DeviceCommandExecutor;
   /** Transitional request-centric outcomes accumulated before adapter dispatch. */
   preExecutionOutcomes: CommandExecutionResult[];
@@ -75,7 +143,7 @@ export interface ExecutePlanInput {
 export interface ExecutePlanOutput {
   execution: ExecutionResult;
   outcomes: CommandExecutionResult[];
-  dispatchableRequests: CommandExecutionRequest[];
+  executionEdgeContexts: ExecutionEdgeContext[];
   adapterResults: CommandExecutionResult[];
 }
 
@@ -96,7 +164,7 @@ export async function executePlan(
   params: ExecutePlanInput,
 ): Promise<ExecutePlanOutput> {
   if (params.plan.kind === "non_executable") {
-    const safeDispatchableRequests = [] as CommandExecutionRequest[];
+    const safeExecutionEdgeContexts = [] as ExecutionEdgeContext[];
     return {
       execution: {
         kind: "non_executed",
@@ -108,14 +176,29 @@ export async function executePlan(
         executionPosture: params.executionPosture,
       },
       outcomes: withExecutionPosture([...params.preExecutionOutcomes], params.executionPosture),
-      dispatchableRequests: safeDispatchableRequests,
+      executionEdgeContexts: safeExecutionEdgeContexts,
       adapterResults: [],
     };
   }
 
   const executablePlan = params.plan;
-  const dispatchableRequests = params.dispatchableRequests;
+  const rawExecutionEdgeContexts = buildExecutionEdgeContextsFromPlan(
+    executablePlan,
+    params.dispatchableOpportunities,
+  );
+  const authorityEvaluation = evaluateExecutionAuthorityContexts(rawExecutionEdgeContexts);
+  const executionEdgeContexts = authorityEvaluation.dispatchable;
+  const dispatchableRequests = buildExecutionRequestsFromContexts(executionEdgeContexts);
+  const contextByExecutionRequestId = new Map(
+    executionEdgeContexts.map((context) => [context.executionRequestId, context]),
+  );
+
   if (dispatchableRequests.length === 0) {
+    const authorityOutcomes = withExecutionPosture(
+      authorityEvaluation.rejectedOutcomes,
+      params.executionPosture,
+    );
+
     return {
       execution: {
         kind: "non_executed",
@@ -142,15 +225,22 @@ export async function executePlan(
         rejectedOpportunities: params.rejectedOpportunities,
         executionPosture: params.executionPosture,
       },
-      outcomes: withExecutionPosture([...params.preExecutionOutcomes], params.executionPosture),
-      dispatchableRequests: [],
-      adapterResults: [],
+      outcomes: withExecutionPosture(
+        [...params.preExecutionOutcomes, ...authorityOutcomes],
+        params.executionPosture,
+      ),
+      executionEdgeContexts: [],
+      adapterResults: authorityOutcomes,
     };
   }
 
   try {
     const adapterResults = attachEconomicArbitrationTraces(
-      await params.executor.execute(dispatchableRequests),
+      normalizeAdapterResults(
+        await params.executor.execute(dispatchableRequests),
+        contextByExecutionRequestId,
+      ),
+      contextByExecutionRequestId,
       params.selectedEconomicTraces,
     );
 
@@ -173,12 +263,13 @@ export async function executePlan(
     return {
       execution,
       outcomes,
-      dispatchableRequests,
+      executionEdgeContexts,
       adapterResults,
     };
   } catch (error) {
     const adapterResults = attachEconomicArbitrationTraces(
-      mapFailedResults(dispatchableRequests, error),
+      mapFailedResults(executionEdgeContexts, error),
+      contextByExecutionRequestId,
       params.selectedEconomicTraces,
     );
 
@@ -198,7 +289,7 @@ export async function executePlan(
         executionPosture: params.executionPosture,
       },
       outcomes,
-      dispatchableRequests,
+      executionEdgeContexts,
       adapterResults,
     };
   }

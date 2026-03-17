@@ -1,7 +1,7 @@
 import type { ControlLoopResult } from "../../controlLoop/controlLoop";
 import type { OptimizerOutput } from "../../domain/optimizer";
 import type { ObservedStateFreshnessSummary } from "../../domain/observedStateFreshness";
-import type { CommandExecutionRequest } from "./types";
+import type { CanonicalDeviceCommand } from "./canonicalCommand";
 import type {
   PlanFreshnessStatus,
   ReplanTrigger,
@@ -42,7 +42,12 @@ export interface ExecutionPolicyDecision {
 
 export interface ExecutionPolicyEvaluationInput {
   now: string;
-  request: CommandExecutionRequest;
+  request: {
+    decisionId?: string;
+    targetDeviceId: string;
+    requestedAt: string;
+    canonicalCommand: CanonicalDeviceCommand;
+  };
   controlLoopResult: ControlLoopResult;
   optimizerOutput: OptimizerOutput;
   observedStateFreshness?: ObservedStateFreshnessSummary;

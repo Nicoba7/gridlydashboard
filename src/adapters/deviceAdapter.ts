@@ -37,3 +37,15 @@ export interface DeviceAdapter {
     context?: DeviceAdapterExecutionContext,
   ): Promise<DeviceAdapterExecutionResult>;
 }
+
+/**
+ * Optional extension for adapters that expose read-only telemetry/state/capabilities.
+ *
+ * This extends (not replaces) the canonical execution adapter contract so Gridly
+ * keeps a single adapter architecture.
+ */
+export interface ObservableDeviceAdapter<TTelemetry, TState, TCapabilities> extends DeviceAdapter {
+  getTelemetry(): Promise<TTelemetry>;
+  getState(): Promise<TState>;
+  getCapabilities(): TCapabilities;
+}

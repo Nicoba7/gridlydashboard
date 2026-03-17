@@ -25,6 +25,8 @@ import type {
 import { projectExecutionOutcome } from "./projectExecutionOutcome";
 import { classifyRuntimeExecutionPosture } from "./classifyRuntimeExecutionPosture";
 import type { EconomicPrerejection, RejectedOpportunity } from "./pipelineTypes";
+import { buildExecutionEdgeContextsFromRequests } from "./edge/buildExecutionRequestsFromPlan";
+import { adaptLegacyExecutionRequests } from "./edge/legacyExecutionCompatibilityAdapter";
 import {
   evaluateOpportunityEligibility,
 } from "./stages/evaluateOpportunityEligibility";
@@ -110,6 +112,12 @@ function mapRequests(input: ControlLoopInput, result: ControlLoopResult): Comman
 
     return {
       opportunityId: identity.opportunityId,
+      opportunityProvenance: identity.opportunityId
+        ? {
+            kind: "native_canonical",
+            canonicalizedFromLegacy: false,
+          }
+        : undefined,
       executionRequestId: identity.executionRequestId,
       requestId: identity.executionRequestId,
       idempotencyKey: identity.idempotencyKey,
@@ -141,6 +149,10 @@ function mapOpportunityToRequest(
 
   return {
     opportunityId: opportunity.opportunityId,
+    opportunityProvenance: {
+      kind: "native_canonical",
+      canonicalizedFromLegacy: false,
+    },
     executionRequestId: identity.executionRequestId,
     requestId: identity.executionRequestId,
     idempotencyKey: identity.idempotencyKey,
@@ -198,12 +210,18 @@ export async function runControlLoopExecutionService(
     }
     : undefined;
 
-  const requests = mapRequests(input, controlLoopResult);
-  const requestLookup = new Map(requests.map((request) => [request.executionRequestId, request]));
+  const requests = adaptLegacyExecutionRequests(mapRequests(input, controlLoopResult));
+  const executionEdgeContexts = buildExecutionEdgeContextsFromRequests(requests);
+  const contextByExecutionRequestId = new Map(
+    executionEdgeContexts.map((context) => [context.executionRequestId, context]),
+  );
+  const contextByOpportunityId = new Map(
+    executionEdgeContexts.map((context) => [context.opportunityId, context]),
+  );
 
   if (requests.length === 0) {
     const journalProjection = projectJournal({
-      requestLookup,
+      executionEdgeContexts,
       outcomes: [],
       recordedAt: input.now,
       executionPosture,
@@ -249,7 +267,7 @@ export async function runControlLoopExecutionService(
       };
 
   const postDeviceEligibleOpportunities = eligibleOpportunities.filter(
-    (opportunity) => !deviceEconomicArbitration.prerejections.has(opportunity.request.executionRequestId),
+    (opportunity) => !deviceEconomicArbitration.prerejections.has(opportunity.opportunityId),
   );
 
   const householdEconomicArbitration = enrichedCycleFinancialContext
@@ -261,13 +279,13 @@ export async function runControlLoopExecutionService(
 
   const deviceArbitrationMapping = mapDeviceArbitrationPrerejections(
     deviceEconomicArbitration.prerejections,
-    requestLookup,
+    contextByOpportunityId,
   );
   appendStageAccumulation(rejectedOpportunities, policyDenials, deviceArbitrationMapping);
 
   const householdDecisionMapping = mapHouseholdDecisionPrerejections(
     householdEconomicArbitration.prerejections,
-    requestLookup,
+    contextByOpportunityId,
   );
   appendStageAccumulation(rejectedOpportunities, policyDenials, householdDecisionMapping);
 
@@ -277,7 +295,7 @@ export async function runControlLoopExecutionService(
   ]);
 
   const finalEligibleOpportunities = postDeviceEligibleOpportunities.filter(
-    (opportunity) => !householdEconomicArbitration.prerejections.has(opportunity.request.executionRequestId),
+    (opportunity) => !householdEconomicArbitration.prerejections.has(opportunity.opportunityId),
   );
 
   const executionPlanStage = buildExecutionPlan({
@@ -289,7 +307,7 @@ export async function runControlLoopExecutionService(
 
   const executedPlan = await executePlan({
     plan: executionPlanStage.plan,
-    dispatchableRequests: executionPlanStage.dispatchableRequests,
+    dispatchableOpportunities: executionPlanStage.dispatchableOpportunities,
     executor,
     preExecutionOutcomes: policyDenials,
     selectedEconomicTraces,
@@ -298,7 +316,7 @@ export async function runControlLoopExecutionService(
   });
 
   const journalProjection = projectJournal({
-    requestLookup,
+    executionEdgeContexts,
     outcomes: executedPlan.outcomes,
     recordedAt: input.now,
     executionPosture,
@@ -314,31 +332,32 @@ export async function runControlLoopExecutionService(
   persistJournalProjection(journalStore, journalProjection);
 
   if (shadowStore) {
-    const requestByExecutionId = new Map(
-      executedPlan.dispatchableRequests.map((request) => [request.executionRequestId, request]),
+    const contextByExecutionId = new Map(
+      executedPlan.executionEdgeContexts.map((context) => [context.executionRequestId, context]),
     );
 
     executedPlan.adapterResults.forEach((result) => {
-      const request = requestByExecutionId.get(result.executionRequestId);
-      if (!request) {
+      const context = contextByExecutionId.get(result.executionRequestId)
+        ?? contextByExecutionRequestId.get(result.executionRequestId);
+      if (!context) {
         return;
       }
 
-      const outcomeProjection = projectExecutionOutcome(result, request.canonicalCommand);
+      const outcomeProjection = projectExecutionOutcome(result, context.canonicalCommand);
       if (!outcomeProjection.shouldUpdateShadow) {
         return;
       }
 
-      const existing = shadowStore.getDeviceState(request.targetDeviceId);
+      const existing = shadowStore.getDeviceState(context.targetDeviceId);
       const projected = projectExecutionToDeviceShadow(
         existing,
-        request.canonicalCommand,
+        context.canonicalCommand,
         result,
         input.now,
       );
 
       if (projected) {
-        shadowStore.setDeviceState(request.targetDeviceId, projected);
+        shadowStore.setDeviceState(context.targetDeviceId, projected);
       }
     });
   }

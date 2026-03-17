@@ -26,6 +26,7 @@ import type {
   RejectedOpportunity,
 } from "../pipelineTypes";
 import type { EconomicActionCandidate } from "../evaluateEconomicActionPreference";
+import { evaluateCanonicalExecutionEligibility } from "../executionAuthority";
 
 function buildEconomicCandidate(
   request: CommandExecutionRequest,
@@ -35,8 +36,10 @@ function buildEconomicCandidate(
     ? financialContext.decisionsTaken.find((item) => item.decisionId === request.decisionId)
     : undefined;
 
+  const authority = evaluateCanonicalExecutionEligibility(request);
+
   return {
-    opportunityId: request.opportunityId,
+    opportunityId: authority.canonicalOpportunityId ?? `${request.planId}:incomplete_identity:${request.commandId}`,
     executionRequestId: request.executionRequestId,
     decisionId: request.decisionId,
     targetDeviceId: request.targetDeviceId,
@@ -56,8 +59,10 @@ function buildRejectedOpportunity(
   decisionReason: string,
   economicArbitration?: ExecutionEconomicArbitrationTrace,
 ): RejectedOpportunity {
+  const authority = evaluateCanonicalExecutionEligibility(request);
+
   return {
-    opportunityId: request.opportunityId ?? request.executionRequestId,
+    opportunityId: authority.canonicalOpportunityId ?? `${request.planId}:incomplete_identity:${request.commandId}`,
     decisionId: request.decisionId,
     targetDeviceId: request.targetDeviceId,
     stage,
@@ -249,11 +254,33 @@ export function evaluateOpportunityEligibility(
       continue;
     }
 
+    const authority = evaluateCanonicalExecutionEligibility(request);
+    if (!authority.allowed) {
+      const reasonCode = authority.reasonCode ?? "EXECUTION_AUTHORITY_IDENTITY_INSUFFICIENT";
+      pushRejected(
+        request,
+        [reasonCode],
+        authority.decisionReason,
+        "skipped",
+        authority.decisionReason,
+        reasonCode,
+      );
+      continue;
+    }
+
     eligible.push({
-      opportunityId: request.opportunityId ?? request.executionRequestId,
+      opportunityId: authority.canonicalOpportunityId ?? `${request.planId}:incomplete_identity:${request.commandId}`,
+      opportunityProvenance: request.opportunityProvenance ?? {
+        kind: "native_canonical",
+        canonicalizedFromLegacy: false,
+      },
       decisionId: request.decisionId,
       targetDeviceId: request.targetDeviceId,
-      request,
+      canonicalCommand: request.canonicalCommand,
+      commandId: request.commandId,
+      planId: request.planId,
+      requestedAt: request.requestedAt,
+      executionAuthorityMode: authority.mode,
       matchedDecisionAction: matchedDecision?.action,
       economicCandidate: params.cycleFinancialContext
         ? buildEconomicCandidate(request, params.cycleFinancialContext)

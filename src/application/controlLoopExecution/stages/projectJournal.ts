@@ -9,12 +9,12 @@ import type {
   RuntimeExecutionPosture,
 } from "../executionPolicyTypes";
 import type {
-  CommandExecutionRequest,
   CommandExecutionResult,
 } from "../types";
 import { toExecutionJournalEntry } from "../toExecutionJournalEntry";
 import type {
   DecisionNarrative,
+  ExecutionEdgeContext,
   ExecutionPlan,
   ExecutionResult,
   JournalProjection,
@@ -75,20 +75,28 @@ function buildCycleEconomicSnapshot(
 
 function mapLegacyCompatibilityRejections(
   outcomes: CommandExecutionResult[],
-  requestLookup: Map<string, CommandExecutionRequest>,
+  contextByExecutionRequestId: Map<string, ExecutionEdgeContext>,
 ): RejectedOpportunity[] {
   return outcomes
     .filter((outcome) => outcome.status !== "issued" && (outcome.reasonCodes?.length ?? 0) > 0)
     .map((outcome) => {
       const reasonCodes = (outcome.reasonCodes ?? []) as OpportunityReasonCode[];
-      const request = requestLookup.get(outcome.executionRequestId);
+      const context = contextByExecutionRequestId.get(outcome.executionRequestId);
+
+      const canonicalOpportunityId = context?.opportunityId
+        ?? (context?.decisionId ? context.decisionId : undefined)
+        ?? (context?.planId ? `${context.planId}:incomplete_identity` : undefined)
+        ?? "incomplete_identity";
+
       return {
-        opportunityId: outcome.opportunityId ?? request?.opportunityId ?? outcome.executionRequestId,
-        decisionId: outcome.decisionId ?? request?.decisionId,
-        targetDeviceId: outcome.targetDeviceId ?? request?.targetDeviceId,
+        opportunityId: canonicalOpportunityId,
+        decisionId: context?.decisionId,
+        targetDeviceId: context?.targetDeviceId,
         stage: inferLegacyRejectedStage(reasonCodes),
         reasonCodes,
-        decisionReason: outcome.message ?? "Command denied by canonical execution policy.",
+        decisionReason: context
+          ? (outcome.message ?? "Command denied by canonical execution policy.")
+          : "Command denied, but canonical execution context was missing for this evidence.",
         economicArbitration: outcome.economicArbitration,
       };
     });
@@ -102,11 +110,11 @@ function buildDecisionNarrative(params: {
   cycleFinancialContext?: ExecutionCycleFinancialContext;
   rejectedOpportunities: RejectedOpportunity[];
   legacyCompatibilityOutcomes: CommandExecutionResult[];
-  requestLookup: Map<string, CommandExecutionRequest>;
+  contextByExecutionRequestId: Map<string, ExecutionEdgeContext>;
 }): DecisionNarrative {
   const compatibilityRejected = mapLegacyCompatibilityRejections(
     params.legacyCompatibilityOutcomes,
-    params.requestLookup,
+    params.contextByExecutionRequestId,
   );
 
   const byRejectionKey = new Map<string, RejectedOpportunity>();
@@ -218,8 +226,8 @@ function buildCycleHeartbeat(params: {
 }
 
 export interface ProjectJournalInput {
-  /** Request lookup used only for journal entry projection compatibility. */
-  requestLookup: Map<string, CommandExecutionRequest>;
+  /** Canonical post-decision execution evidence used for outcome projection joins. */
+  executionEdgeContexts: ExecutionEdgeContext[];
   outcomes: CommandExecutionResult[];
   recordedAt: string;
   executionPosture: RuntimeExecutionPosture;
@@ -251,16 +259,23 @@ export interface ProjectJournalOutput {
  * Must not: persist anything itself; store interaction stays outside this stage.
  */
 export function projectJournal(params: ProjectJournalInput): ProjectJournalOutput {
+  const contextByExecutionRequestId = new Map(
+    params.executionEdgeContexts.map((context) => [context.executionRequestId, context]),
+  );
+
   const journalEntries = params.outcomes
     .map((outcome) => {
-      const request = params.requestLookup.get(outcome.executionRequestId);
-      if (!request) {
+      const context = contextByExecutionRequestId.get(outcome.executionRequestId);
+      if (!context) {
         return undefined;
       }
 
       return toExecutionJournalEntry(
-        request.canonicalCommand,
-        outcome,
+        context.canonicalCommand,
+        {
+          ...outcome,
+          opportunityProvenance: outcome.opportunityProvenance ?? context.opportunityProvenance,
+        },
         params.recordedAt,
         params.cycleHeartbeatMeta?.cycleId,
         params.cycleFinancialContext,
@@ -286,7 +301,7 @@ export function projectJournal(params: ProjectJournalInput): ProjectJournalOutpu
     cycleFinancialContext: params.cycleFinancialContext,
     rejectedOpportunities: params.rejectedOpportunities,
     legacyCompatibilityOutcomes: params.legacyCompatibilityOutcomes,
-    requestLookup: params.requestLookup,
+    contextByExecutionRequestId,
   });
 
   return {

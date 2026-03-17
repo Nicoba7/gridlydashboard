@@ -12,6 +12,7 @@ function mapAdapterResultToExecutionResult(
 ): CommandExecutionResult {
   return {
     opportunityId: request.opportunityId,
+    opportunityProvenance: request.opportunityProvenance,
     executionRequestId: request.executionRequestId,
     requestId: request.requestId,
     idempotencyKey: request.idempotencyKey,
@@ -48,6 +49,7 @@ export class LiveAdapterDeviceCommandExecutor implements DeviceCommandExecutor {
       } catch (error) {
         results.push({
           opportunityId: request.opportunityId,
+          opportunityProvenance: request.opportunityProvenance,
           executionRequestId: request.executionRequestId,
           requestId: request.requestId,
           idempotencyKey: request.idempotencyKey,

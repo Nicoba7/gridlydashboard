@@ -5,7 +5,6 @@ import {
   type EconomicActionCandidate,
 } from "../evaluateEconomicActionPreference";
 import type {
-  CommandExecutionRequest,
   CommandExecutionResult,
   ExecutionEconomicArbitrationTrace,
 } from "../types";
@@ -13,6 +12,7 @@ import type {
   EconomicArbitrationSelection,
   EconomicPrerejection,
   EligibleOpportunity,
+  ExecutionEdgeContext,
   OpportunityReasonCode,
   RejectedOpportunity,
 } from "../pipelineTypes";
@@ -35,7 +35,7 @@ export function arbitrateDeviceOpportunities(
 
   const byDevice = new Map<string, EligibleOpportunity[]>();
   for (const opportunity of opportunities) {
-    const targetDeviceId = opportunity.targetDeviceId ?? opportunity.request.targetDeviceId;
+    const targetDeviceId = opportunity.targetDeviceId;
     if (!targetDeviceId) {
       continue;
     }
@@ -68,14 +68,14 @@ export function arbitrateDeviceOpportunities(
     }
 
     const selectedCandidate = candidates.find(
-      (candidate) => candidate.executionRequestId === preference.preferredRequestId,
+      (candidate) => candidate.opportunityId === preference.preferredOpportunityId,
     );
 
     if (!selectedCandidate) {
       continue;
     }
 
-    selectedTraces.set(selectedCandidate.executionRequestId, {
+    selectedTraces.set(selectedCandidate.opportunityId, {
       comparisonScope: "device",
       selectedOpportunityId: selectedCandidate.opportunityId,
       selectedExecutionRequestId: selectedCandidate.executionRequestId,
@@ -89,10 +89,14 @@ export function arbitrateDeviceOpportunities(
 
     for (const rejection of preference.rejections) {
       const rejectedCandidate = candidates.find(
-        (candidate) => candidate.executionRequestId === rejection.executionRequestId,
+        (candidate) => candidate.opportunityId === rejection.opportunityId,
       );
+      const prerejectionKey = rejectedCandidate?.opportunityId ?? rejection.opportunityId;
+      if (!prerejectionKey) {
+        continue;
+      }
 
-      prerejections.set(rejection.executionRequestId, {
+      prerejections.set(prerejectionKey, {
         reasonCodes: ["INFERIOR_ECONOMIC_VALUE"],
         economicArbitration: {
           comparisonScope: "device",
@@ -132,22 +136,22 @@ export interface DeviceArbitrationPrerejectionMapping {
  */
 export function mapDeviceArbitrationPrerejections(
   prerejections: Map<string, EconomicPrerejection>,
-  requestLookup: Map<string, CommandExecutionRequest>,
+  edgeContextLookup: Map<string, ExecutionEdgeContext>,
 ): DeviceArbitrationPrerejectionMapping {
   const rejected: RejectedOpportunity[] = [];
   const compatibilityOutcomes: CommandExecutionResult[] = [];
 
-  prerejections.forEach((prerejection, executionRequestId) => {
-    const request = requestLookup.get(executionRequestId);
-    if (!request) {
+  prerejections.forEach((prerejection, opportunityId) => {
+    const context = edgeContextLookup.get(opportunityId);
+    if (!context) {
       return;
     }
 
     const reasonCodes = prerejection.reasonCodes as OpportunityReasonCode[];
     rejected.push({
-      opportunityId: request.opportunityId ?? request.executionRequestId,
-      decisionId: request.decisionId,
-      targetDeviceId: request.targetDeviceId,
+      opportunityId: context.opportunityId,
+      decisionId: context.decisionId,
+      targetDeviceId: context.targetDeviceId,
       stage: "device_arbitration",
       reasonCodes,
       decisionReason: "Command denied by canonical execution policy.",
@@ -155,14 +159,14 @@ export function mapDeviceArbitrationPrerejections(
     });
 
     compatibilityOutcomes.push({
-      opportunityId: request.opportunityId,
-      executionRequestId: request.executionRequestId,
-      requestId: request.requestId,
-      idempotencyKey: request.idempotencyKey,
-      decisionId: request.decisionId,
-      targetDeviceId: request.targetDeviceId,
-      commandId: request.commandId,
-      deviceId: request.targetDeviceId,
+      opportunityId: context.opportunityId,
+      executionRequestId: context.executionRequestId,
+      requestId: context.executionRequestId,
+      idempotencyKey: context.idempotencyKey,
+      decisionId: context.decisionId,
+      targetDeviceId: context.targetDeviceId,
+      commandId: context.commandId,
+      deviceId: context.targetDeviceId,
       status: "skipped",
       message: "Command denied by canonical execution policy.",
       errorCode: reasonCodes[0],

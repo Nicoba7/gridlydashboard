@@ -2,7 +2,6 @@ import type { ExecutionCycleFinancialContext } from "../../../journal/executionJ
 import { evaluateHouseholdEconomicOpportunity } from "../evaluateHouseholdEconomicOpportunity";
 import type { EconomicActionCandidate } from "../evaluateEconomicActionPreference";
 import type {
-  CommandExecutionRequest,
   CommandExecutionResult,
   ExecutionEconomicArbitrationTrace,
 } from "../types";
@@ -10,6 +9,7 @@ import type {
   EconomicArbitrationSelection,
   EconomicPrerejection,
   EligibleOpportunity,
+  ExecutionEdgeContext,
   OpportunityReasonCode,
   RejectedOpportunity,
 } from "../pipelineTypes";
@@ -43,14 +43,14 @@ export function selectHouseholdDecision(
   }
 
   const selectedCandidate = candidates.find(
-    (candidate) => candidate.executionRequestId === arbitration.preferredRequestId,
+    (candidate) => candidate.opportunityId === arbitration.preferredOpportunityId,
   );
 
   if (!selectedCandidate) {
     return { prerejections, selectedTraces };
   }
 
-  selectedTraces.set(selectedCandidate.executionRequestId, {
+  selectedTraces.set(selectedCandidate.opportunityId, {
     comparisonScope: "household",
     selectedOpportunityId: selectedCandidate.opportunityId,
     selectedExecutionRequestId: selectedCandidate.executionRequestId,
@@ -63,7 +63,15 @@ export function selectHouseholdDecision(
   });
 
   arbitration.rejections.forEach((rejection) => {
-    prerejections.set(rejection.executionRequestId, {
+    const rejectedCandidate = candidates.find(
+      (candidate) => candidate.opportunityId === rejection.opportunityId,
+    );
+    const prerejectionKey = rejectedCandidate?.opportunityId ?? rejection.opportunityId;
+    if (!prerejectionKey) {
+      return;
+    }
+
+    prerejections.set(prerejectionKey, {
       reasonCodes: ["INFERIOR_HOUSEHOLD_ECONOMIC_VALUE"],
       economicArbitration: {
         comparisonScope: "household",
@@ -100,22 +108,22 @@ export interface HouseholdDecisionPrerejectionMapping {
  */
 export function mapHouseholdDecisionPrerejections(
   prerejections: Map<string, EconomicPrerejection>,
-  requestLookup: Map<string, CommandExecutionRequest>,
+  edgeContextLookup: Map<string, ExecutionEdgeContext>,
 ): HouseholdDecisionPrerejectionMapping {
   const rejected: RejectedOpportunity[] = [];
   const compatibilityOutcomes: CommandExecutionResult[] = [];
 
-  prerejections.forEach((prerejection, executionRequestId) => {
-    const request = requestLookup.get(executionRequestId);
-    if (!request) {
+  prerejections.forEach((prerejection, opportunityId) => {
+    const context = edgeContextLookup.get(opportunityId);
+    if (!context) {
       return;
     }
 
     const reasonCodes = prerejection.reasonCodes as OpportunityReasonCode[];
     rejected.push({
-      opportunityId: request.opportunityId ?? request.executionRequestId,
-      decisionId: request.decisionId,
-      targetDeviceId: request.targetDeviceId,
+      opportunityId: context.opportunityId,
+      decisionId: context.decisionId,
+      targetDeviceId: context.targetDeviceId,
       stage: "household_decision",
       reasonCodes,
       decisionReason: "Command denied by canonical execution policy.",
@@ -123,14 +131,14 @@ export function mapHouseholdDecisionPrerejections(
     });
 
     compatibilityOutcomes.push({
-      opportunityId: request.opportunityId,
-      executionRequestId: request.executionRequestId,
-      requestId: request.requestId,
-      idempotencyKey: request.idempotencyKey,
-      decisionId: request.decisionId,
-      targetDeviceId: request.targetDeviceId,
-      commandId: request.commandId,
-      deviceId: request.targetDeviceId,
+      opportunityId: context.opportunityId,
+      executionRequestId: context.executionRequestId,
+      requestId: context.executionRequestId,
+      idempotencyKey: context.idempotencyKey,
+      decisionId: context.decisionId,
+      targetDeviceId: context.targetDeviceId,
+      commandId: context.commandId,
+      deviceId: context.targetDeviceId,
       status: "skipped",
       message: "Command denied by canonical execution policy.",
       errorCode: reasonCodes[0],

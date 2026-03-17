@@ -8,8 +8,9 @@ import type { CanonicalDeviceCommand } from "./canonicalCommand";
  * canonical cycle financial context. All values are in pence per kWh.
  */
 export interface EconomicActionCandidate {
-  opportunityId?: string;
-  executionRequestId: string;
+  opportunityId: string;
+  /** Transitional compatibility metadata for execution-edge joins only. */
+  executionRequestId?: string;
   decisionId?: string;
   targetDeviceId: string;
   /** Resolved optimizer action for this candidate. Undefined when unmatched. */
@@ -30,7 +31,9 @@ export type EconomicPreferenceReasonCode =
   | "ECONOMIC_PREFERENCE_TIE_BROKEN";
 
 export interface EconomicActionRejection {
-  executionRequestId: string;
+  opportunityId: string;
+  /** Transitional compatibility metadata for execution-edge joins only. */
+  executionRequestId?: string;
   reasonCode: EconomicPreferenceReasonCode;
   /** By how many p/kWh the selected candidate is economically superior. */
   inferiorByPencePerKwh?: number;
@@ -39,7 +42,9 @@ export interface EconomicActionRejection {
 }
 
 export interface EconomicActionPreferenceResult {
-  preferredRequestId: string;
+  preferredOpportunityId: string;
+  /** Transitional compatibility metadata for execution-edge joins only. */
+  preferredRequestId?: string;
   rejections: EconomicActionRejection[];
   /** Economic score of the selected candidate, in p/kWh. */
   selectionScore: number;
@@ -131,8 +136,9 @@ export function evaluateEconomicActionPreference(
     const safest = candidates.find((c) => isHoldLikeEconomicAction(c.action)) ?? candidates[0];
 
     const rejections = candidates
-      .filter((c) => c.executionRequestId !== safest.executionRequestId)
+      .filter((c) => c.opportunityId !== safest.opportunityId)
       .map((c): EconomicActionRejection => ({
+        opportunityId: c.opportunityId,
         executionRequestId: c.executionRequestId,
         reasonCode: "INFERIOR_ECONOMIC_VALUE",
         selectionReason:
@@ -140,6 +146,7 @@ export function evaluateEconomicActionPreference(
       }));
 
     return {
+      preferredOpportunityId: safest.opportunityId,
       preferredRequestId: safest.executionRequestId,
       rejections,
       selectionScore: scoreEconomicActionCandidate(safest),
@@ -170,6 +177,7 @@ export function evaluateEconomicActionPreference(
   const rejections = scored.slice(1).map(({ candidate, score }): EconomicActionRejection => {
     const isTied = score === winner.score;
     return {
+      opportunityId: candidate.opportunityId,
       executionRequestId: candidate.executionRequestId,
       reasonCode: isTied ? "ECONOMIC_PREFERENCE_TIE_BROKEN" : "INFERIOR_ECONOMIC_VALUE",
       inferiorByPencePerKwh: isTied ? undefined : winner.score - score,
@@ -183,6 +191,7 @@ export function evaluateEconomicActionPreference(
   const hasTie = scored.length > 1 && scored[1].score === winner.score;
 
   return {
+    preferredOpportunityId: winner.candidate.opportunityId,
     preferredRequestId: winner.candidate.executionRequestId,
     rejections,
     selectionScore: winner.score,

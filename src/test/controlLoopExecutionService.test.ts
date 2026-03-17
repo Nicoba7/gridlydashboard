@@ -174,7 +174,7 @@ describe("runControlLoopExecutionService", () => {
     expect(requests[0].canonicalCommand.targetDeviceId).toBe("battery");
     expect("command" in requests[0]).toBe(false);
     expect(requests[0].executionRequestId).toContain("plan-1");
-    expect(requests[0].idempotencyKey).toContain("decision-1:battery:set_mode:charge");
+    expect(requests[0].idempotencyKey).toContain("plan-1:decision:decision-1:command:cmd-1:battery:set_mode:charge");
     expect(result.controlLoopResult.commandsToIssue).toHaveLength(1);
     expect(result.executionResults[0].status).toBe("issued");
     expect(result.executionResults[0].executionRequestId).toBe(requests[0].executionRequestId);

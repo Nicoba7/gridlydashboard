@@ -1,9 +1,14 @@
 import type { OptimizerAction, PlanningConfidenceLevel } from "../../domain/optimizer";
 import type { TimeWindow } from "../../domain";
-import type { CommandExecutionRequest, CommandExecutionResult, ExecutionEconomicArbitrationTrace } from "./types";
+import type {
+  CommandExecutionResult,
+  ExecutionEconomicArbitrationTrace,
+  ExecutionOpportunityProvenance,
+} from "./types";
 import type { ExecutionPolicyReasonCode, RuntimeExecutionPosture } from "./executionPolicyTypes";
 import type { CanonicalDeviceCommand } from "./canonicalCommand";
 import type { EconomicActionCandidate } from "./evaluateEconomicActionPreference";
+import type { ExecutionAuthorityMode } from "./executionAuthority";
 import type { CycleHeartbeatEntry, ExecutionJournalEntry } from "../../journal/executionJournal";
 
 /**
@@ -34,6 +39,8 @@ export type OpportunityReasonCode =
   | "HOUSEHOLD_ARBITRATION_TIE_BROKEN"
   | "HOUSEHOLD_NO_ACTION_NO_ELIGIBLE_OPPORTUNITIES"
   | "HOUSEHOLD_ABSTAIN_LOW_CONFIDENCE"
+  | "EXECUTION_AUTHORITY_IDENTITY_INSUFFICIENT"
+  | "EXECUTION_AUTHORITY_PARTIAL_IDENTITY_MODE"
   | "EXECUTION_PLAN_NON_EXECUTABLE"
   | "EXECUTION_PLAN_COMMAND_TRANSLATION_FAILED"
   | "EXECUTION_PLAN_MISSING_TARGET_DEVICE"
@@ -61,9 +68,14 @@ export interface CandidateOpportunity {
 
 export interface EligibleOpportunity {
   opportunityId: string;
+  opportunityProvenance: ExecutionOpportunityProvenance;
   decisionId?: string;
-  targetDeviceId?: string;
-  request: CommandExecutionRequest;
+  targetDeviceId: string;
+  canonicalCommand: CanonicalDeviceCommand;
+  commandId: string;
+  planId: string;
+  requestedAt: string;
+  executionAuthorityMode: "full_canonical";
   matchedDecisionAction?: OptimizerAction;
   economicCandidate?: EconomicActionCandidate;
   eligibilityBasis: {
@@ -73,6 +85,28 @@ export interface EligibleOpportunity {
     executionPolicyPassed: boolean;
     observedStateStatus?: "fresh" | "stale" | "missing" | "unknown";
   };
+}
+
+/**
+ * Canonical post-decision execution evidence carried across edge stages.
+ *
+ * This is the single join substrate between planning, execution, and journal
+ * projection. It keeps opportunity identity canonical while preserving
+ * execution-edge compatibility fields.
+ */
+export interface ExecutionEdgeContext {
+  opportunityId: string;
+  opportunityProvenance: ExecutionOpportunityProvenance;
+  decisionId?: string;
+  planId: string;
+  executionAuthorityMode: ExecutionAuthorityMode;
+  canonicalCommand: CanonicalDeviceCommand;
+  targetDeviceId: string;
+  executionRequestId: string;
+  requestedAt: string;
+  /** Edge compatibility fields retained for adapter/result/journal contracts. */
+  commandId: string;
+  idempotencyKey: string;
 }
 
 /** Canonical rejection record produced by a specific runtime stage. */
@@ -235,5 +269,6 @@ export interface EconomicPrerejection {
 
 export interface EconomicArbitrationSelection {
   prerejections: Map<string, EconomicPrerejection>;
+  /** Keyed by canonical opportunityId. */
   selectedTraces: Map<string, ExecutionEconomicArbitrationTrace>;
 }

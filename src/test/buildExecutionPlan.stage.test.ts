@@ -84,22 +84,15 @@ function buildEligibleOpportunity(deviceId: string, executionRequestId: string):
     opportunityId: `opp-${executionRequestId}`,
     decisionId: `decision-${executionRequestId}`,
     targetDeviceId: deviceId,
-    request: {
-      opportunityId: `opp-${executionRequestId}`,
-      executionRequestId,
-      requestId: executionRequestId,
-      idempotencyKey: `idempotency-${executionRequestId}`,
-      decisionId: `decision-${executionRequestId}`,
+    canonicalCommand: {
+      kind: "set_mode",
       targetDeviceId: deviceId,
-      planId: "plan-1",
-      requestedAt: input.now,
-      commandId: `cmd-${executionRequestId}`,
-      canonicalCommand: {
-        kind: "set_mode",
-        targetDeviceId: deviceId,
-        mode: "charge",
-      },
+      mode: "charge",
     },
+    commandId: `cmd-${executionRequestId}`,
+    planId: "plan-1",
+    requestedAt: input.now,
+    executionAuthorityMode: "full_canonical",
     eligibilityBasis: {
       runtimeGuardrailPassed: true,
       capabilityValidationPassed: true,
@@ -111,7 +104,7 @@ function buildEligibleOpportunity(deviceId: string, executionRequestId: string):
 }
 
 describe("buildExecutionPlan stage", () => {
-  it("returns dispatchable requests outside canonical plan and preserves selected opportunity", () => {
+  it("returns dispatchable opportunities outside canonical plan and preserves selected opportunity", () => {
     const opportunities = [
       buildEligibleOpportunity("battery", "req-1"),
       buildEligibleOpportunity("ev", "req-2"),
@@ -125,7 +118,7 @@ describe("buildExecutionPlan stage", () => {
 
     expect(result.plan.kind).toBe("executable");
     expect(result.plan.selectedOpportunityId).toBe("opp-req-1");
-    expect(result.dispatchableRequests).toHaveLength(2);
+    expect(result.dispatchableOpportunities).toHaveLength(2);
     expect(result.compatibilityOutcomes).toEqual([]);
   });
 
@@ -137,7 +130,7 @@ describe("buildExecutionPlan stage", () => {
     });
 
     expect(result.plan.kind).toBe("non_executable");
-    expect(result.dispatchableRequests).toEqual([]);
+    expect(result.dispatchableOpportunities).toEqual([]);
     expect(result.compatibilityOutcomes).toEqual([]);
   });
 });
