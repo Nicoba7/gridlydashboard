@@ -96,6 +96,7 @@ export function toExecutionJournalEntry(
     reasonCodes: executionResult.reasonCodes,
     stage: inferStage(executionResult.reasonCodes, executionResult.status),
     telemetryCoherence: executionResult.telemetryCoherence,
+    executionConfidence: executionResult.executionConfidence,
     cycleFinancialContext,
     economicArbitration: executionResult.economicArbitration,
     schemaVersion: "execution-journal.v1",

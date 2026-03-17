@@ -193,6 +193,13 @@ function buildCycleHeartbeat(params: {
   failClosedTriggered: boolean;
   cycleHeartbeatMeta?: { cycleId?: string; replanReason?: string };
   cycleFinancialContext?: ExecutionCycleFinancialContext;
+  executionEvidenceSummary?: { hasUncertainExecutionEvidence: boolean };
+  nextCycleExecutionCaution?: "normal" | "caution";
+  householdObjectiveSummary?: {
+    objectiveMode: "savings" | "earnings" | "balanced";
+    hasExportIntent: boolean;
+    hasImportAvoidanceIntent: boolean;
+  };
 }): CycleHeartbeatEntry {
   const commandsSuppressed = params.outcomes.filter(
     (result) =>
@@ -221,6 +228,9 @@ function buildCycleHeartbeat(params: {
       params.executionPosture,
       commandsSuppressed,
     ),
+    hasUncertainExecutionEvidence: params.executionEvidenceSummary?.hasUncertainExecutionEvidence,
+    nextCycleExecutionCaution: params.nextCycleExecutionCaution,
+    householdObjectiveSummary: params.householdObjectiveSummary,
     schemaVersion: "cycle-heartbeat.v1",
   };
 }
@@ -241,6 +251,16 @@ export interface ProjectJournalInput {
   rejectedOpportunities: RejectedOpportunity[];
   /** Transitional edge payloads merged for backward-compatible narrative completeness. */
   legacyCompatibilityOutcomes: CommandExecutionResult[];
+  /** Cycle-level summary: true if any outcome has uncertain execution confidence. */
+  executionEvidenceSummary?: { hasUncertainExecutionEvidence: boolean };
+  /** Canonical next-cycle advisory signal: "normal" or "caution". */
+  nextCycleExecutionCaution?: "normal" | "caution";
+  /** Canonical cycle-level summary of household economic intent. */
+  householdObjectiveSummary?: {
+    objectiveMode: "savings" | "earnings" | "balanced";
+    hasExportIntent: boolean;
+    hasImportAvoidanceIntent: boolean;
+  };
 }
 
 export interface ProjectJournalOutput {
@@ -291,6 +311,9 @@ export function projectJournal(params: ProjectJournalInput): ProjectJournalOutpu
     failClosedTriggered: params.failClosedTriggered,
     cycleHeartbeatMeta: params.cycleHeartbeatMeta,
     cycleFinancialContext: params.cycleFinancialContext,
+    executionEvidenceSummary: params.executionEvidenceSummary,
+    nextCycleExecutionCaution: params.nextCycleExecutionCaution,
+    householdObjectiveSummary: params.householdObjectiveSummary,
   });
 
   const narrative = buildDecisionNarrative({

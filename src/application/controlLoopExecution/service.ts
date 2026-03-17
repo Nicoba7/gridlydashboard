@@ -40,12 +40,32 @@ import {
 } from "./stages/selectHouseholdDecision";
 import { buildExecutionPlan } from "./stages/buildExecutionPlan";
 import { executePlan } from "./stages/executePlan";
+import {
+  assessExecutionEvidenceCoherence,
+  summarizeExecutionEvidenceConfidence,
+  type EvidenceAnnotatedExecutionResult,
+} from "./stages/assessExecutionEvidenceCoherence";
 import { projectJournal } from "./stages/projectJournal";
 
 export interface ControlLoopExecutionServiceResult {
   controlLoopResult: ControlLoopResult;
   executionResults: CommandExecutionResult[];
   executionPosture: RuntimeExecutionPosture;
+  executionEvidenceSummary: {
+    hasUncertainExecutionEvidence: boolean;
+  };
+  householdObjectiveSummary: {
+    objectiveMode: "savings" | "earnings" | "balanced";
+    hasExportIntent: boolean;
+    hasImportAvoidanceIntent: boolean;
+  };
+  householdObjectiveConfidence: "clear" | "mixed" | "empty";
+  /**
+   * Canonical next-cycle advisory signal derived from cycle-level execution uncertainty.
+   * Informational only — never drives policy logic or execution behavior.
+   * "caution" when hasUncertainExecutionEvidence is true, "normal" otherwise.
+   */
+  nextCycleExecutionCaution: "normal" | "caution";
 }
 
 /** Persists already-projected journal payloads; schema shaping stays outside the store. */
@@ -165,6 +185,113 @@ function mapOpportunityToRequest(
   };
 }
 
+function enrichOutcomesForCoherenceAssessment(
+  outcomes: CommandExecutionResult[],
+  input: ControlLoopInput,
+): EvidenceAnnotatedExecutionResult[] {
+  // Precompute freshness lookup map for O(1) enrichment (canonical evidence only)
+  const freshnessMap = new Map(
+    (input.observedStateFreshness?.devices ?? []).map((device) => [
+      device.deviceId,
+      device.status,
+    ]),
+  );
+
+  return outcomes.map((outcome) => ({
+    ...outcome,
+    observedStateFreshness: freshnessMap.get(outcome.targetDeviceId),
+  }));
+}
+
+/**
+ * Derives a canonical next-cycle execution caution signal from cycle-level evidence.
+ *
+ * Pure and deterministic: maps the already-computed cycle-level execution uncertainty
+ * summary to an advisory signal for the next control cycle. Informational only — never
+ * drives canonical policy logic or execution behavior.
+ *
+ * Mapping rules:
+ * - hasUncertainExecutionEvidence === true => "caution"
+ * - hasUncertainExecutionEvidence === false => "normal"
+ */
+export function deriveNextCycleExecutionCaution(summary: {
+  hasUncertainExecutionEvidence: boolean;
+}): {
+  nextCycleExecutionCaution: "normal" | "caution";
+} {
+  return {
+    nextCycleExecutionCaution: summary.hasUncertainExecutionEvidence ? "caution" : "normal",
+  };
+}
+
+/**
+ * Derives a canonical cycle-level summary of household economic intent.
+ *
+ * Pure and deterministic: summarizes current-cycle objective orientation from
+ * already-canonical decision economics. Informational only — never changes
+ * arbitration, planning, or execution behavior.
+ */
+export function deriveHouseholdObjectiveSummary(
+  decisions: ExecutionCycleDecisionSummary[],
+): {
+  objectiveMode: "savings" | "earnings" | "balanced";
+  hasExportIntent: boolean;
+  hasImportAvoidanceIntent: boolean;
+} {
+  const hasExportIntent = decisions.some((decision) => (decision.marginalExportValue ?? 0) > 0);
+  const hasImportAvoidanceIntent = decisions.some((decision) =>
+    (decision.marginalImportAvoidance ?? 0) > 0
+    || (decision.effectiveStoredEnergyValue ?? 0) > 0
+    || (decision.netStoredEnergyValue ?? 0) > 0
+    || (decision.grossStoredEnergyValue ?? 0) > 0,
+  );
+
+  const objectiveMode = hasExportIntent && hasImportAvoidanceIntent
+    ? "balanced"
+    : hasExportIntent
+      ? "earnings"
+      : "savings";
+
+  return {
+    objectiveMode,
+    hasExportIntent,
+    hasImportAvoidanceIntent,
+  };
+}
+
+/**
+ * Derives an informational confidence signal for the current household objective summary.
+ *
+ * Pure and deterministic: classifies whether objective characterization is empty,
+ * clear, or mixed based on already-computed canonical objective summary only.
+ */
+export function deriveHouseholdObjectiveConfidence(summary: {
+  objectiveMode: "savings" | "earnings" | "balanced";
+  hasExportIntent: boolean;
+  hasImportAvoidanceIntent: boolean;
+}): {
+  householdObjectiveConfidence: "clear" | "mixed" | "empty";
+} {
+  const { objectiveMode, hasExportIntent, hasImportAvoidanceIntent } = summary;
+
+  if (!hasExportIntent && !hasImportAvoidanceIntent) {
+    return { householdObjectiveConfidence: "empty" };
+  }
+
+  if (objectiveMode === "balanced" || (hasExportIntent && hasImportAvoidanceIntent)) {
+    return { householdObjectiveConfidence: "mixed" };
+  }
+
+  if (
+    (objectiveMode === "savings" && !hasExportIntent && hasImportAvoidanceIntent)
+    || (objectiveMode === "earnings" && hasExportIntent && !hasImportAvoidanceIntent)
+  ) {
+    return { householdObjectiveConfidence: "clear" };
+  }
+
+  return { householdObjectiveConfidence: "mixed" };
+}
+
 /**
  * Thin pipeline controller between canonical planning/control and adapter execution.
  *
@@ -184,6 +311,9 @@ export async function runControlLoopExecutionService(
   cycleHeartbeatMeta?: { cycleId?: string; replanReason?: string },
 ): Promise<ControlLoopExecutionServiceResult> {
   const controlLoopResult = runControlLoop(input);
+  const cycleDecisionSummaries = buildCycleDecisionSummaries(controlLoopResult);
+  const householdObjectiveSummary = deriveHouseholdObjectiveSummary(cycleDecisionSummaries);
+  const householdObjectiveConfidence = deriveHouseholdObjectiveConfidence(householdObjectiveSummary);
   const missingRuntimeContextInStrictMode =
     runtimeExecutionMode === "continuous_live_strict" && !runtimeGuardrailContext;
 
@@ -203,7 +333,7 @@ export async function runControlLoopExecutionService(
   const enrichedCycleFinancialContext = cycleFinancialContext
     ? {
       ...cycleFinancialContext,
-      decisionsTaken: buildCycleDecisionSummaries(controlLoopResult),
+      decisionsTaken: cycleDecisionSummaries,
       runtimeExecutionPosture: executionPosture,
       runtimeExecutionReasonCodes: postureClassification.reasonCodes,
       runtimeExecutionWarning: postureClassification.warning,
@@ -220,6 +350,8 @@ export async function runControlLoopExecutionService(
   );
 
   if (requests.length === 0) {
+    const evidenceSummary = summarizeExecutionEvidenceConfidence([]);
+    const cautionSignal = deriveNextCycleExecutionCaution(evidenceSummary);
     const journalProjection = projectJournal({
       executionEdgeContexts,
       outcomes: [],
@@ -231,6 +363,9 @@ export async function runControlLoopExecutionService(
       cycleFinancialContext: enrichedCycleFinancialContext,
       rejectedOpportunities: [],
       legacyCompatibilityOutcomes: [],
+      executionEvidenceSummary: evidenceSummary,
+      nextCycleExecutionCaution: cautionSignal.nextCycleExecutionCaution,
+      householdObjectiveSummary,
     });
     persistJournalProjection(journalStore, journalProjection);
 
@@ -238,6 +373,10 @@ export async function runControlLoopExecutionService(
       controlLoopResult,
       executionResults: [],
       executionPosture,
+      executionEvidenceSummary: evidenceSummary,
+      householdObjectiveSummary,
+      householdObjectiveConfidence: householdObjectiveConfidence.householdObjectiveConfidence,
+      nextCycleExecutionCaution: cautionSignal.nextCycleExecutionCaution,
     };
   }
 
@@ -315,9 +454,15 @@ export async function runControlLoopExecutionService(
     rejectedOpportunities,
   });
 
+  const coherenceAssessedOutcomes = assessExecutionEvidenceCoherence(
+    enrichOutcomesForCoherenceAssessment(executedPlan.outcomes, input),
+  );
+
+  const evidenceSummary = summarizeExecutionEvidenceConfidence(coherenceAssessedOutcomes);
+  const cautionSignal = deriveNextCycleExecutionCaution(evidenceSummary);
   const journalProjection = projectJournal({
     executionEdgeContexts,
-    outcomes: executedPlan.outcomes,
+    outcomes: coherenceAssessedOutcomes,
     recordedAt: input.now,
     executionPosture,
     runtimeGuardrailContext,
@@ -328,6 +473,9 @@ export async function runControlLoopExecutionService(
     executionResult: executedPlan.execution,
     rejectedOpportunities: executedPlan.execution.rejectedOpportunities,
     legacyCompatibilityOutcomes: policyDenials,
+    executionEvidenceSummary: evidenceSummary,
+    nextCycleExecutionCaution: cautionSignal.nextCycleExecutionCaution,
+    householdObjectiveSummary,
   });
   persistJournalProjection(journalStore, journalProjection);
 
@@ -364,7 +512,11 @@ export async function runControlLoopExecutionService(
 
   return {
     controlLoopResult,
-    executionResults: executedPlan.outcomes,
+    executionResults: coherenceAssessedOutcomes,
     executionPosture,
+    executionEvidenceSummary: evidenceSummary,
+    householdObjectiveSummary,
+    householdObjectiveConfidence: householdObjectiveConfidence.householdObjectiveConfidence,
+    nextCycleExecutionCaution: cautionSignal.nextCycleExecutionCaution,
   };
 }

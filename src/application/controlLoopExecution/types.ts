@@ -1,5 +1,6 @@
 import type { CanonicalDeviceCommand } from "./canonicalCommand";
 import type { RuntimeExecutionPosture } from "./executionPolicyTypes";
+import type { ExecutionConfidenceStatus } from "./stages/assessExecutionEvidenceCoherence";
 
 export type CommandExecutionStatus = "issued" | "skipped" | "failed";
 
@@ -98,6 +99,12 @@ export interface CommandExecutionResult {
    * "command was dispatched" from "device state has converged".
    */
   telemetryCoherence?: TelemetryCoherenceStatus;
+  /**
+   * Optional derived signal of execution certainty from canonical runtime evidence.
+   * Computed from telemetryCoherence: confirmed when coherent, uncertain when stale/delayed.
+   * Informational only — runtime truth about device state reliability after dispatch.
+   */
+  executionConfidence?: ExecutionConfidenceStatus;
 }
 
 /**

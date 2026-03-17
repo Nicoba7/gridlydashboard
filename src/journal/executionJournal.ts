@@ -124,6 +124,27 @@ export interface CycleHeartbeatEntry {
   failClosedTriggered: boolean;
   /** Economic execution snapshot for this cycle. Present when cycleFinancialContext was available. */
   economicSnapshot?: CycleEconomicSnapshot;
+  /**
+   * True when any execution outcome in this cycle has uncertain execution confidence
+   * (stale or delayed telemetry evidence). Informational: indicates device state may be
+   * unreliable for future cycle decision-making. Never drives canonical policy logic.
+   */
+  hasUncertainExecutionEvidence?: boolean;
+  /**
+   * Canonical next-cycle advisory signal derived from cycle-level execution uncertainty.
+   * Informational only — never drives policy logic or execution behavior.
+   * "caution" when hasUncertainExecutionEvidence is true, "normal" otherwise.
+   */
+  nextCycleExecutionCaution?: "normal" | "caution";
+  /**
+   * Canonical cycle-level summary of household economic intent.
+   * Informational only — pass-through runtime truth for auditability.
+   */
+  householdObjectiveSummary?: {
+    objectiveMode: "savings" | "earnings" | "balanced";
+    hasExportIntent: boolean;
+    hasImportAvoidanceIntent: boolean;
+  };
   schemaVersion: string;
 }
 
@@ -154,6 +175,12 @@ export interface ExecutionJournalEntry {
    * Allows the audit trail to distinguish "command dispatched" from "device state converged".
    */
   telemetryCoherence?: TelemetryCoherenceStatus;
+  /**
+   * Optional derived signal of execution certainty from canonical runtime evidence.
+   * Computed from telemetryCoherence: confirmed when coherent, uncertain when stale/delayed.
+   * Runtime truth about device state reliability after dispatch in the audit trail.
+   */
+  executionConfidence?: ExecutionConfidenceStatus;
   cycleFinancialContext?: ExecutionCycleFinancialContext;
   economicArbitration?: ExecutionEconomicArbitrationTrace;
   schemaVersion: string;

@@ -464,4 +464,360 @@ describe("runControlLoopExecutionService", () => {
     expect(rejectedHighValue?.errorCode).toBe("MODE_NOT_SUPPORTED");
     expect(issued?.reasonCodes?.includes("INFERIOR_ECONOMIC_VALUE")).not.toBe(true);
   });
+
+  describe("executionEvidenceSummary", () => {
+    it("should include executionEvidenceSummary in result when no requests executed", async () => {
+      const execute = vi.fn(async () => [] as CommandExecutionResult[]);
+      const executor: DeviceCommandExecutor = { execute };
+
+      const result = await runControlLoopExecutionService(
+        {
+          now: "2026-03-16T10:00:00.000Z",
+          systemState: buildSystemState(),
+          optimizerOutput: buildOutput(),
+        },
+        executor,
+      );
+
+      expect(result.executionEvidenceSummary).toBeDefined();
+      expect(result.executionEvidenceSummary.hasUncertainExecutionEvidence).toBe(false);
+    });
+
+    it("should report false when all outcomes have confirmed confidence", async () => {
+      const execute = vi.fn(async (requests: CommandExecutionRequest[]) =>
+        requests.map((request) => ({
+          executionRequestId: request.executionRequestId,
+          requestId: request.requestId,
+          idempotencyKey: request.idempotencyKey,
+          decisionId: request.decisionId,
+          targetDeviceId: request.targetDeviceId,
+          commandId: request.commandId,
+          deviceId: request.canonicalCommand.targetDeviceId,
+          status: "issued" as const,
+          executionConfidence: "confirmed" as const,
+        })),
+      );
+      const executor: DeviceCommandExecutor = { execute };
+
+      const result = await runControlLoopExecutionService(
+        {
+          now: "2026-03-16T10:05:00.000Z",
+          systemState: buildSystemState(),
+          optimizerOutput: buildOutput({
+            decisions: [buildDecision("2026-03-16T10:00:00.000Z", "2026-03-16T10:30:00.000Z")],
+            withCommand: true,
+          }),
+        },
+        executor,
+      );
+
+      expect(result.executionEvidenceSummary.hasUncertainExecutionEvidence).toBe(false);
+    });
+
+    it("should include executionEvidenceSummary as a required result field", async () => {
+      const execute = vi.fn(async (requests: CommandExecutionRequest[]) =>
+        requests.map((request) => ({
+          executionRequestId: request.executionRequestId,
+          requestId: request.requestId,
+          idempotencyKey: request.idempotencyKey,
+          decisionId: request.decisionId,
+          targetDeviceId: request.targetDeviceId,
+          commandId: request.commandId,
+          deviceId: request.canonicalCommand.targetDeviceId,
+          status: "issued" as const,
+        })),
+      );
+      const executor: DeviceCommandExecutor = { execute };
+
+      const result = await runControlLoopExecutionService(
+        {
+          now: "2026-03-16T10:05:00.000Z",
+          systemState: buildSystemState(),
+          optimizerOutput: buildOutput({
+            decisions: [buildDecision("2026-03-16T10:00:00.000Z", "2026-03-16T10:30:00.000Z")],
+            withCommand: true,
+          }),
+        },
+        executor,
+      );
+
+      // Verify the summary field exists and is properly structured
+      expect(result.executionEvidenceSummary).toBeDefined();
+      expect(typeof result.executionEvidenceSummary.hasUncertainExecutionEvidence).toBe("boolean");
+    });
+
+    it("should report false when executionConfidence is undefined", async () => {
+      const execute = vi.fn(async (requests: CommandExecutionRequest[]) =>
+        requests.map((request) => ({
+          executionRequestId: request.executionRequestId,
+          requestId: request.requestId,
+          idempotencyKey: request.idempotencyKey,
+          decisionId: request.decisionId,
+          targetDeviceId: request.targetDeviceId,
+          commandId: request.commandId,
+          deviceId: request.canonicalCommand.targetDeviceId,
+          status: "issued" as const,
+          executionConfidence: undefined,
+        })),
+      );
+      const executor: DeviceCommandExecutor = { execute };
+
+      const result = await runControlLoopExecutionService(
+        {
+          now: "2026-03-16T10:05:00.000Z",
+          systemState: buildSystemState(),
+          optimizerOutput: buildOutput({
+            decisions: [buildDecision("2026-03-16T10:00:00.000Z", "2026-03-16T10:30:00.000Z")],
+            withCommand: true,
+          }),
+        },
+        executor,
+      );
+
+      expect(result.executionEvidenceSummary.hasUncertainExecutionEvidence).toBe(false);
+    });
+  });
+
+  describe("nextCycleExecutionCaution", () => {
+    it("should include nextCycleExecutionCaution in result when no requests executed", async () => {
+      const execute = vi.fn(async () => [] as CommandExecutionResult[]);
+      const executor: DeviceCommandExecutor = { execute };
+
+      const result = await runControlLoopExecutionService(
+        {
+          now: "2026-03-16T10:00:00.000Z",
+          systemState: buildSystemState(),
+          optimizerOutput: buildOutput(),
+        },
+        executor,
+      );
+
+      expect(result.nextCycleExecutionCaution).toBeDefined();
+      expect(["normal", "caution"]).toContain(result.nextCycleExecutionCaution);
+    });
+
+    it("should report normal caution when evidence summary is not uncertain", async () => {
+      const execute = vi.fn(async (requests: CommandExecutionRequest[]) =>
+        requests.map((request) => ({
+          executionRequestId: request.executionRequestId,
+          requestId: request.requestId,
+          idempotencyKey: request.idempotencyKey,
+          decisionId: request.decisionId,
+          targetDeviceId: request.targetDeviceId,
+          commandId: request.commandId,
+          deviceId: request.canonicalCommand.targetDeviceId,
+          status: "issued" as const,
+          executionConfidence: "confirmed" as const,
+        })),
+      );
+      const executor: DeviceCommandExecutor = { execute };
+
+      const result = await runControlLoopExecutionService(
+        {
+          now: "2026-03-16T10:05:00.000Z",
+          systemState: buildSystemState(),
+          optimizerOutput: buildOutput({
+            decisions: [buildDecision("2026-03-16T10:00:00.000Z", "2026-03-16T10:30:00.000Z")],
+            withCommand: true,
+          }),
+        },
+        executor,
+      );
+
+      expect(result.nextCycleExecutionCaution).toBe("normal");
+    });
+
+    it("should wire caution signal from evidence summary", async () => {
+      // This test verifies the caution signal is correctly derived from the evidence summary.
+      // Both test paths (no execution and normal execution) should produce the signal
+      // based on whatever uncertainty was computed upstream.
+      const execute = vi.fn(async (requests: CommandExecutionRequest[]) =>
+        requests.map((request) => ({
+          executionRequestId: request.executionRequestId,
+          requestId: request.requestId,
+          idempotencyKey: request.idempotencyKey,
+          decisionId: request.decisionId,
+          targetDeviceId: request.targetDeviceId,
+          commandId: request.commandId,
+          deviceId: request.canonicalCommand.targetDeviceId,
+          status: "issued" as const,
+        })),
+      );
+      const executor: DeviceCommandExecutor = { execute };
+
+      // Test with confirmed outcomes (no uncertainty)
+      const resultNormal = await runControlLoopExecutionService(
+        {
+          now: "2026-03-16T10:05:00.000Z",
+          systemState: buildSystemState(),
+          optimizerOutput: buildOutput({
+            decisions: [buildDecision("2026-03-16T10:00:00.000Z", "2026-03-16T10:30:00.000Z")],
+            withCommand: true,
+          }),
+        },
+        executor,
+      );
+
+      // Both evidence summary and caution signal should be consistent
+      expect(resultNormal.executionEvidenceSummary.hasUncertainExecutionEvidence).toBe(false);
+      expect(resultNormal.nextCycleExecutionCaution).toBe("normal");
+    });
+  });
+
+  describe("householdObjectiveSummary", () => {
+    it("includes householdObjectiveSummary with sensible defaults when no decisions are active", async () => {
+      const execute = vi.fn(async (_requests: CommandExecutionRequest[]) => [] as CommandExecutionResult[]);
+      const executor: DeviceCommandExecutor = { execute };
+
+      const result = await runControlLoopExecutionService(
+        {
+          now: "2026-03-16T10:00:00.000Z",
+          systemState: buildSystemState(),
+          optimizerOutput: buildOutput(),
+        },
+        executor,
+      );
+
+      expect(result.householdObjectiveSummary).toEqual({
+        objectiveMode: "savings",
+        hasExportIntent: false,
+        hasImportAvoidanceIntent: false,
+      });
+    });
+
+    it("derives balanced objective when both export and import-avoidance signals are present", async () => {
+      const execute = vi.fn(async (requests: CommandExecutionRequest[]) =>
+        requests.map((request) => ({
+          executionRequestId: request.executionRequestId,
+          requestId: request.requestId,
+          idempotencyKey: request.idempotencyKey,
+          decisionId: request.decisionId,
+          targetDeviceId: request.targetDeviceId,
+          commandId: request.commandId,
+          deviceId: request.canonicalCommand.targetDeviceId,
+          status: "issued" as const,
+        })),
+      );
+      const executor: DeviceCommandExecutor = { execute };
+
+      const decision = buildDecision("2026-03-16T10:00:00.000Z", "2026-03-16T10:30:00.000Z");
+      const enrichedDecision: OptimizerDecision = {
+        ...decision,
+        marginalExportValuePencePerKwh: 6,
+        marginalImportAvoidancePencePerKwh: 8,
+      };
+
+      const result = await runControlLoopExecutionService(
+        {
+          now: "2026-03-16T10:05:00.000Z",
+          systemState: buildSystemState(),
+          optimizerOutput: buildOutput({
+            decisions: [enrichedDecision],
+            withCommand: true,
+          }),
+        },
+        executor,
+      );
+
+      expect(result.householdObjectiveSummary).toEqual({
+        objectiveMode: "balanced",
+        hasExportIntent: true,
+        hasImportAvoidanceIntent: true,
+      });
+    });
+  });
+
+  describe("householdObjectiveConfidence", () => {
+    it("exposes empty confidence when there is no objective intent", async () => {
+      const execute = vi.fn(async (_requests: CommandExecutionRequest[]) => [] as CommandExecutionResult[]);
+      const executor: DeviceCommandExecutor = { execute };
+
+      const result = await runControlLoopExecutionService(
+        {
+          now: "2026-03-16T10:00:00.000Z",
+          systemState: buildSystemState(),
+          optimizerOutput: buildOutput(),
+        },
+        executor,
+      );
+
+      expect(result.householdObjectiveConfidence).toBe("empty");
+    });
+
+    it("exposes clear confidence for one-sided objective intent", async () => {
+      const execute = vi.fn(async (requests: CommandExecutionRequest[]) =>
+        requests.map((request) => ({
+          executionRequestId: request.executionRequestId,
+          requestId: request.requestId,
+          idempotencyKey: request.idempotencyKey,
+          decisionId: request.decisionId,
+          targetDeviceId: request.targetDeviceId,
+          commandId: request.commandId,
+          deviceId: request.canonicalCommand.targetDeviceId,
+          status: "issued" as const,
+        })),
+      );
+      const executor: DeviceCommandExecutor = { execute };
+
+      const decision = buildDecision("2026-03-16T10:00:00.000Z", "2026-03-16T10:30:00.000Z");
+      const savingsOnlyDecision: OptimizerDecision = {
+        ...decision,
+        marginalExportValuePencePerKwh: 0,
+        marginalImportAvoidancePencePerKwh: 8,
+      };
+
+      const result = await runControlLoopExecutionService(
+        {
+          now: "2026-03-16T10:05:00.000Z",
+          systemState: buildSystemState(),
+          optimizerOutput: buildOutput({
+            decisions: [savingsOnlyDecision],
+            withCommand: true,
+          }),
+        },
+        executor,
+      );
+
+      expect(result.householdObjectiveSummary.objectiveMode).toBe("savings");
+      expect(result.householdObjectiveConfidence).toBe("clear");
+    });
+
+    it("exposes mixed confidence for balanced objective intent", async () => {
+      const execute = vi.fn(async (requests: CommandExecutionRequest[]) =>
+        requests.map((request) => ({
+          executionRequestId: request.executionRequestId,
+          requestId: request.requestId,
+          idempotencyKey: request.idempotencyKey,
+          decisionId: request.decisionId,
+          targetDeviceId: request.targetDeviceId,
+          commandId: request.commandId,
+          deviceId: request.canonicalCommand.targetDeviceId,
+          status: "issued" as const,
+        })),
+      );
+      const executor: DeviceCommandExecutor = { execute };
+
+      const decision = buildDecision("2026-03-16T10:00:00.000Z", "2026-03-16T10:30:00.000Z");
+      const balancedDecision: OptimizerDecision = {
+        ...decision,
+        marginalExportValuePencePerKwh: 6,
+        marginalImportAvoidancePencePerKwh: 8,
+      };
+
+      const result = await runControlLoopExecutionService(
+        {
+          now: "2026-03-16T10:05:00.000Z",
+          systemState: buildSystemState(),
+          optimizerOutput: buildOutput({
+            decisions: [balancedDecision],
+            withCommand: true,
+          }),
+        },
+        executor,
+      );
+
+      expect(result.householdObjectiveSummary.objectiveMode).toBe("balanced");
+      expect(result.householdObjectiveConfidence).toBe("mixed");
+    });
+  });
 });
