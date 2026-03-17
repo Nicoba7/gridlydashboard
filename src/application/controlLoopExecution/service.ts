@@ -366,6 +366,7 @@ export async function runControlLoopExecutionService(
       executionEvidenceSummary: evidenceSummary,
       nextCycleExecutionCaution: cautionSignal.nextCycleExecutionCaution,
       householdObjectiveSummary,
+      householdObjectiveConfidence: householdObjectiveConfidence.householdObjectiveConfidence,
     });
     persistJournalProjection(journalStore, journalProjection);
 
@@ -476,6 +477,7 @@ export async function runControlLoopExecutionService(
     executionEvidenceSummary: evidenceSummary,
     nextCycleExecutionCaution: cautionSignal.nextCycleExecutionCaution,
     householdObjectiveSummary,
+    householdObjectiveConfidence: householdObjectiveConfidence.householdObjectiveConfidence,
   });
   persistJournalProjection(journalStore, journalProjection);
 

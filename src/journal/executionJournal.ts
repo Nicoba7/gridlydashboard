@@ -145,6 +145,11 @@ export interface CycleHeartbeatEntry {
     hasExportIntent: boolean;
     hasImportAvoidanceIntent: boolean;
   };
+  /**
+   * Canonical informational confidence in the household objective characterization
+   * for this cycle (clear / mixed / empty). Runtime-owned pass-through signal.
+   */
+  householdObjectiveConfidence?: "clear" | "mixed" | "empty";
   schemaVersion: string;
 }
 

@@ -200,6 +200,7 @@ function buildCycleHeartbeat(params: {
     hasExportIntent: boolean;
     hasImportAvoidanceIntent: boolean;
   };
+  householdObjectiveConfidence?: "clear" | "mixed" | "empty";
 }): CycleHeartbeatEntry {
   const commandsSuppressed = params.outcomes.filter(
     (result) =>
@@ -231,6 +232,7 @@ function buildCycleHeartbeat(params: {
     hasUncertainExecutionEvidence: params.executionEvidenceSummary?.hasUncertainExecutionEvidence,
     nextCycleExecutionCaution: params.nextCycleExecutionCaution,
     householdObjectiveSummary: params.householdObjectiveSummary,
+    householdObjectiveConfidence: params.householdObjectiveConfidence,
     schemaVersion: "cycle-heartbeat.v1",
   };
 }
@@ -261,6 +263,8 @@ export interface ProjectJournalInput {
     hasExportIntent: boolean;
     hasImportAvoidanceIntent: boolean;
   };
+  /** Canonical informational confidence for household objective characterization. */
+  householdObjectiveConfidence?: "clear" | "mixed" | "empty";
 }
 
 export interface ProjectJournalOutput {
@@ -314,6 +318,7 @@ export function projectJournal(params: ProjectJournalInput): ProjectJournalOutpu
     executionEvidenceSummary: params.executionEvidenceSummary,
     nextCycleExecutionCaution: params.nextCycleExecutionCaution,
     householdObjectiveSummary: params.householdObjectiveSummary,
+    householdObjectiveConfidence: params.householdObjectiveConfidence,
   });
 
   const narrative = buildDecisionNarrative({
