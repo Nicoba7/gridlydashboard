@@ -119,10 +119,12 @@ export interface BuildExecutionPlanOutput {
 }
 
 /**
- * Execution planning stage.
+ * Converts final selected opportunities into the canonical execution-plan boundary.
  *
- * Converts selected opportunities into a dispatchable execution plan while
- * preserving reserved-device conflict policy checks.
+ * Owns: reserved-device conflict handling and command-set construction for
+ * downstream adapter execution.
+ *
+ * Must not: perform new economic reasoning or call adapters.
  *
  * Invariants:
  * - `plan.kind === "executable"` implies `dispatchableRequests.length > 0`

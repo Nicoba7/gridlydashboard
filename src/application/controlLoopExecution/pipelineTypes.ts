@@ -6,6 +6,12 @@ import type { CanonicalDeviceCommand } from "./canonicalCommand";
 import type { EconomicActionCandidate } from "./evaluateEconomicActionPreference";
 import type { CycleHeartbeatEntry, ExecutionJournalEntry } from "../../journal/executionJournal";
 
+/**
+ * Canonical runtime contracts shared across the staged decision pipeline.
+ *
+ * These types describe Gridly's internal decision model. Transitional
+ * request-centric compatibility payloads belong at stage edges, not here.
+ */
 export type OpportunityReasonCode =
   | ExecutionPolicyReasonCode
   | "CAPABILITIES_NOT_FOUND"
@@ -69,6 +75,7 @@ export interface EligibleOpportunity {
   };
 }
 
+/** Canonical rejection record produced by a specific runtime stage. */
 export interface RejectedOpportunity {
   opportunityId: string;
   decisionId?: string;
@@ -147,6 +154,10 @@ export interface NonExecutablePlan {
 
 /**
  * Canonical execution plan boundary between planning and adapter execution stages.
+ *
+ * Invariant:
+ * - executable plans represent adapter-dispatchable work
+ * - non-executable plans carry no canonical commands
  */
 export type ExecutionPlan = ExecutablePlan | NonExecutablePlan;
 
@@ -185,6 +196,10 @@ export interface NonExecutedResult {
 
 /**
  * Canonical execution outcome returned by adapter execution stage.
+ *
+ * Invariant:
+ * - `executed` / `partially_executed` always reference an executable plan
+ * - `non_executed` always references a non-executable plan
  */
 export type ExecutionResult = ExecutedResult | PartiallyExecutedResult | NonExecutedResult;
 

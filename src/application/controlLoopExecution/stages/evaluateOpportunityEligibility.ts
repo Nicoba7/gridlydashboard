@@ -94,16 +94,16 @@ export interface EvaluateOpportunityEligibilityOutput {
 }
 
 /**
- * Eligibility stage.
+ * Evaluates raw execution requests into canonical eligible/rejected opportunities.
  *
- * Ownership:
- * - runtime guardrail suppression
- * - capability preflight validation
- * - shadow reconciliation skip
- * - canonical execution policy gate
+ * Owns: runtime guardrail checks, capability validation, shadow reconciliation,
+ * and execution-policy gating.
  *
- * Compatibility outcomes are transitional edge payloads and not canonical
- * decision records.
+ * Must not: perform economic arbitration or adapter dispatch.
+ *
+ * Outputs:
+ * - canonical eligible/rejected opportunity sets
+ * - edge-only compatibility outcomes for current request-centric consumers
  */
 export function evaluateOpportunityEligibility(
   params: EvaluateOpportunityEligibilityInput,

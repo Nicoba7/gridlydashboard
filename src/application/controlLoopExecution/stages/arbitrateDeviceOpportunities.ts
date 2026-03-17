@@ -18,10 +18,13 @@ import type {
 } from "../pipelineTypes";
 
 /**
- * Device-scoped arbitration stage.
+ * Resolves economic contention only among eligible opportunities for the same device.
  *
- * Compares eligible opportunities only within the same target device, preserving
- * the existing policy where only one economically preferred action proceeds per device.
+ * Owns: device-local economic ranking and prerejection trace creation.
+ *
+ * Must not: re-run eligibility checks, make household-wide decisions, or dispatch adapters.
+ *
+ * Outputs canonical prerejections plus selected economic traces for downstream stages.
  */
 export function arbitrateDeviceOpportunities(
   opportunities: EligibleOpportunity[],
@@ -125,7 +128,7 @@ export interface DeviceArbitrationPrerejectionMapping {
  * Compatibility mapper owned by device arbitration stage.
  *
  * Keeps prerejection shaping out of the controller while preserving existing
- * request-centric edge payloads.
+ * request-centric edge payloads. These outcomes are not canonical runtime objects.
  */
 export function mapDeviceArbitrationPrerejections(
   prerejections: Map<string, EconomicPrerejection>,

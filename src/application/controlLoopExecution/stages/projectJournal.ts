@@ -243,10 +243,12 @@ export interface ProjectJournalOutput {
 }
 
 /**
- * Journal projection stage.
+ * Projects runtime outputs into the current journal/narrative schema.
  *
- * Projects runtime execution outputs into canonical journal entries,
- * cycle heartbeat payload, and a compatibility decision narrative.
+ * Owns: decision narrative assembly, journal entry projection, and cycle
+ * heartbeat payload shaping.
+ *
+ * Must not: persist anything itself; store interaction stays outside this stage.
  */
 export function projectJournal(params: ProjectJournalInput): ProjectJournalOutput {
   const journalEntries = params.outcomes

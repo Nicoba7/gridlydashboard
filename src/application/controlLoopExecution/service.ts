@@ -46,6 +46,7 @@ export interface ControlLoopExecutionServiceResult {
   executionPosture: RuntimeExecutionPosture;
 }
 
+/** Persists already-projected journal payloads; schema shaping stays outside the store. */
 function persistJournalProjection(
   journalStore: ExecutionJournalStore | undefined,
   projection: ReturnType<typeof projectJournal>,
@@ -61,6 +62,10 @@ function persistJournalProjection(
   journalStore.appendHeartbeat(projection.cycleHeartbeat);
 }
 
+/**
+ * Controller-local helper to keep stage rejection accumulation order explicit.
+ * No business rules belong here; stages own rejection semantics.
+ */
 function appendStageAccumulation(
   rejectedAccumulator: RejectedOpportunity[],
   compatibilityAccumulator: CommandExecutionResult[],
@@ -149,8 +154,11 @@ function mapOpportunityToRequest(
 }
 
 /**
- * Thin application seam between canonical planning/control and future live command adapters.
- * See docs/architecture/execution-architecture.md for the orchestration boundary.
+ * Thin pipeline controller between canonical planning/control and adapter execution.
+ *
+ * This function orchestrates stage invocation, accumulation, persistence, and
+ * shadow updates. It must not introduce economic reasoning or stage-local policy.
+ * See docs/architecture/execution-architecture.md for the wider execution boundary.
  */
 export async function runControlLoopExecutionService(
   input: ControlLoopInput,
@@ -229,7 +237,7 @@ export async function runControlLoopExecutionService(
   });
   const eligibleOpportunities = eligibilityEvaluation.eligible;
   // Ordering invariant for accumulation: eligibility -> device -> household -> planning.
-  // This ordering is consumed by downstream compatibility/journal pathways.
+  // This ordering is intentionally preserved for downstream compatibility/journal pathways.
   const rejectedOpportunities: RejectedOpportunity[] = [...eligibilityEvaluation.rejected];
   const policyDenials: CommandExecutionResult[] = [...eligibilityEvaluation.compatibilityOutcomes];
 

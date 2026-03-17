@@ -15,11 +15,12 @@ import type {
 } from "../pipelineTypes";
 
 /**
- * Household selection stage.
+ * Selects the single household-level economic winner from already eligible,
+ * device-arbitrated opportunities.
  *
- * Compares already device-arbitrated eligible opportunities across distinct
- * assets and keeps the single household-preferred action, preserving existing
- * behavior and trace semantics.
+ * Owns: cross-asset economic comparison and household-level prerejection traces.
+ *
+ * Must not: revisit eligibility, dispatch adapters, or invent new opportunities.
  */
 export function selectHouseholdDecision(
   opportunities: EligibleOpportunity[],
@@ -95,7 +96,7 @@ export interface HouseholdDecisionPrerejectionMapping {
  * Compatibility mapper owned by household decision stage.
  *
  * Keeps prerejection shaping out of the controller while preserving existing
- * request-centric edge payloads.
+ * request-centric edge payloads. These outcomes are not canonical runtime objects.
  */
 export function mapHouseholdDecisionPrerejections(
   prerejections: Map<string, EconomicPrerejection>,

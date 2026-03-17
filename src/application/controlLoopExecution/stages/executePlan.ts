@@ -80,10 +80,12 @@ export interface ExecutePlanOutput {
 }
 
 /**
- * Adapter execution stage.
+ * Executes a canonical plan through the adapter boundary and shapes execution outcomes.
  *
- * Owns legacy request-centric dispatch, adapter invocation, outcome collection,
- * and canonical execution result shaping.
+ * Owns: adapter invocation, adapter-result collection, and canonical
+ * `ExecutionResult` shaping.
+ *
+ * Must not: perform economic reasoning or alter opportunity selection.
  *
  * Invariants:
  * - non-executable plans do not dispatch adapter requests
