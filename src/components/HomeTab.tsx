@@ -693,6 +693,10 @@ export default function HomeTab({ connectedDevices, now, latestCycleHeartbeat }:
   // Render canonical runtime decision rationale directly.
   // UI must not reinterpret or rewrite economic/accounting meaning.
   const heroReason = homeRuntimeReadModel.currentDecisionReason;
+  const hasDeviceAlerts = connectedDevices.some((device) => {
+    const health = deviceHealth[device.id];
+    return health && !health.ok;
+  });
   const homeReassuranceNote = buildHomeReassuranceNote({
     hasEV,
     hasBattery,
@@ -716,16 +720,18 @@ export default function HomeTab({ connectedDevices, now, latestCycleHeartbeat }:
     : SANDBOX.earnedToday;
   // Pass-through of runtime planner truth. Components must not derive substitute
   // meanings for confidence/caution signals outside canonical runtime outputs.
+  // Presentation-only label. Canonical meaning comes from runtime read model truth.
   const confidenceBadge = homeRuntimeReadModel.conservativeAdjustmentApplied
-    ? "Runtime posture: Conservative"
+    ? "Running conservatively"
     : homeRuntimeReadModel.planningConfidenceLabel
-      ? `Planner confidence: ${homeRuntimeReadModel.planningConfidenceLabel}`
+      ? `Confidence: ${homeRuntimeReadModel.planningConfidenceLabel}`
       : `Confidence: ${homeOptimizerView.trust.confidenceLabel}`;
   const confidenceCopy = homeRuntimeReadModel.conservativeAdjustmentReason
     ? homeRuntimeReadModel.conservativeAdjustmentReason
     : `${homeOptimizerView.trust.explanation} ${homeOptimizerView.nextStepLabel}`;
+  // Presentation-only label. Canonical caution signal comes from runtime heartbeat.
   const cycleCautionBadge = homeRuntimeReadModel.nextCycleExecutionCaution
-    ? `Cycle caution: ${homeRuntimeReadModel.nextCycleExecutionCaution}`
+    ? `Caution: ${homeRuntimeReadModel.nextCycleExecutionCaution}`
     : undefined;
 
   return (
@@ -858,7 +864,7 @@ export default function HomeTab({ connectedDevices, now, latestCycleHeartbeat }:
       )}
 
       <div style={{ margin: "12px 16px 0", background: "#0A1220", borderRadius: 16, border: "1px solid #18263D", padding: "11px 14px" }}>
-        <div style={{ fontSize: 10, color: "#7B8EA8", fontWeight: 700, letterSpacing: 0.75, marginBottom: 4 }}>SYSTEM CONFIDENCE</div>
+        <div style={{ fontSize: 10, color: "#7B8EA8", fontWeight: 700, letterSpacing: 0.75, marginBottom: 4 }}>CONFIDENCE</div>
         <div style={{ fontSize: 12, color: "#A5B4C7", lineHeight: 1.45 }}>{hasDeviceAlerts ? homeReassuranceNote : confidenceCopy}</div>
       </div>
 

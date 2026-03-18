@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SystemState } from "../domain";
 import type { OptimizerDecision, OptimizerOpportunity, OptimizerOutput } from "../domain/optimizer";
 import { runControlLoopExecutionService } from "../application/controlLoopExecution/service";
@@ -10,6 +10,15 @@ import type {
 import { InMemoryDeviceCapabilitiesProvider } from "../capabilities/deviceCapabilitiesProvider";
 import { InMemoryDeviceShadowStore } from "../shadow/deviceShadowStore";
 import { InMemoryExecutionJournalStore } from "../journal/executionJournalStore";
+import {
+  getLatestCycleHeartbeat,
+  getRecentExecutionOutcomes,
+  setLatestCycleHeartbeat,
+} from "../journal/latestCycleHeartbeatSource";
+
+afterEach(() => {
+  setLatestCycleHeartbeat(undefined);
+});
 
 function buildSystemState(): SystemState {
   return {
@@ -109,6 +118,51 @@ function buildCapabilitiesProvider() {
 }
 
 describe("runControlLoopExecutionService journal", () => {
+  it("publishes finalized cycle heartbeat to the shared latest-cycle source", async () => {
+    const execute = vi.fn(async (requests: CommandExecutionRequest[]) =>
+      requests.map((request): CommandExecutionResult => ({
+        executionRequestId: request.executionRequestId,
+        requestId: request.requestId,
+        idempotencyKey: request.idempotencyKey,
+        decisionId: request.decisionId,
+        targetDeviceId: request.targetDeviceId,
+        commandId: request.commandId,
+        deviceId: request.targetDeviceId,
+        status: "issued",
+      })),
+    );
+    const executor: DeviceCommandExecutor = { execute };
+
+    await runControlLoopExecutionService(
+      {
+        now: "2026-03-16T10:05:00.000Z",
+        systemState: buildSystemState(),
+        optimizerOutput: buildOutput([
+          {
+            commandId: "cmd-1",
+            deviceId: "battery",
+            issuedAt: "2026-03-16T10:00:00.000Z",
+            type: "set_mode",
+            mode: "charge",
+            effectiveWindow: { startAt: "2026-03-16T10:00:00.000Z", endAt: "2026-03-16T10:30:00.000Z" },
+          },
+        ]),
+      },
+      executor,
+      buildCapabilitiesProvider(),
+    );
+
+    const latestHeartbeat = getLatestCycleHeartbeat();
+    expect(latestHeartbeat).toBeDefined();
+    expect(latestHeartbeat?.entryKind).toBe("cycle_heartbeat");
+    expect(latestHeartbeat?.recordedAt).toBe("2026-03-16T10:05:00.000Z");
+    expect(latestHeartbeat?.nextCycleExecutionCaution).toBe("normal");
+
+    const recentExecutionOutcomes = getRecentExecutionOutcomes();
+    expect(recentExecutionOutcomes.length).toBeGreaterThan(0);
+    expect(recentExecutionOutcomes[0].recordedAt).toBe("2026-03-16T10:05:00.000Z");
+  });
+
   it("adapts command-only dispatch to canonical opportunity identity without partial authority mode", async () => {
     const execute = vi.fn(async (requests: CommandExecutionRequest[]) =>
       requests.map((request): CommandExecutionResult => ({

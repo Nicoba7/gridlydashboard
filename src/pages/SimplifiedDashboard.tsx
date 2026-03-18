@@ -2,9 +2,15 @@ import HistoryTab from "../components/HistoryTab";
 import HomeTab from "../components/HomeTab";
 import PlanTab from "../components/PlanTab";
 import { SANDBOX } from "../data/sandbox";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useSyncExternalStore } from "react";
 import { Sun, Battery, Zap, Grid3X3, Home, Calendar, Clock, ChevronDown, ChevronUp } from "lucide-react";
 import { AGILE_RATES, type AgileRate } from "../data/agileRates";
+import {
+  getRecentExecutionOutcomes,
+  getRecentCycleHeartbeats,
+  getLatestCycleHeartbeat,
+  subscribeLatestCycleHeartbeat,
+} from "../journal/latestCycleHeartbeatSource";
 
 export { SANDBOX };
 
@@ -751,6 +757,20 @@ export function ChargerLock({ connectedDevices }: { connectedDevices: DeviceConf
 export default function SimplifiedDashboard() {
   const [tab, setTab] = useState<"home" | "plan" | "history">("home");
   const [now, setNow] = useState(new Date());
+  // Shared runtime/session heartbeat source.
+  // This is the first reusable seam for canonical journal truth entering product surfaces.
+  // UI components must only subscribe and render this value; they must never produce it.
+  const latestCycleHeartbeat = useSyncExternalStore(
+    subscribeLatestCycleHeartbeat,
+    getLatestCycleHeartbeat,
+    getLatestCycleHeartbeat,
+  );
+  const recentCycleHeartbeats = getRecentCycleHeartbeats();
+  const recentExecutionOutcomes = useSyncExternalStore(
+    subscribeLatestCycleHeartbeat,
+    getRecentExecutionOutcomes,
+    getRecentExecutionOutcomes,
+  );
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -779,10 +799,19 @@ export default function SimplifiedDashboard() {
   return (
     <div style={{ background: "#030712", minHeight: "100vh", color: "#F9FAFB", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto", maxWidth: 480, margin: "0 auto", paddingBottom: 80 }}>
       {/* Latest cycle heartbeat should eventually come from a shared runtime/journal source.
-          Until that source exists, Home remains stable with this input omitted. */}
-      {tab === "home"    && <HomeTab connectedDevices={connectedDevices} now={now} />}
+          It is now sourced from a tiny shared runtime/session seam, still local to this app
+          and ready to be reused by History or other surfaces when they need the same truth. */}
+      {tab === "home"    && <HomeTab connectedDevices={connectedDevices} now={now} latestCycleHeartbeat={latestCycleHeartbeat} />}
       {tab === "plan"    && <PlanTab connectedDevices={connectedDevices} now={now} />}
-      {tab === "history" && <HistoryTab connectedDevices={connectedDevices} now={now} />}
+      {tab === "history" && (
+        <HistoryTab
+          connectedDevices={connectedDevices}
+          now={now}
+          latestCycleHeartbeat={latestCycleHeartbeat}
+          recentCycleHeartbeats={recentCycleHeartbeats}
+          recentExecutionOutcomes={recentExecutionOutcomes}
+        />
+      )}
 
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, background: "#030712", borderTop: "1px solid #111827", padding: "10px 0 20px", display: "flex", justifyContent: "space-around" }}>
         {tabs.map(t => {

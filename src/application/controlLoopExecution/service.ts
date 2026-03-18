@@ -51,6 +51,7 @@ import type {
   RuntimeJournalProjectionPayload,
   RuntimeOutcomeProjectionRecord,
 } from "./runtimeJournalProjectionPayload";
+import { pushRecentExecutionOutcomes, setLatestCycleHeartbeat } from "../../journal/latestCycleHeartbeatSource";
 
 export interface ControlLoopExecutionServiceResult {
   controlLoopResult: ControlLoopResult;
@@ -192,6 +193,11 @@ function persistJournalProjection(
   journalStore: ExecutionJournalStore | undefined,
   projection: ReturnType<typeof projectJournal>,
 ): void {
+  // First real publisher into the shared heartbeat source.
+  // Canonical heartbeat truth originates from runtime/journal projection here; UI only subscribes.
+  setLatestCycleHeartbeat(projection.cycleHeartbeat);
+  pushRecentExecutionOutcomes(projection.journalEntries);
+
   if (!journalStore) {
     return;
   }
