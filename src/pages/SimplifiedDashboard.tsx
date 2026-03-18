@@ -778,6 +778,8 @@ export default function SimplifiedDashboard() {
 
   return (
     <div style={{ background: "#030712", minHeight: "100vh", color: "#F9FAFB", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto", maxWidth: 480, margin: "0 auto", paddingBottom: 80 }}>
+      {/* Latest cycle heartbeat should eventually come from a shared runtime/journal source.
+          Until that source exists, Home remains stable with this input omitted. */}
       {tab === "home"    && <HomeTab connectedDevices={connectedDevices} now={now} />}
       {tab === "plan"    && <PlanTab connectedDevices={connectedDevices} now={now} />}
       {tab === "history" && <HistoryTab connectedDevices={connectedDevices} now={now} />}

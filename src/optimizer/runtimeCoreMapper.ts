@@ -896,7 +896,10 @@ export function buildCanonicalRuntimeResult(input: OptimizerInput): CanonicalRun
       expectedImportCostPence: Math.round(expectedImportCostPence),
       expectedExportRevenuePence: Math.round(expectedExportRevenuePence),
       expectedBatteryDegradationCostPence: Math.round(expectedBatteryDegradationCostPence),
-      expectedNetValuePence: Math.round(
+      // Planning telemetry: revenue-positive surplus (export - import - degradation).
+      // Opposite sign from CanonicalValueLedger.estimatedNetCostPence (cost-positive).
+      // Do not use as accounting truth — use CanonicalValueLedger for customer-facing values.
+      planningNetRevenueSurplusPence: Math.round(
         expectedExportRevenuePence - expectedImportCostPence - expectedBatteryDegradationCostPence,
       ),
       expectedSolarSelfConsumptionKwh: Number(expectedSolarSelfConsumptionKwh.toFixed(2)),

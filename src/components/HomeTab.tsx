@@ -5,6 +5,7 @@ import {
   optimize,
   type HomeConnectedDeviceId,
 } from "../optimizer";
+import { buildCanonicalValueLedger } from "../application/runtime/buildCanonicalValueLedger";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { AGILE_RATES } from "../data/agileRates";
 import {
@@ -24,6 +25,8 @@ import { FlowConnector, FlowNode } from "./flowPrimitives";
 import { TIMELINE_EMPHASIS_TOKENS, timelineDotGlow } from "./timelineEmphasisTokens";
 import DecisionExplanationSheet from "./DecisionExplanationSheet";
 import { buildDecisionExplanation } from "../lib/decisionExplanation";
+import { buildHomeRuntimeReadModel } from "../features/home/homeRuntimeReadModel";
+import type { CycleHeartbeatEntry } from "../journal/executionJournal";
 
 const ENABLE_HOME_SIMULATION = import.meta.env.DEV;
 
@@ -147,31 +150,6 @@ function shortenReason(reason?: string): string {
 
 function conciseHeroHeadline(): string {
   return "Optimising quietly";
-}
-
-function buildHeroDecisionReason({
-  action,
-  reason,
-  currentPence,
-}: {
-  action?: string;
-  reason?: string;
-  currentPence: number;
-}) {
-  const normalizedAction = action?.toLowerCase().trim();
-  if (normalizedAction === "charge") {
-    return `Charging now at ${currentPence.toFixed(1)}p to prepare your home for later.`;
-  }
-  if (normalizedAction === "export") {
-    return "Exporting now while rates are strong and your home remains protected.";
-  }
-  if (normalizedAction === "discharge") {
-    return "Using battery now to reduce higher-cost grid use.";
-  }
-  if (reason?.includes("Strong solar is expected soon")) {
-    return "Holding steady now because stronger solar is expected shortly.";
-  }
-  return "Balancing cost, comfort, and readiness in real time.";
 }
 
 function buildHomeReassuranceNote({
@@ -623,7 +601,13 @@ function DeviceRow({ device }: { device: DeviceConfig }) {
   );
 }
 
-export default function HomeTab({ connectedDevices, now }: { connectedDevices: DeviceConfig[]; now: Date }) {
+export interface HomeTabProps {
+  connectedDevices: DeviceConfig[];
+  now: Date;
+  latestCycleHeartbeat?: CycleHeartbeatEntry;
+}
+
+export default function HomeTab({ connectedDevices, now, latestCycleHeartbeat }: HomeTabProps) {
   const hasBattery = connectedDevices.some((device) => device.id === "battery");
   const hasEV = connectedDevices.some((device) => device.id === "ev");
   const hasSolar = connectedDevices.some((device) => device.id === "solar");
@@ -673,7 +657,27 @@ export default function HomeTab({ connectedDevices, now }: { connectedDevices: D
   }, [now, connectedDeviceIds, s.batteryPct]);
 
   const optimizerOutput = useMemo(() => optimize(optimizerInput), [optimizerInput]);
-  const homeOptimizerView = useMemo(() => buildHomeUiViewModel(optimizerOutput), [optimizerOutput]);
+
+  const valueLedger = useMemo(
+    () =>
+      buildCanonicalValueLedger({
+        optimizationMode: optimizerInput.constraints.mode,
+        optimizerOutput,
+        forecasts: optimizerInput.forecasts,
+        tariffSchedule: optimizerInput.tariffSchedule,
+      }),
+    [optimizerInput, optimizerOutput],
+  );
+  const homeOptimizerView = useMemo(
+    () => buildHomeUiViewModel(optimizerOutput, valueLedger),
+    [optimizerOutput, valueLedger],
+  );
+  const homeRuntimeReadModel = useMemo(
+    // Heartbeat truth is produced outside the UI and passed in here.
+    // Home only renders canonical runtime/journal outputs; it must not initiate execution.
+    () => buildHomeRuntimeReadModel({ optimizerOutput, latestCycleHeartbeat }),
+    [optimizerOutput, latestCycleHeartbeat],
+  );
 
   const timeline = mergeTimeline(homeOptimizerView.timeline, {
     solarForecastKwh: SANDBOX?.solarForecast?.kwh ?? 0,
@@ -683,19 +687,12 @@ export default function HomeTab({ connectedDevices, now }: { connectedDevices: D
   const [selectedTimelineItem, setSelectedTimelineItem] = useState<TimelineItem | null>(null);
   const isCharging = homeOptimizerView.currentAction === "charge";
   const isExporting = homeOptimizerView.currentAction === "export";
-  const hasOptimizerWarnings = homeOptimizerView.health.systemStatus !== "ok";
 
   const heroColor = isCharging ? "#22C55E" : isExporting ? "#F59E0B" : "#6B7280";
   const heroLabel = conciseHeroHeadline();
-  const heroReason = buildHeroDecisionReason({
-    action: homeOptimizerView.currentAction,
-    reason: homeOptimizerView.currentReason,
-    currentPence,
-  });
-  const hasDeviceAlerts = connectedDevices.some((device) => {
-    const health = deviceHealth[device.id];
-    return health && !health.ok;
-  });
+  // Render canonical runtime decision rationale directly.
+  // UI must not reinterpret or rewrite economic/accounting meaning.
+  const heroReason = homeRuntimeReadModel.currentDecisionReason;
   const homeReassuranceNote = buildHomeReassuranceNote({
     hasEV,
     hasBattery,
@@ -717,10 +714,19 @@ export default function HomeTab({ connectedDevices, now }: { connectedDevices: D
   const homeValueEarnings = homeOptimizerView.value.earningsToday > 0
     ? homeOptimizerView.value.earningsToday
     : SANDBOX.earnedToday;
-  const confidenceBadge = hasDeviceAlerts || hasOptimizerWarnings
-    ? "Confidence: Reduced"
-    : `Confidence: ${homeOptimizerView.trust.confidenceLabel}`;
-  const confidenceCopy = `${homeOptimizerView.trust.explanation} ${homeOptimizerView.nextStepLabel}`;
+  // Pass-through of runtime planner truth. Components must not derive substitute
+  // meanings for confidence/caution signals outside canonical runtime outputs.
+  const confidenceBadge = homeRuntimeReadModel.conservativeAdjustmentApplied
+    ? "Runtime posture: Conservative"
+    : homeRuntimeReadModel.planningConfidenceLabel
+      ? `Planner confidence: ${homeRuntimeReadModel.planningConfidenceLabel}`
+      : `Confidence: ${homeOptimizerView.trust.confidenceLabel}`;
+  const confidenceCopy = homeRuntimeReadModel.conservativeAdjustmentReason
+    ? homeRuntimeReadModel.conservativeAdjustmentReason
+    : `${homeOptimizerView.trust.explanation} ${homeOptimizerView.nextStepLabel}`;
+  const cycleCautionBadge = homeRuntimeReadModel.nextCycleExecutionCaution
+    ? `Cycle caution: ${homeRuntimeReadModel.nextCycleExecutionCaution}`
+    : undefined;
 
   return (
     <div style={{ background: "#060A12", minHeight: "100vh", paddingBottom: 40 }}>
@@ -733,6 +739,11 @@ export default function HomeTab({ connectedDevices, now }: { connectedDevices: D
             <span style={{ fontSize: 10, color: "#7B8EA8", marginLeft: "auto", border: "1px solid #1D2B40", borderRadius: 999, padding: "2px 8px" }}>
               {confidenceBadge}
             </span>
+            {cycleCautionBadge && (
+              <span style={{ fontSize: 10, color: "#7B8EA8", border: "1px solid #1D2B40", borderRadius: 999, padding: "2px 8px" }}>
+                {cycleCautionBadge}
+              </span>
+            )}
           </div>
 
           <div style={{ fontSize: 34, fontWeight: 850, color: "#F3F7FF", letterSpacing: -1.2, lineHeight: 1.05, marginBottom: 8 }}>{heroLabel}</div>

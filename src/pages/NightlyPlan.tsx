@@ -76,7 +76,7 @@ export default function NightlyPlan() {
         </div>
 
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 11, color: "#6B7280" }}>Projected value</div>
+          <div style={{ fontSize: 11, color: "#6B7280" }}>Projected savings &amp; earnings</div>
           <div style={{ fontSize: 20, fontWeight: 800, color: "#22C55E" }}>
             +£{net}
           </div>

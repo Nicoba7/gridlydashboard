@@ -59,7 +59,7 @@ function buildOutput(commands: OptimizerOutput["recommendedCommands"], decisions
     summary: {
       expectedImportCostPence: 100,
       expectedExportRevenuePence: 10,
-      expectedNetValuePence: -90,
+      planningNetRevenueSurplusPence: -90,
     },
     diagnostics: [],
     feasibility: { executable: true, reasonCodes: ["PLAN_COMPUTED"] },

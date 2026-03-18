@@ -49,4 +49,6 @@ export type {
   TelemetryHealthSummary,
 } from "./telemetryHealth";
 export type { CanonicalDeviceTelemetry } from "./telemetry";
+export type { CustomerValueSummary } from "./customerValueSummary";
+export { mapValueLedgerToCustomerValueSummary } from "./customerValueSummary";
 export type { CanonicalValueLedger, ValueLedgerBaselineType } from "./valueLedger";

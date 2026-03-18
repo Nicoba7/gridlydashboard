@@ -79,6 +79,12 @@ function computeHoldCurrentStateBaseline(
 export function buildCanonicalValueLedger(
   input: BuildCanonicalValueLedgerInput,
 ): CanonicalValueLedger {
+  // Source the raw energy flow figures from optimizer summary planning telemetry.
+  // Note: the ledger does NOT invert or reuse planningNetRevenueSurplusPence from the summary.
+  // It independently computes estimatedNetCostPence with a cost-positive sign convention:
+  //   estimatedNetCostPence = import - export + degradation  (positive = household cost)
+  // This is the OPPOSITE sign from OptimizerSummary.planningNetRevenueSurplusPence:
+  //   planningNetRevenueSurplusPence = export - import - degradation  (positive = net revenue surplus)
   const estimatedImportCostPence = input.optimizerOutput.summary.expectedImportCostPence;
   const estimatedExportRevenuePence = input.optimizerOutput.summary.expectedExportRevenuePence;
   const estimatedBatteryDegradationCostPence = input.optimizerOutput.summary.expectedBatteryDegradationCostPence ?? 0;

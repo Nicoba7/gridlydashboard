@@ -46,6 +46,11 @@ import {
   type EvidenceAnnotatedExecutionResult,
 } from "./stages/assessExecutionEvidenceCoherence";
 import { projectJournal } from "./stages/projectJournal";
+import type { CanonicalRuntimeSignals } from "./canonicalRuntimeSignals";
+import type {
+  RuntimeJournalProjectionPayload,
+  RuntimeOutcomeProjectionRecord,
+} from "./runtimeJournalProjectionPayload";
 
 export interface ControlLoopExecutionServiceResult {
   controlLoopResult: ControlLoopResult;
@@ -66,6 +71,120 @@ export interface ControlLoopExecutionServiceResult {
    * "caution" when hasUncertainExecutionEvidence is true, "normal" otherwise.
    */
   nextCycleExecutionCaution: "normal" | "caution";
+}
+
+function buildCanonicalRuntimeSignals(params: {
+  outcomes: Pick<EvidenceAnnotatedExecutionResult, "executionRequestId" | "telemetryCoherence" | "executionConfidence">[];
+  executionEvidenceSummary: {
+    hasUncertainExecutionEvidence: boolean;
+  };
+  householdObjectiveSummary: {
+    objectiveMode: "savings" | "earnings" | "balanced";
+    hasExportIntent: boolean;
+    hasImportAvoidanceIntent: boolean;
+  };
+  householdObjectiveConfidence: "clear" | "mixed" | "empty";
+}): CanonicalRuntimeSignals {
+  return {
+    outcomeSignals: params.outcomes.map((outcome) => ({
+      executionRequestId: outcome.executionRequestId,
+      telemetryCoherence: outcome.telemetryCoherence,
+      executionConfidence: outcome.executionConfidence,
+    })),
+    executionEvidenceSummary: params.executionEvidenceSummary,
+    nextCycleExecutionCaution: deriveNextCycleExecutionCaution(params.executionEvidenceSummary).nextCycleExecutionCaution,
+    householdObjectiveSummary: params.householdObjectiveSummary,
+    householdObjectiveConfidence: params.householdObjectiveConfidence,
+  };
+}
+
+function buildRuntimeJournalProjectionPayload(params: {
+  recordedAt: string;
+  executionPosture: RuntimeExecutionPosture;
+  runtimeGuardrailContext?: RuntimeExecutionGuardrailContext;
+  failClosedTriggered: boolean;
+  cycleHeartbeatMeta?: { cycleId?: string; replanReason?: string };
+  cycleFinancialContext?: ExecutionCycleFinancialContext;
+  executionPlan?: RuntimeJournalProjectionPayload["executionPlan"];
+  executionResult?: RuntimeJournalProjectionPayload["executionResult"];
+  rejectedOpportunities: RejectedOpportunity[];
+  legacyCompatibilityOutcomes: CommandExecutionResult[];
+  outcomeRecords: RuntimeOutcomeProjectionRecord[];
+  compatibilityExecutionEdgeContexts: RuntimeJournalProjectionPayload["runtimeOutcomeProjection"]["compatibilityExecutionEdgeContexts"];
+  canonicalRuntimeSignals: RuntimeJournalProjectionPayload["runtimeOutcomeProjection"]["canonicalRuntimeSignals"];
+}): RuntimeJournalProjectionPayload {
+  return {
+    recordedAt: params.recordedAt,
+    executionPosture: params.executionPosture,
+    runtimeGuardrailContext: params.runtimeGuardrailContext,
+    failClosedTriggered: params.failClosedTriggered,
+    cycleHeartbeatMeta: params.cycleHeartbeatMeta,
+    cycleFinancialContext: params.cycleFinancialContext,
+    executionPlan: params.executionPlan,
+    executionResult: params.executionResult,
+    rejectedOpportunities: params.rejectedOpportunities,
+    legacyCompatibilityOutcomes: params.legacyCompatibilityOutcomes,
+    runtimeOutcomeProjection: {
+      outcomeRecords: params.outcomeRecords,
+      compatibilityExecutionEdgeContexts: params.compatibilityExecutionEdgeContexts,
+      canonicalRuntimeSignals: params.canonicalRuntimeSignals,
+    },
+  };
+}
+
+function buildRuntimeOutcomeProjectionRecords(params: {
+  outcomes: CommandExecutionResult[];
+  executionEdgeContexts: RuntimeJournalProjectionPayload["runtimeOutcomeProjection"]["compatibilityExecutionEdgeContexts"];
+  canonicalRuntimeSignals: CanonicalRuntimeSignals;
+}): RuntimeOutcomeProjectionRecord[] {
+  const contextByExecutionRequestId = new Map(
+    params.executionEdgeContexts.map((context) => [context.executionRequestId, context]),
+  );
+  const runtimeSignalByExecutionRequestId = new Map(
+    params.canonicalRuntimeSignals.outcomeSignals.map((signal) => [signal.executionRequestId, signal]),
+  );
+
+  return params.outcomes.map((outcome) => {
+    const executionEdgeContext = contextByExecutionRequestId.get(outcome.executionRequestId);
+    const runtimeOutcomeSignal = runtimeSignalByExecutionRequestId.get(outcome.executionRequestId);
+
+    if (!executionEdgeContext) {
+      throw new Error(
+        "Runtime journal projection payload assembly integrity violation: missing execution edge context for outcome executionRequestId "
+        + `(${outcome.executionRequestId}).`,
+      );
+    }
+
+    if (!runtimeOutcomeSignal) {
+      throw new Error(
+        "Runtime journal projection payload assembly integrity violation: missing runtime outcome signal for outcome executionRequestId "
+        + `(${outcome.executionRequestId}).`,
+      );
+    }
+
+    return {
+      executionRequestId: outcome.executionRequestId,
+      executionEdgeContext,
+      outcome,
+      runtimeOutcomeSignal,
+    };
+  });
+}
+
+function buildCompatibilityExecutionEdgeContexts(params: {
+  executionEdgeContexts: RuntimeJournalProjectionPayload["runtimeOutcomeProjection"]["compatibilityExecutionEdgeContexts"];
+  legacyCompatibilityOutcomes: CommandExecutionResult[];
+}): RuntimeJournalProjectionPayload["runtimeOutcomeProjection"]["compatibilityExecutionEdgeContexts"] {
+  if (params.legacyCompatibilityOutcomes.length === 0) {
+    return [];
+  }
+
+  const legacyCompatibilityExecutionRequestIds = new Set(
+    params.legacyCompatibilityOutcomes.map((outcome) => outcome.executionRequestId),
+  );
+
+  return params.executionEdgeContexts.filter((context) =>
+    legacyCompatibilityExecutionRequestIds.has(context.executionRequestId));
 }
 
 /** Persists already-projected journal payloads; schema shaping stays outside the store. */
@@ -350,11 +469,13 @@ export async function runControlLoopExecutionService(
   );
 
   if (requests.length === 0) {
-    const evidenceSummary = summarizeExecutionEvidenceConfidence([]);
-    const cautionSignal = deriveNextCycleExecutionCaution(evidenceSummary);
-    const journalProjection = projectJournal({
-      executionEdgeContexts,
+    const canonicalRuntimeSignals = buildCanonicalRuntimeSignals({
       outcomes: [],
+      executionEvidenceSummary: summarizeExecutionEvidenceConfidence([]),
+      householdObjectiveSummary,
+      householdObjectiveConfidence: householdObjectiveConfidence.householdObjectiveConfidence,
+    });
+    const runtimeJournalProjectionPayload = buildRuntimeJournalProjectionPayload({
       recordedAt: input.now,
       executionPosture,
       runtimeGuardrailContext,
@@ -363,21 +484,21 @@ export async function runControlLoopExecutionService(
       cycleFinancialContext: enrichedCycleFinancialContext,
       rejectedOpportunities: [],
       legacyCompatibilityOutcomes: [],
-      executionEvidenceSummary: evidenceSummary,
-      nextCycleExecutionCaution: cautionSignal.nextCycleExecutionCaution,
-      householdObjectiveSummary,
-      householdObjectiveConfidence: householdObjectiveConfidence.householdObjectiveConfidence,
+      outcomeRecords: [],
+      compatibilityExecutionEdgeContexts: [],
+      canonicalRuntimeSignals,
     });
+    const journalProjection = projectJournal(runtimeJournalProjectionPayload);
     persistJournalProjection(journalStore, journalProjection);
 
     return {
       controlLoopResult,
       executionResults: [],
       executionPosture,
-      executionEvidenceSummary: evidenceSummary,
-      householdObjectiveSummary,
-      householdObjectiveConfidence: householdObjectiveConfidence.householdObjectiveConfidence,
-      nextCycleExecutionCaution: cautionSignal.nextCycleExecutionCaution,
+      executionEvidenceSummary: canonicalRuntimeSignals.executionEvidenceSummary,
+      householdObjectiveSummary: canonicalRuntimeSignals.householdObjectiveSummary,
+      householdObjectiveConfidence: canonicalRuntimeSignals.householdObjectiveConfidence,
+      nextCycleExecutionCaution: canonicalRuntimeSignals.nextCycleExecutionCaution,
     };
   }
 
@@ -459,11 +580,13 @@ export async function runControlLoopExecutionService(
     enrichOutcomesForCoherenceAssessment(executedPlan.outcomes, input),
   );
 
-  const evidenceSummary = summarizeExecutionEvidenceConfidence(coherenceAssessedOutcomes);
-  const cautionSignal = deriveNextCycleExecutionCaution(evidenceSummary);
-  const journalProjection = projectJournal({
-    executionEdgeContexts,
+  const canonicalRuntimeSignals = buildCanonicalRuntimeSignals({
     outcomes: coherenceAssessedOutcomes,
+    executionEvidenceSummary: summarizeExecutionEvidenceConfidence(coherenceAssessedOutcomes),
+    householdObjectiveSummary,
+    householdObjectiveConfidence: householdObjectiveConfidence.householdObjectiveConfidence,
+  });
+  const runtimeJournalProjectionPayload = buildRuntimeJournalProjectionPayload({
     recordedAt: input.now,
     executionPosture,
     runtimeGuardrailContext,
@@ -474,11 +597,18 @@ export async function runControlLoopExecutionService(
     executionResult: executedPlan.execution,
     rejectedOpportunities: executedPlan.execution.rejectedOpportunities,
     legacyCompatibilityOutcomes: policyDenials,
-    executionEvidenceSummary: evidenceSummary,
-    nextCycleExecutionCaution: cautionSignal.nextCycleExecutionCaution,
-    householdObjectiveSummary,
-    householdObjectiveConfidence: householdObjectiveConfidence.householdObjectiveConfidence,
+    outcomeRecords: buildRuntimeOutcomeProjectionRecords({
+      outcomes: coherenceAssessedOutcomes,
+      executionEdgeContexts,
+      canonicalRuntimeSignals,
+    }),
+    compatibilityExecutionEdgeContexts: buildCompatibilityExecutionEdgeContexts({
+      executionEdgeContexts,
+      legacyCompatibilityOutcomes: policyDenials,
+    }),
+    canonicalRuntimeSignals,
   });
+  const journalProjection = projectJournal(runtimeJournalProjectionPayload);
   persistJournalProjection(journalStore, journalProjection);
 
   if (shadowStore) {
@@ -516,9 +646,9 @@ export async function runControlLoopExecutionService(
     controlLoopResult,
     executionResults: coherenceAssessedOutcomes,
     executionPosture,
-    executionEvidenceSummary: evidenceSummary,
-    householdObjectiveSummary,
-    householdObjectiveConfidence: householdObjectiveConfidence.householdObjectiveConfidence,
-    nextCycleExecutionCaution: cautionSignal.nextCycleExecutionCaution,
+    executionEvidenceSummary: canonicalRuntimeSignals.executionEvidenceSummary,
+    householdObjectiveSummary: canonicalRuntimeSignals.householdObjectiveSummary,
+    householdObjectiveConfidence: canonicalRuntimeSignals.householdObjectiveConfidence,
+    nextCycleExecutionCaution: canonicalRuntimeSignals.nextCycleExecutionCaution,
   };
 }

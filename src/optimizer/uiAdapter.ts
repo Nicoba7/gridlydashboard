@@ -1,7 +1,9 @@
 import type { GridlyPlanSummary, PlanSummary, PlanWithSessions } from "../types/planCompat";
-import type { OptimizerInput, OptimizerOutput } from "../domain";
+import type { CanonicalValueLedger, OptimizerInput, OptimizerOutput } from "../domain";
+import { mapValueLedgerToCustomerValueSummary } from "../domain";
 import { optimize } from "./engine";
 import { buildCanonicalPlan } from "./planBuilder";
+import { buildCanonicalValueLedger } from "../application/runtime/buildCanonicalValueLedger";
 
 export interface LegacyPlanUiResult {
   optimizerOutput: OptimizerOutput;
@@ -16,11 +18,17 @@ function buildEmptyLegacyPlan(): PlanWithSessions {
   return plan;
 }
 
-function buildDefaultLegacySummary(optimizerOutput: OptimizerOutput): PlanSummary {
-  // TODO: remove once optimizer output fully covers this
+function buildDefaultLegacySummary(
+  optimizerOutput: OptimizerOutput,
+  valueLedger: CanonicalValueLedger,
+): PlanSummary {
+  // Accounting authority comes from canonical value ledger.
+  // Optimizer summary remains planning telemetry and headline support.
+  const customerValue = mapValueLedgerToCustomerValueSummary(valueLedger);
+
   return {
-    projectedEarnings: Number((optimizerOutput.summary.expectedExportRevenuePence / 100).toFixed(2)),
-    projectedSavings: Number((Math.max(0, optimizerOutput.summary.expectedNetValuePence) / 100).toFixed(2)),
+    projectedEarnings: customerValue.projectedEarningsGbp,
+    projectedSavings: customerValue.projectedSavingsGbp,
     cheapestSlot: "--:--",
     cheapestPrice: 0,
     peakSlot: "--:--",
@@ -30,20 +38,24 @@ function buildDefaultLegacySummary(optimizerOutput: OptimizerOutput): PlanSummar
     batteryReserveStartPct: 30,
     batteryCyclesPlanned: Math.max(0, Math.round(optimizerOutput.summary.expectedBatteryCycles ?? 0)),
     evSlotsPlanned: 0,
-    estimatedImportSpend: Number((optimizerOutput.summary.expectedImportCostPence / 100).toFixed(2)),
-    estimatedExportRevenue: Number((optimizerOutput.summary.expectedExportRevenuePence / 100).toFixed(2)),
+    estimatedImportSpend: customerValue.estimatedImportSpendGbp,
+    estimatedExportRevenue: customerValue.projectedEarningsGbp,
     rationale: [optimizerOutput.headline],
   };
 }
 
-function buildDefaultGridlySummary(optimizerOutput: OptimizerOutput): GridlyPlanSummary {
-  // TODO: remove once optimizer output fully covers this
+function buildDefaultGridlySummary(
+  optimizerOutput: OptimizerOutput,
+  valueLedger: CanonicalValueLedger,
+): GridlyPlanSummary {
+  const customerValue = mapValueLedgerToCustomerValueSummary(valueLedger);
+
   return {
     planHeadline: optimizerOutput.headline,
     keyOutcomes: [optimizerOutput.headline],
     intent: "avoid_peak_import",
     customerReason: optimizerOutput.headline,
-    estimatedValue: Number((optimizerOutput.summary.expectedNetValuePence / 100).toFixed(2)),
+    estimatedValue: customerValue.projectedSavingsGbp,
     showSolarInsight: true,
     showPriceChart: true,
     showInsightCard: true,
@@ -58,10 +70,16 @@ function buildDefaultGridlySummary(optimizerOutput: OptimizerOutput): GridlyPlan
  */
 export function optimizeForLegacyPlanUi(input: OptimizerInput): LegacyPlanUiResult {
   const optimizerOutput = optimize(input);
+  const valueLedger = buildCanonicalValueLedger({
+    optimizationMode: input.constraints.mode,
+    optimizerOutput,
+    forecasts: input.forecasts,
+    tariffSchedule: input.tariffSchedule,
+  });
   void buildCanonicalPlan(input);
   const plan = buildEmptyLegacyPlan();
-  const summary = buildDefaultLegacySummary(optimizerOutput);
-  const gridlySummary = buildDefaultGridlySummary(optimizerOutput);
+  const summary = buildDefaultLegacySummary(optimizerOutput, valueLedger);
+  const gridlySummary = buildDefaultGridlySummary(optimizerOutput, valueLedger);
 
   return {
     optimizerOutput,

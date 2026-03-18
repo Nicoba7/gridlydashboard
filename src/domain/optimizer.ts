@@ -134,12 +134,34 @@ export interface PlanningInputCoverage {
 }
 
 /**
- * Aggregate economic and operational outcomes for a plan.
+ * Planning telemetry emitted by the optimizer for a single run.
+ *
+ * These fields reflect the optimizer's *forward-looking plan estimate*, not
+ * post-run accounting truth. Do not use them as customer-facing accounting
+ * values in UI or compatibility adapters — derive those from CanonicalValueLedger.
+ *
+ * Sign convention note:
+ *   planningNetRevenueSurplusPence = exportRevenue - importCost - batteryDegradation
+ *   (positive = planned net revenue surplus from optimization actions)
+ *
+ * This is the OPPOSITE sign of CanonicalValueLedger.estimatedNetCostPence:
+ *   estimatedNetCostPence = importCost - exportRevenue + batteryDegradation
+ *   (positive = net monetary cost to the household)
+ *
+ * Do not invert or alias these fields across the planning/accounting boundary.
+ * CanonicalValueLedger independently derives its cost fields from the same
+ * optimizer summary inputs, with an explicit cost-positive sign convention.
  */
 export interface OptimizerSummary {
   expectedImportCostPence: number;
   expectedExportRevenuePence: number;
-  expectedNetValuePence: number;
+  /**
+   * Planning telemetry: net revenue surplus for the planned horizon.
+   * Sign: positive = net revenue surplus (exportRevenue - importCost - batteryDegradation).
+   * Opposite sign from CanonicalValueLedger.estimatedNetCostPence (cost-positive).
+   * Use CanonicalValueLedger for all accounting and customer-facing values.
+   */
+  planningNetRevenueSurplusPence: number;
   expectedBatteryDegradationCostPence?: number;
   expectedSolarSelfConsumptionKwh?: number;
   expectedBatteryCycles?: number;

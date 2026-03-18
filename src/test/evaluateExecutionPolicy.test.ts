@@ -63,7 +63,7 @@ function buildOptimizerOutput(overrides?: Partial<OptimizerOutput>): OptimizerOu
     summary: {
       expectedImportCostPence: 1,
       expectedExportRevenuePence: 0,
-      expectedNetValuePence: -1,
+      planningNetRevenueSurplusPence: -1,
     },
     diagnostics: [],
     confidence: 0.8,

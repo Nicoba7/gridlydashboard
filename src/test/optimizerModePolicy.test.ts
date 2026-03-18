@@ -289,7 +289,7 @@ describe("optimize mode-aware objective behavior", () => {
     );
 
     expect(withWear.summary.expectedBatteryDegradationCostPence).toBeGreaterThan(0);
-    expect(withWear.summary.expectedNetValuePence).toBeLessThan(withoutWear.summary.expectedNetValuePence);
+    expect(withWear.summary.planningNetRevenueSurplusPence).toBeLessThan(withoutWear.summary.planningNetRevenueSurplusPence);
   });
 
   it("emits executable concrete device ids in decisions and commands", () => {

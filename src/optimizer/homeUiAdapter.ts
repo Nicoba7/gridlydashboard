@@ -1,9 +1,11 @@
 import type {
+  CanonicalValueLedger,
   OptimizerAction,
   OptimizerDecision,
   OptimizerDiagnostic,
   OptimizerOutput,
 } from "../domain";
+import { mapValueLedgerToCustomerValueSummary } from "../domain";
 
 export type HomeLegacyAction = "charge" | "discharge" | "hold" | "import" | "export";
 
@@ -14,9 +16,10 @@ export interface HomeTimelineRow {
 }
 
 export interface HomeValueSummary {
+  /** Projected savings vs baseline, in GBP. Accounting authority: CanonicalValueLedger. */
   savingsToday: number;
+  /** Projected export earnings, in GBP. Accounting authority: CanonicalValueLedger. */
   earningsToday: number;
-  expectedNetValue: number;
 }
 
 export interface HomeTrustSummary {
@@ -119,12 +122,19 @@ function modeLabelFromAction(action: HomeLegacyAction): string {
 /**
  * Bridge canonical optimizer output into Home screen's existing data shape.
  */
-export function buildHomeUiViewModel(output: OptimizerOutput): HomeUiViewModel {
+export function buildHomeUiViewModel(
+  output: OptimizerOutput,
+  valueLedger: CanonicalValueLedger,
+): HomeUiViewModel {
   const current = selectCurrentDecision(output.decisions);
   const next = selectNextDecision(output.decisions);
   const currentAction = current ? toLegacyAction(current.action) : "hold";
   const score = output.confidence;
   const trustLabel = confidenceLabel(score);
+  // Accounting authority is the canonical runtime value ledger.
+  // Optimizer summary remains planning telemetry and should not be used as
+  // direct customer-facing accounting truth in UI adapters.
+  const customerValue = mapValueLedgerToCustomerValueSummary(valueLedger);
 
   return {
     currentAction,
@@ -135,9 +145,8 @@ export function buildHomeUiViewModel(output: OptimizerOutput): HomeUiViewModel {
       : "Holding steady while waiting for the next stronger opportunity.",
     timeline: buildTimeline(output.decisions),
     value: {
-      savingsToday: Number(Math.max(0, output.summary.expectedImportCostPence * 0.01).toFixed(2)),
-      earningsToday: Number(Math.max(0, output.summary.expectedExportRevenuePence * 0.01).toFixed(2)),
-      expectedNetValue: Number((output.summary.expectedNetValuePence * 0.01).toFixed(2)),
+      savingsToday: customerValue.projectedSavingsGbp,
+      earningsToday: customerValue.projectedEarningsGbp,
     },
     trust: {
       confidenceScore: score,

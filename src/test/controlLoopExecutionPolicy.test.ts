@@ -52,7 +52,7 @@ function buildOutput(commands: OptimizerOutput["recommendedCommands"], overrides
     summary: {
       expectedImportCostPence: 100,
       expectedExportRevenuePence: 10,
-      expectedNetValuePence: -90,
+      planningNetRevenueSurplusPence: -90,
     },
     diagnostics: [],
     confidence: 0.8,

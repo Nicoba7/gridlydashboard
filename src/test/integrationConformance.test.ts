@@ -134,7 +134,7 @@ function buildPlan(input: {
     summary: {
       expectedImportCostPence: 90,
       expectedExportRevenuePence: 12,
-      expectedNetValuePence: -78,
+      planningNetRevenueSurplusPence: -78,
     },
     diagnostics: [],
     planningInputCoverage: input.planningInputCoverage,

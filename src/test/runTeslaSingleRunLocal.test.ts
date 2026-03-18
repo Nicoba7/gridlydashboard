@@ -49,7 +49,7 @@ function buildOptimizerOutput(): OptimizerOutput {
     summary: {
       expectedImportCostPence: 100,
       expectedExportRevenuePence: 0,
-      expectedNetValuePence: -100,
+      planningNetRevenueSurplusPence: -100,
     },
     diagnostics: [],
     feasibility: {

@@ -8,6 +8,7 @@ import {
   optimize,
   type IndexConnectedDeviceId,
 } from "../optimizer";
+import { buildCanonicalValueLedger } from "../application/runtime/buildCanonicalValueLedger";
 
 // ── SANDBOX DATA ──────────────────────────────────────────────────────────
 const SANDBOX = {
@@ -174,7 +175,13 @@ const Index = () => {
     solarForecastKwh: g.todaySolarKwh,
   });
   const optimizerOutput = optimize(optimizerInput);
-  const indexView = buildIndexUiViewModel(optimizerOutput);
+  const valueLedger = buildCanonicalValueLedger({
+    optimizationMode: optimizerInput.constraints.mode,
+    optimizerOutput,
+    forecasts: optimizerInput.forecasts,
+    tariffSchedule: optimizerInput.tariffSchedule,
+  });
+  const indexView = buildIndexUiViewModel(optimizerOutput, valueLedger);
 
   const opt = {
     action: actionToLabel(indexView.currentRecommendation.action),

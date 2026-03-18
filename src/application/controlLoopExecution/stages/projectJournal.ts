@@ -21,6 +21,9 @@ import type {
   OpportunityReasonCode,
   RejectedOpportunity,
 } from "../pipelineTypes";
+import type { CanonicalRuntimeSignals } from "../canonicalRuntimeSignals";
+import type { RuntimeJournalProjectionPayload } from "../runtimeJournalProjectionPayload";
+import { validateRuntimeJournalProjectionPayloadIntegrity } from "../validateRuntimeJournalProjectionPayloadIntegrity";
 
 const VALUE_SEEKING_ACTIONS = new Set([
   "charge_battery",
@@ -100,6 +103,21 @@ function mapLegacyCompatibilityRejections(
         economicArbitration: outcome.economicArbitration,
       };
     });
+}
+
+/**
+ * Builds a compatibility-only context lookup for legacy narrative fallback.
+ *
+ * Canonical outcomeRecords remain primary projection truth.
+ * This map exists only for legacyCompatibilityOutcomes that may not have
+ * per-outcome records. It does not derive economic or runtime truth.
+ */
+function buildLegacyCompatibilityNarrativeContextMap(
+  compatibilityExecutionEdgeContexts: ExecutionEdgeContext[],
+): Map<string, ExecutionEdgeContext> {
+  return new Map(
+    compatibilityExecutionEdgeContexts.map((context) => [context.executionRequestId, context]),
+  );
 }
 
 function buildDecisionNarrative(params: {
@@ -193,14 +211,7 @@ function buildCycleHeartbeat(params: {
   failClosedTriggered: boolean;
   cycleHeartbeatMeta?: { cycleId?: string; replanReason?: string };
   cycleFinancialContext?: ExecutionCycleFinancialContext;
-  executionEvidenceSummary?: { hasUncertainExecutionEvidence: boolean };
-  nextCycleExecutionCaution?: "normal" | "caution";
-  householdObjectiveSummary?: {
-    objectiveMode: "savings" | "earnings" | "balanced";
-    hasExportIntent: boolean;
-    hasImportAvoidanceIntent: boolean;
-  };
-  householdObjectiveConfidence?: "clear" | "mixed" | "empty";
+  canonicalRuntimeSignals: CanonicalRuntimeSignals;
 }): CycleHeartbeatEntry {
   const commandsSuppressed = params.outcomes.filter(
     (result) =>
@@ -229,42 +240,12 @@ function buildCycleHeartbeat(params: {
       params.executionPosture,
       commandsSuppressed,
     ),
-    hasUncertainExecutionEvidence: params.executionEvidenceSummary?.hasUncertainExecutionEvidence,
-    nextCycleExecutionCaution: params.nextCycleExecutionCaution,
-    householdObjectiveSummary: params.householdObjectiveSummary,
-    householdObjectiveConfidence: params.householdObjectiveConfidence,
+    hasUncertainExecutionEvidence: params.canonicalRuntimeSignals.executionEvidenceSummary.hasUncertainExecutionEvidence,
+    nextCycleExecutionCaution: params.canonicalRuntimeSignals.nextCycleExecutionCaution,
+    householdObjectiveSummary: params.canonicalRuntimeSignals.householdObjectiveSummary,
+    householdObjectiveConfidence: params.canonicalRuntimeSignals.householdObjectiveConfidence,
     schemaVersion: "cycle-heartbeat.v1",
   };
-}
-
-export interface ProjectJournalInput {
-  /** Canonical post-decision execution evidence used for outcome projection joins. */
-  executionEdgeContexts: ExecutionEdgeContext[];
-  outcomes: CommandExecutionResult[];
-  recordedAt: string;
-  executionPosture: RuntimeExecutionPosture;
-  runtimeGuardrailContext?: RuntimeExecutionGuardrailContext;
-  failClosedTriggered: boolean;
-  cycleHeartbeatMeta?: { cycleId?: string; replanReason?: string };
-  cycleFinancialContext?: ExecutionCycleFinancialContext;
-  executionPlan?: ExecutionPlan;
-  executionResult?: ExecutionResult;
-  /** Canonical stage-owned rejection accumulation. */
-  rejectedOpportunities: RejectedOpportunity[];
-  /** Transitional edge payloads merged for backward-compatible narrative completeness. */
-  legacyCompatibilityOutcomes: CommandExecutionResult[];
-  /** Cycle-level summary: true if any outcome has uncertain execution confidence. */
-  executionEvidenceSummary?: { hasUncertainExecutionEvidence: boolean };
-  /** Canonical next-cycle advisory signal: "normal" or "caution". */
-  nextCycleExecutionCaution?: "normal" | "caution";
-  /** Canonical cycle-level summary of household economic intent. */
-  householdObjectiveSummary?: {
-    objectiveMode: "savings" | "earnings" | "balanced";
-    hasExportIntent: boolean;
-    hasImportAvoidanceIntent: boolean;
-  };
-  /** Canonical informational confidence for household objective characterization. */
-  householdObjectiveConfidence?: "clear" | "mixed" | "empty";
 }
 
 export interface ProjectJournalOutput {
@@ -282,53 +263,64 @@ export interface ProjectJournalOutput {
  *
  * Must not: persist anything itself; store interaction stays outside this stage.
  */
-export function projectJournal(params: ProjectJournalInput): ProjectJournalOutput {
+export function projectJournal(payload: RuntimeJournalProjectionPayload): ProjectJournalOutput {
+  // Integrity guard for runtime-produced projection payload shape only.
+  // Does not derive new truth and does not make policy/economic decisions.
+  validateRuntimeJournalProjectionPayloadIntegrity(payload);
+
+  const { runtimeOutcomeProjection } = payload;
+  // RuntimeOutcomeProjectionRecord is the primary per-outcome truth unit.
+  // Transitional compatibility contexts are fallback-only for legacy narrative mapping.
   const contextByExecutionRequestId = new Map(
-    params.executionEdgeContexts.map((context) => [context.executionRequestId, context]),
+    runtimeOutcomeProjection.outcomeRecords.map((record) => [
+      record.executionRequestId,
+      record.executionEdgeContext,
+    ]),
   );
-
-  const journalEntries = params.outcomes
-    .map((outcome) => {
-      const context = contextByExecutionRequestId.get(outcome.executionRequestId);
-      if (!context) {
-        return undefined;
-      }
-
+  const legacyCompatibilityContextByExecutionRequestId = buildLegacyCompatibilityNarrativeContextMap(
+    runtimeOutcomeProjection.compatibilityExecutionEdgeContexts,
+  );
+  legacyCompatibilityContextByExecutionRequestId.forEach((context, executionRequestId) => {
+    if (!contextByExecutionRequestId.has(executionRequestId)) {
+      contextByExecutionRequestId.set(executionRequestId, context);
+    }
+  });
+  const journalEntries = runtimeOutcomeProjection.outcomeRecords
+    .map((record) => {
       return toExecutionJournalEntry(
-        context.canonicalCommand,
+        record.executionEdgeContext.canonicalCommand,
         {
-          ...outcome,
-          opportunityProvenance: outcome.opportunityProvenance ?? context.opportunityProvenance,
+          ...record.outcome,
+          telemetryCoherence: record.runtimeOutcomeSignal.telemetryCoherence,
+          executionConfidence: record.runtimeOutcomeSignal.executionConfidence,
+          opportunityProvenance: record.outcome.opportunityProvenance ?? record.executionEdgeContext.opportunityProvenance,
         },
-        params.recordedAt,
-        params.cycleHeartbeatMeta?.cycleId,
-        params.cycleFinancialContext,
+        payload.recordedAt,
+        payload.cycleHeartbeatMeta?.cycleId,
+        payload.cycleFinancialContext,
       );
     })
     .filter((entry): entry is ExecutionJournalEntry => entry !== undefined);
 
   const cycleHeartbeat = buildCycleHeartbeat({
-    recordedAt: params.recordedAt,
-    executionPosture: params.executionPosture,
-    runtimeGuardrailContext: params.runtimeGuardrailContext,
-    outcomes: params.outcomes,
-    failClosedTriggered: params.failClosedTriggered,
-    cycleHeartbeatMeta: params.cycleHeartbeatMeta,
-    cycleFinancialContext: params.cycleFinancialContext,
-    executionEvidenceSummary: params.executionEvidenceSummary,
-    nextCycleExecutionCaution: params.nextCycleExecutionCaution,
-    householdObjectiveSummary: params.householdObjectiveSummary,
-    householdObjectiveConfidence: params.householdObjectiveConfidence,
+    recordedAt: payload.recordedAt,
+    executionPosture: payload.executionPosture,
+    runtimeGuardrailContext: payload.runtimeGuardrailContext,
+    outcomes: runtimeOutcomeProjection.outcomeRecords.map((record) => record.outcome),
+    failClosedTriggered: payload.failClosedTriggered,
+    cycleHeartbeatMeta: payload.cycleHeartbeatMeta,
+    cycleFinancialContext: payload.cycleFinancialContext,
+    canonicalRuntimeSignals: runtimeOutcomeProjection.canonicalRuntimeSignals,
   });
 
   const narrative = buildDecisionNarrative({
-    recordedAt: params.recordedAt,
-    cycleId: params.cycleHeartbeatMeta?.cycleId,
-    executionPlan: params.executionPlan,
-    executionResult: params.executionResult,
-    cycleFinancialContext: params.cycleFinancialContext,
-    rejectedOpportunities: params.rejectedOpportunities,
-    legacyCompatibilityOutcomes: params.legacyCompatibilityOutcomes,
+    recordedAt: payload.recordedAt,
+    cycleId: payload.cycleHeartbeatMeta?.cycleId,
+    executionPlan: payload.executionPlan,
+    executionResult: payload.executionResult,
+    cycleFinancialContext: payload.cycleFinancialContext,
+    rejectedOpportunities: payload.rejectedOpportunities,
+    legacyCompatibilityOutcomes: payload.legacyCompatibilityOutcomes,
     contextByExecutionRequestId,
   });
 

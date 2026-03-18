@@ -1,4 +1,5 @@
-import type { OptimizerAction, OptimizerDecision, OptimizerOutput } from "../domain";
+import type { CanonicalValueLedger, OptimizerAction, OptimizerDecision, OptimizerOutput } from "../domain";
+import { mapValueLedgerToCustomerValueSummary } from "../domain";
 
 export type IndexRecommendationAction = "charge" | "discharge" | "hold" | "import" | "export";
 
@@ -41,7 +42,10 @@ function mapDecision(decision: OptimizerDecision): IndexRecommendation {
 /**
  * Bridge canonical optimizer output to the existing Index page view model.
  */
-export function buildIndexUiViewModel(output: OptimizerOutput): IndexUiViewModel {
+export function buildIndexUiViewModel(
+  output: OptimizerOutput,
+  valueLedger: CanonicalValueLedger,
+): IndexUiViewModel {
   const currentDecision = output.decisions[0];
   const nextActions = output.decisions
     .slice(1)
@@ -55,13 +59,16 @@ export function buildIndexUiViewModel(output: OptimizerOutput): IndexUiViewModel
       action: "hold",
       reason: output.headline,
     };
+  // Accounting authority is the canonical runtime value ledger.
+  // Optimizer summary remains planning telemetry for planning diagnostics.
+  const customerValue = mapValueLedgerToCustomerValueSummary(valueLedger);
 
   return {
     headline: output.headline,
     subheadline: currentRecommendation.reason,
     actionCount: output.decisions.length,
     confidenceLabel: toConfidenceLabel(output.confidence),
-    savingsEstimate: Number(Math.max(0, output.summary.expectedNetValuePence / 100).toFixed(2)),
+    savingsEstimate: customerValue.projectedSavingsGbp,
     currentRecommendation,
     nextActions,
     trustMessage: output.diagnostics[0]?.message ?? output.headline,

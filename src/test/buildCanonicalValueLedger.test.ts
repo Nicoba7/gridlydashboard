@@ -59,7 +59,7 @@ function buildTariffSchedule(importRates: number[], exportRates?: number[]): Tar
 function buildOptimizerOutput(summary: {
   expectedImportCostPence: number;
   expectedExportRevenuePence: number;
-  expectedNetValuePence: number;
+  planningNetRevenueSurplusPence: number;
   expectedBatteryDegradationCostPence?: number;
 }): OptimizerOutput {
   return {
@@ -90,7 +90,7 @@ describe("buildCanonicalValueLedger", () => {
       optimizerOutput: buildOptimizerOutput({
         expectedImportCostPence: 120,
         expectedExportRevenuePence: 40,
-        expectedNetValuePence: -80,
+        planningNetRevenueSurplusPence: -80,
       }),
       forecasts: buildForecasts([2, 1], [0, 3]),
       tariffSchedule: buildTariffSchedule([20, 10], [8, 12]),
@@ -116,7 +116,7 @@ describe("buildCanonicalValueLedger", () => {
       optimizerOutput: buildOptimizerOutput({
         expectedImportCostPence: 90,
         expectedExportRevenuePence: 0,
-        expectedNetValuePence: -90,
+        planningNetRevenueSurplusPence: -90,
       }),
       forecasts: buildForecasts([1], [2]),
       tariffSchedule: buildTariffSchedule([30]),
@@ -138,7 +138,7 @@ describe("buildCanonicalValueLedger", () => {
       optimizerOutput: buildOptimizerOutput({
         expectedImportCostPence: 100,
         expectedExportRevenuePence: 20,
-        expectedNetValuePence: -82,
+        planningNetRevenueSurplusPence: -82,
         expectedBatteryDegradationCostPence: 2,
       }),
       forecasts: buildForecasts([1], [0]),

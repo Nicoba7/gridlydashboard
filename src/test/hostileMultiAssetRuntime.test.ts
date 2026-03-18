@@ -162,7 +162,7 @@ function buildPlan(input: {
     summary: {
       expectedImportCostPence: 150,
       expectedExportRevenuePence: 40,
-      expectedNetValuePence: -110,
+      planningNetRevenueSurplusPence: -110,
     },
     diagnostics: [],
     feasibility: { executable: true, reasonCodes: ["PLAN_COMPUTED"] },

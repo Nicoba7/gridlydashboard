@@ -86,7 +86,7 @@ function buildPlan(vehicleId: string, includeCommand = true): OptimizerOutput {
     summary: {
       expectedImportCostPence: 90,
       expectedExportRevenuePence: 0,
-      expectedNetValuePence: -90,
+      planningNetRevenueSurplusPence: -90,
     },
     diagnostics: [],
     feasibility: { executable: true, reasonCodes: ["PLAN_COMPUTED"] },

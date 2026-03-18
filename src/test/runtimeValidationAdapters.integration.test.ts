@@ -69,7 +69,7 @@ function buildOutput(deviceId: string): OptimizerOutput {
     summary: {
       expectedImportCostPence: 101,
       expectedExportRevenuePence: 11,
-      expectedNetValuePence: -90,
+      planningNetRevenueSurplusPence: -90,
     },
     diagnostics: [],
     feasibility: {

@@ -29,7 +29,7 @@ function buildPlan(
     summary: {
       expectedImportCostPence: 100,
       expectedExportRevenuePence: 0,
-      expectedNetValuePence: -100,
+      planningNetRevenueSurplusPence: -100,
     },
     diagnostics: [],
     confidence: 0.8,

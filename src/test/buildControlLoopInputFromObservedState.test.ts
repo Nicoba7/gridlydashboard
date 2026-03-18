@@ -65,7 +65,7 @@ function buildOptimizerOutput(): OptimizerOutput {
     summary: {
       expectedImportCostPence: 10,
       expectedExportRevenuePence: 1,
-      expectedNetValuePence: -9,
+      planningNetRevenueSurplusPence: -9,
     },
     diagnostics: [],
     feasibility: { executable: true, reasonCodes: ["PLAN_COMPUTED"] },

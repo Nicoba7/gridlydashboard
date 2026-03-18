@@ -89,7 +89,7 @@ function buildOutput(options?: {
     summary: {
       expectedImportCostPence: 100,
       expectedExportRevenuePence: 20,
-      expectedNetValuePence: -80,
+      planningNetRevenueSurplusPence: -80,
     },
     diagnostics: [],
     feasibility: {
@@ -406,7 +406,7 @@ describe("runControlLoopExecutionService", () => {
       summary: {
         expectedImportCostPence: 100,
         expectedExportRevenuePence: 20,
-        expectedNetValuePence: -80,
+        planningNetRevenueSurplusPence: -80,
       },
       diagnostics: [],
       feasibility: {

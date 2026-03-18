@@ -71,7 +71,7 @@ function buildOutput(commandMode: "charge" | "hold" = "charge", action: Optimize
     summary: {
       expectedImportCostPence: 100,
       expectedExportRevenuePence: 0,
-      expectedNetValuePence: -100,
+      planningNetRevenueSurplusPence: -100,
     },
     diagnostics: [],
     feasibility: {

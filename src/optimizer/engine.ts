@@ -66,7 +66,7 @@ function buildBlockedOutput(input: OptimizerInput): OptimizerOutput {
     summary: {
       expectedImportCostPence: 0,
       expectedExportRevenuePence: 0,
-      expectedNetValuePence: 0,
+      planningNetRevenueSurplusPence: 0,
     },
     diagnostics,
     planningInputCoverage: {

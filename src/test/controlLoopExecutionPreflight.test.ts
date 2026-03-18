@@ -66,7 +66,7 @@ function buildOutputForCommand(commandOverrides?: Partial<OptimizerOutput["recom
     summary: {
       expectedImportCostPence: 100,
       expectedExportRevenuePence: 20,
-      expectedNetValuePence: -80,
+      planningNetRevenueSurplusPence: -80,
     },
     diagnostics: [],
     feasibility: {
