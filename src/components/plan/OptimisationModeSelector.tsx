@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from "react";
 import { OptimisationModeViewModel } from "./planViewModels";
 import { OptimisationMode } from "../../types/planCompat";
 
@@ -8,6 +9,19 @@ export default function OptimisationModeSelector({
   viewModel: OptimisationModeViewModel;
   onChange: (mode: OptimisationMode) => void;
 }) {
+  const [previewMode, setPreviewMode] = useState<OptimisationMode | null>(null);
+
+  useEffect(() => {
+    if (previewMode === viewModel.mode) {
+      setPreviewMode(null);
+    }
+  }, [previewMode, viewModel.mode]);
+
+  const previewOption = useMemo(
+    () => viewModel.options.find((option) => option.id === previewMode),
+    [viewModel.options, previewMode]
+  );
+
   return (
     <div style={{ margin: "0 20px 12px" }}>
       <div style={{ display: "flex", gap: 7 }}>
@@ -16,7 +30,35 @@ export default function OptimisationModeSelector({
           return (
             <button
               key={option.id}
-              onClick={() => onChange(option.id)}
+              onMouseEnter={() => {
+                if (!active) {
+                  setPreviewMode(option.id);
+                }
+              }}
+              onMouseLeave={() => {
+                setPreviewMode((current) => (current === option.id ? null : current));
+              }}
+              onFocus={() => {
+                if (!active) {
+                  setPreviewMode(option.id);
+                }
+              }}
+              onBlur={() => {
+                setPreviewMode((current) => (current === option.id ? null : current));
+              }}
+              onClick={() => {
+                if (active) {
+                  return;
+                }
+
+                if (previewMode !== option.id) {
+                  setPreviewMode(option.id);
+                  return;
+                }
+
+                setPreviewMode(null);
+                onChange(option.id);
+              }}
               style={{
                 flex: 1,
                 background: active ? "#141F31" : "#09101A",
@@ -62,6 +104,28 @@ export default function OptimisationModeSelector({
           );
         })}
       </div>
+
+      {previewOption && previewOption.id !== viewModel.mode && (
+        <div
+          style={{
+            marginTop: 8,
+            borderTop: "1px solid #162235",
+            paddingTop: 7,
+            color: "#6F819B",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "baseline", gap: 5, marginBottom: 3 }}>
+            <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.2, color: "#4A6080" }}>
+              Mode preview
+            </div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#8BA4C0" }}>
+              {previewOption.label}
+            </div>
+          </div>
+          <div style={{ fontSize: 10.5, lineHeight: 1.35 }}>• {previewOption.description}</div>
+          <div style={{ fontSize: 10.5, lineHeight: 1.35 }}>• {previewOption.behaviorSignal}</div>
+        </div>
+      )}
     </div>
   );
 }
