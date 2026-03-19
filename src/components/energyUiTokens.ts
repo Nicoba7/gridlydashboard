@@ -17,7 +17,7 @@ export const ENERGY_NODE_TOKENS = {
 export const ENERGY_CONNECTOR_TOKENS = {
   inactiveStroke: "#141E2C",
   activeAlpha: {
-    home: "55",
+    home: "3A",
     plan: "45",
   },
   strokeWidth: {

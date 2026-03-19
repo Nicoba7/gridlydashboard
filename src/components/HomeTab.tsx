@@ -482,13 +482,13 @@ function EnergyFlowSVG({
   isCharging: boolean;
   isExporting: boolean;
 }) {
-  const HOME = { x: 160, y: 110 };
-  const SOLAR = { x: 160, y: 28 };
-  const BATT = { x: 270, y: 110 };
-  const EV = { x: 160, y: 192 };
-  const GRID = { x: 50, y: 110 };
-  const nodeRadius = 26;
-  const homeRadius = 30;
+  const HOME = { x: 170, y: 128 };
+  const SOLAR = { x: 170, y: 26 };
+  const BATT = { x: 296, y: 128 };
+  const EV = { x: 170, y: 226 };
+  const GRID = { x: 44, y: 128 };
+  const nodeRadius = 28;
+  const homeRadius = 34;
 
   const solarOn = hasSolar && solarW > 100;
   const batteryChargeOn = hasBattery && isCharging;
@@ -505,7 +505,7 @@ function EnergyFlowSVG({
   const homeToGrid = `M ${HOME.x - homeRadius - 2},${HOME.y} L ${GRID.x + nodeRadius + 2},${GRID.y}`;
 
   return (
-    <svg viewBox="0 0 320 220" style={{ width: "100%", maxHeight: 186 }}>
+    <svg viewBox="0 0 340 253" style={{ width: "100%", maxHeight: 226 }}>
       {hasSolar && <FlowConnector x1={SOLAR.x} y1={SOLAR.y + nodeRadius} x2={HOME.x} y2={HOME.y - homeRadius} active={solarOn} color={ENERGY_COLORS.solar} intensity="home" />}
       {hasBattery && <FlowConnector x1={HOME.x + homeRadius} y1={HOME.y} x2={BATT.x - nodeRadius} y2={BATT.y} active={batteryChargeOn || batteryDischargeOn} color={ENERGY_COLORS.battery} intensity="home" />}
       {hasEV && <FlowConnector x1={HOME.x} y1={HOME.y + homeRadius} x2={EV.x} y2={EV.y - nodeRadius} active={evOn} color={ENERGY_COLORS.ev} intensity="home" />}
@@ -520,8 +520,8 @@ function EnergyFlowSVG({
 
       <circle cx={HOME.x} cy={HOME.y} r={homeRadius + 10} fill="none" stroke="#1A253514" strokeWidth="14" />
       <circle cx={HOME.x} cy={HOME.y} r={homeRadius} fill="#0C1422" stroke="#1A2535" strokeWidth="1.5" />
-      <text x={HOME.x} y={HOME.y - 4} textAnchor="middle" fontSize="11" fontWeight="700" fill={ENERGY_COLORS.home} fontFamily="system-ui, -apple-system, sans-serif">{(homeW / 1000).toFixed(1)}kW</text>
-      <text x={HOME.x} y={HOME.y + 10} textAnchor="middle" fontSize="8" fill="#374151" fontFamily="system-ui, -apple-system, sans-serif" letterSpacing="0.6">HOME</text>
+      <text x={HOME.x} y={HOME.y - 4} textAnchor="middle" fontSize="12" fontWeight="800" fill={ENERGY_COLORS.home} fontFamily="system-ui, -apple-system, sans-serif">{(homeW / 1000).toFixed(1)}kW</text>
+      <text x={HOME.x} y={HOME.y + 10} textAnchor="middle" fontSize="8" fill="#4E5E75" fontFamily="system-ui, -apple-system, sans-serif" letterSpacing="0.4">Home</text>
 
       {hasSolar && (
         <FlowNode
@@ -531,7 +531,7 @@ function EnergyFlowSVG({
           active={solarOn}
           color={ENERGY_COLORS.solar}
           value={`${(solarW / 1000).toFixed(1)}kW`}
-          label="SOLAR"
+          label="Solar"
         />
       )}
 
@@ -545,7 +545,7 @@ function EnergyFlowSVG({
           value={`${batteryPct}%`}
           valueActiveColor={ENERGY_COLORS.battery}
           valueInactiveColor="#D1D5DB"
-          label="BATT"
+          label="Battery"
         />
       )}
 
@@ -580,7 +580,7 @@ function EnergyFlowSVG({
             labelLetterSpacing="0"
             showHalo={false}
           />
-          <text x={GRID.x} y={GRID.y + 10} textAnchor="middle" fontSize="7" fill="#374151" fontFamily="system-ui, -apple-system, sans-serif" letterSpacing="0.4">{gridExport ? "PEAK PERIOD" : "IMPORT"}</text>
+          <text x={GRID.x} y={GRID.y + 10} textAnchor="middle" fontSize="7" fill="#374151" fontFamily="system-ui, -apple-system, sans-serif" letterSpacing="0.4">{gridExport ? "Export" : "Grid"}</text>
         </>
       )}
     </svg>
@@ -726,7 +726,6 @@ export default function HomeTab({
   const explanationDrivers = latestDecisionExplanation?.drivers ?? [];
   const runtimeGroundedExplanationLines = buildRuntimeGroundedExplanationLines({
     drivers: explanationDrivers,
-    confidence: latestDecisionExplanation?.confidence,
   });
   const freshnessViewModel = buildDecisionFreshnessViewModel(
     latestDecisionExplanationEntry?.timestamp,
@@ -758,8 +757,8 @@ export default function HomeTab({
     <div style={{ background: "#060A12", minHeight: "100vh", paddingBottom: 30 }}>
       <div style={{ margin: "14px 14px 0", background: "#0A111D", borderRadius: 20, border: "1px solid #182235", overflow: "hidden", boxShadow: "0 16px 30px rgba(1, 7, 20, 0.3)" }}>
         <div style={{ height: 2, background: `linear-gradient(90deg, ${heroColor}, ${heroColor}30)` }} />
-        <div style={{ padding: "18px 18px 16px", minHeight: 248 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <div style={{ padding: "12px 18px 10px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
             <div style={{ width: 6, height: 6, borderRadius: "50%", background: heroColor, boxShadow: `0 0 8px ${heroColor}, 0 0 16px ${heroColor}50` }} />
             <span style={{ fontSize: 11, color: "#4B5563", fontWeight: 600, letterSpacing: 0.8 }}>CURRENT DECISION</span>
             <div
@@ -783,35 +782,33 @@ export default function HomeTab({
             <span style={{ fontSize: 9, color: "#6E819B", border: "1px solid #1B293D", borderRadius: 999, padding: "2px 8px" }}>
               {confidenceBadge}
             </span>
-            {cycleCautionBadge && (
-              <span style={{ fontSize: 9, color: "#6E819B", border: "1px solid #1B293D", borderRadius: 999, padding: "2px 8px" }}>
-                {cycleCautionBadge}
-              </span>
-            )}
           </div>
 
-          <div style={{ fontSize: 26, fontWeight: 810, color: "#F3F7FF", letterSpacing: -0.55, lineHeight: 1.15, marginBottom: 10 }}>
+          <div style={{ fontSize: 28, fontWeight: 810, color: "#F3F7FF", letterSpacing: -0.55, lineHeight: 1.15, marginBottom: 10 }}>
             {explanationSummary}
           </div>
 
           <div style={{ marginBottom: runtimeGroundedExplanationLines.length > 0 ? 2 : 0 }}>
-            <div style={{ fontSize: 10, color: "#6F819B", fontWeight: 700, letterSpacing: 0.8, marginBottom: 4 }}>
-              WHY THIS DECISION
+            <div style={{ fontSize: 10, color: "#6F819B", fontWeight: 600, letterSpacing: 0.4, marginBottom: 4 }}>
+              Key signals
             </div>
           </div>
 
           {runtimeGroundedExplanationLines.length > 0 && (
-            <ul style={{ margin: 0, paddingLeft: 18, color: "#A8BAD2", fontSize: 12, lineHeight: 1.45 }}>
+            <ul style={{ margin: 0, paddingLeft: 18, color: "#A8BAD2", fontSize: 12, lineHeight: 1.35 }}>
               {runtimeGroundedExplanationLines.map((line, index) => (
-                <li key={`${line}-${index}`} style={{ marginBottom: index < runtimeGroundedExplanationLines.length - 1 ? 6 : 0 }}>{line}</li>
+                <li key={`${line}-${index}`} style={{ marginBottom: index < runtimeGroundedExplanationLines.length - 1 ? 3 : 0 }}>{line}</li>
               ))}
             </ul>
           )}
         </div>
       </div>
 
-      <div style={{ margin: "8px 14px 0", background: "#09101A", borderRadius: 20, border: "1px solid #172236", padding: "10px 14px 4px", boxShadow: "0 6px 12px rgba(1, 7, 20, 0.16)" }}>
-        <div style={{ fontSize: 9.5, color: "#4E5E75", fontWeight: 700, letterSpacing: 1.1, marginBottom: 1, opacity: 0.84 }}>ENERGY FLOW</div>
+      <div style={{ margin: "8px 14px 0", background: "#09101A", borderRadius: 20, border: "1px solid #172236", padding: "14px 14px 10px", boxShadow: "0 6px 12px rgba(1, 7, 20, 0.16)" }}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
+          <div style={{ fontSize: 9.5, color: "#4E5E75", fontWeight: 700, letterSpacing: 1.1, opacity: 0.84 }}>ENERGY FLOW</div>
+          <div style={{ fontSize: 10, color: "#5E7088" }}>Current flow</div>
+        </div>
         <EnergyFlowSVG
           hasSolar={hasSolar}
           hasBattery={hasBattery}
