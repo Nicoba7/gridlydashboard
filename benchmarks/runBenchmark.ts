@@ -9,6 +9,7 @@ import {
   calculateMetricsFromStrategyResult,
 } from "./metrics";
 import sampleDayScenario from "./scenarios/sampleDay";
+import { aveumStrategy } from "./strategies/aveumStrategy";
 import { predbatLikeStrategy } from "./strategies/predbatLikeStrategy";
 import { setAndForgetStrategy } from "./strategies/setAndForgetStrategy";
 import type {
@@ -159,7 +160,7 @@ async function saveBenchmarkReport(params: {
 async function runBenchmarkCli(): Promise<void> {
   // Batch runner for all scenarios
   const { allScenarios } = await import("./scenarios/index");
-  const strategies: BenchmarkStrategy[] = [setAndForgetStrategy, predbatLikeStrategy];
+  const strategies: BenchmarkStrategy[] = [setAndForgetStrategy, predbatLikeStrategy, aveumStrategy];
   const scenarioResults: { scenarioName: string; benchmarkResult: BenchmarkResult; comparison: StrategyComparisonTable }[] = [];
   const overallStats: Record<string, { net: number[]; import: number[]; export: number[]; wins: number }> = {};
   for (const strategy of strategies) {

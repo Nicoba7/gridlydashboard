@@ -13,6 +13,9 @@ dist
 dist-ssr
 *.local
 
+# Benchmark run reports (timestamped; only combined-summary.json is tracked)
+benchmarks/reports/20*.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

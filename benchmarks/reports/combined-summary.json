@@ -5,6 +5,23 @@
       "comparison": {
         "rows": [
           {
+            "strategyId": "aveum",
+            "strategyName": "Aveum (Canonical Engine)",
+            "totalImportCost": 3.6831,
+            "totalExportRevenue": 0.4443,
+            "netEnergyCost": 3.2388,
+            "evTargetMissPenalty": 0,
+            "adjustedNetEnergyCost": 3.2388,
+            "evEnergyDeliveredKwh": 21.2915,
+            "evTargetAchieved": true,
+            "batteryThroughputKwh": 3.7035,
+            "estimatedBatteryCycles": 0.1372,
+            "solarSelfConsumption": 0.9066,
+            "solarSpillExportKwh": 2.325,
+            "negativePriceCaptureKwh": 0,
+            "reserveViolationsCount": 0
+          },
+          {
             "strategyId": "set-and-forget",
             "strategyName": "Set and Forget",
             "totalImportCost": 3.4894,
@@ -39,14 +56,31 @@
             "reserveViolationsCount": 0
           }
         ],
-        "bestNetEnergyCostStrategyId": "set-and-forget"
+        "bestNetEnergyCostStrategyId": "aveum"
       },
-      "winnerStrategyId": "set-and-forget"
+      "winnerStrategyId": "aveum"
     },
     {
       "scenarioName": "Normal weekday",
       "comparison": {
         "rows": [
+          {
+            "strategyId": "aveum",
+            "strategyName": "Aveum (Canonical Engine)",
+            "totalImportCost": 5.2689,
+            "totalExportRevenue": 0,
+            "netEnergyCost": 5.2689,
+            "evTargetMissPenalty": 0,
+            "adjustedNetEnergyCost": 5.2689,
+            "evEnergyDeliveredKwh": 15.6955,
+            "evTargetAchieved": true,
+            "batteryThroughputKwh": 5.2995,
+            "estimatedBatteryCycles": 0.1963,
+            "solarSelfConsumption": 1,
+            "solarSpillExportKwh": 0,
+            "negativePriceCaptureKwh": 0,
+            "reserveViolationsCount": 0
+          },
           {
             "strategyId": "set-and-forget",
             "strategyName": "Set and Forget",
@@ -82,14 +116,31 @@
             "reserveViolationsCount": 0
           }
         ],
-        "bestNetEnergyCostStrategyId": "set-and-forget"
+        "bestNetEnergyCostStrategyId": "aveum"
       },
-      "winnerStrategyId": "set-and-forget"
+      "winnerStrategyId": "aveum"
     },
     {
       "scenarioName": "Negative price day",
       "comparison": {
         "rows": [
+          {
+            "strategyId": "aveum",
+            "strategyName": "Aveum (Canonical Engine)",
+            "totalImportCost": 4.1821,
+            "totalExportRevenue": 2.4813,
+            "netEnergyCost": 1.7008,
+            "evTargetMissPenalty": 0,
+            "adjustedNetEnergyCost": 1.7008,
+            "evEnergyDeliveredKwh": 19.567,
+            "evTargetAchieved": true,
+            "batteryThroughputKwh": 5.328,
+            "estimatedBatteryCycles": 0.1973,
+            "solarSelfConsumption": 0.5311,
+            "solarSpillExportKwh": 15.47,
+            "negativePriceCaptureKwh": 0.035,
+            "reserveViolationsCount": 9
+          },
           {
             "strategyId": "predbat-like",
             "strategyName": "PredBat-like (Greedy)",
@@ -125,14 +176,31 @@
             "reserveViolationsCount": 0
           }
         ],
-        "bestNetEnergyCostStrategyId": "predbat-like"
+        "bestNetEnergyCostStrategyId": "aveum"
       },
-      "winnerStrategyId": "predbat-like"
+      "winnerStrategyId": "aveum"
     },
     {
       "scenarioName": "Evening spike day",
       "comparison": {
         "rows": [
+          {
+            "strategyId": "aveum",
+            "strategyName": "Aveum (Canonical Engine)",
+            "totalImportCost": 4.0377,
+            "totalExportRevenue": 0.0198,
+            "netEnergyCost": 4.0179,
+            "evTargetMissPenalty": 0,
+            "adjustedNetEnergyCost": 4.0179,
+            "evEnergyDeliveredKwh": 13.8045,
+            "evTargetAchieved": true,
+            "batteryThroughputKwh": 15.0985,
+            "estimatedBatteryCycles": 0.5592,
+            "solarSelfConsumption": 0.9889,
+            "solarSpillExportKwh": 0.15,
+            "negativePriceCaptureKwh": 0,
+            "reserveViolationsCount": 0
+          },
           {
             "strategyId": "predbat-like",
             "strategyName": "PredBat-like (Greedy)",
@@ -168,9 +236,9 @@
             "reserveViolationsCount": 0
           }
         ],
-        "bestNetEnergyCostStrategyId": "predbat-like"
+        "bestNetEnergyCostStrategyId": "aveum"
       },
-      "winnerStrategyId": "predbat-like"
+      "winnerStrategyId": "aveum"
     }
   ],
   "overall": {
@@ -178,13 +246,19 @@
       "avgNetEnergyCost": 503.494925,
       "avgImportCost": 4.665274999999999,
       "avgExportRevenue": 1.1703249999999998,
-      "scenariosWon": 2
+      "scenariosWon": 0
     },
     "predbat-like": {
       "avgNetEnergyCost": 503.483725,
       "avgImportCost": 4.645475,
       "avgExportRevenue": 1.1617749999999998,
-      "scenariosWon": 2
+      "scenariosWon": 0
+    },
+    "aveum": {
+      "avgNetEnergyCost": 3.5566000000000004,
+      "avgImportCost": 4.29295,
+      "avgExportRevenue": 0.7363500000000001,
+      "scenariosWon": 4
     }
   }
 }
