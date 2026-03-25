@@ -17,11 +17,13 @@ const KV_KEY = "aveum:users";
 interface RegisterRequestBody {
   userName: string;
   notifyEmail: string;
-  octopusApiKey: string;
-  octopusAccountNumber: string;
+  octopusApiKey?: string;
+  octopusAccountNumber?: string;
   region?: string;
   optimizationMode?: string;
   devices?: string[];
+  ohmeEmail?: string;
+  ohmePassword?: string;
 }
 
 export interface StoredUser {
@@ -29,11 +31,13 @@ export interface StoredUser {
   registeredAt: string;
   userName: string;
   notifyEmail: string;
-  octopusApiKey: string;
-  octopusAccountNumber: string;
+  octopusApiKey?: string;
+  octopusAccountNumber?: string;
   region: string;
   optimizationMode: string;
   devices: string[];
+  ohmeEmail?: string;
+  ohmePassword?: string;
 }
 
 // ── Handler ────────────────────────────────────────────────────────────────────
@@ -54,24 +58,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!body?.notifyEmail?.trim()) {
     return res.status(400).json({ error: "notifyEmail is required" });
   }
-  if (!body?.octopusApiKey?.trim()) {
-    return res.status(400).json({ error: "octopusApiKey is required" });
-  }
-  if (!body?.octopusAccountNumber?.trim()) {
-    return res.status(400).json({ error: "octopusAccountNumber is required" });
-  }
-
   const userId = crypto.randomUUID();
   const newUser: StoredUser = {
     userId,
     registeredAt: new Date().toISOString(),
     userName: body.userName.trim(),
     notifyEmail: body.notifyEmail.trim(),
-    octopusApiKey: body.octopusApiKey.trim(),
-    octopusAccountNumber: body.octopusAccountNumber.trim(),
+    ...(body.octopusApiKey?.trim() && { octopusApiKey: body.octopusApiKey.trim() }),
+    ...(body.octopusAccountNumber?.trim() && { octopusAccountNumber: body.octopusAccountNumber.trim() }),
     region: body.region?.trim() || "C",
     optimizationMode: body.optimizationMode?.trim() || "balanced",
     devices: Array.isArray(body.devices) ? body.devices : [],
+    ...(body.ohmeEmail?.trim() && { ohmeEmail: body.ohmeEmail.trim() }),
+    ...(body.ohmePassword?.trim() && { ohmePassword: body.ohmePassword.trim() }),
   };
 
   try {
