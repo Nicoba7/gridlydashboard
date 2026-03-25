@@ -26,3 +26,5 @@ benchmarks/reports/20*.json
 *.njsproj
 *.sln
 *.sw?
+.vercel
+.env*.local
