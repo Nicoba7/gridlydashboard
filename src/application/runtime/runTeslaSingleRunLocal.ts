@@ -32,6 +32,11 @@ import {
   buildDailySavingsReport,
   type DailySavingsReport,
 } from "../../features/report/dailySavingsReport";
+import {
+  readMorningEmailConfigFromEnv,
+  sendMorningReport,
+  type SendMorningReportResult,
+} from "../../features/notifications/morningEmailReport";
 
 export interface TeslaLocalSingleRunSource extends TeslaSingleRunRuntimeConfigSource {
   GRIDLY_NOW_ISO?: string;
@@ -50,6 +55,12 @@ export interface TeslaLocalSingleRunSource extends TeslaSingleRunRuntimeConfigSo
   SOLCAST_RESOURCE_ID?: string;
   /** Set-and-forget baseline net cost in pence for savings comparison. Defaults to 0 when absent. */
   GRIDLY_BASELINE_NET_COST_PENCE?: string;
+  AVEUM_SMTP_HOST?: string;
+  AVEUM_SMTP_PORT?: string;
+  AVEUM_SMTP_USER?: string;
+  AVEUM_SMTP_PASS?: string;
+  AVEUM_NOTIFY_EMAIL?: string;
+  AVEUM_FROM_EMAIL?: string;
 }
 
 export interface TeslaLocalPlanningStyleSummary {
@@ -103,6 +114,7 @@ export interface TeslaLocalSingleRunSuccessSummary {
     caveats: string[];
   };
   dailySavingsReport: DailySavingsReport;
+  morningEmailResult: SendMorningReportResult;
   valueLedger: CanonicalValueLedger;
   telemetryIngestionResult: {
     ingestedCount: number;
@@ -366,6 +378,12 @@ export async function runTeslaSingleRunLocal(
       setAndForgetNetCostPence,
     });
 
+    const morningEmailResult = await sendMorningReport(
+      dailySavingsReport,
+      nowIso,
+      readMorningEmailConfigFromEnv(source),
+    );
+
     const journalStore = buildTeslaLocalJournalStore(source, dependencies);
 
     const result = await runtime.runCycle({
@@ -418,6 +436,7 @@ export async function runTeslaSingleRunLocal(
         caveats: solarResolution.caveats,
       },
       dailySavingsReport,
+      morningEmailResult,
       valueLedger,
       telemetryIngestionResult: {
         ingestedCount: result.telemetryIngestionResult.ingestedCount,
