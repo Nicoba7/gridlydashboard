@@ -710,6 +710,94 @@ export function buildCanonicalRuntimeResult(input: OptimizerInput): CanonicalRun
 
   const decisions: OptimizerDecision[] = [];
 
+  // ── Pass 1: Pre-allocate battery charge/discharge slots by global price ranking ─────────────
+  //
+  // Ranks all import slots by price across the full planning horizon and greedily allocates:
+  //   - cheapest slots → charge_battery (until battery is full or cycle limit reached)
+  //   - most expensive slots → discharge_battery (until energy budget exhausted)
+  //   - negative-price slots → always charge battery + EV at full rated power
+  //
+  // Pass 2 (the main loop below) executes the pre-allocated plan chronologically, tracking SoC.
+  const negativePriceSlots = new Set<number>();
+  const preallocChargeSlots = new Set<number>();
+  const preallocDischargeSlots = new Set<number>();
+
+  {
+    const batteryRatedChargeKwhPerSlot = 5 * slotHours;
+    const batteryRatedDischargeKwhPerSlot = 5 * slotHours;
+    const batteryInitialKwh = (batterySoc / 100) * batteryCapacityKwh;
+    const batteryMaxKwh = 0.96 * batteryCapacityKwh;
+    const batteryMinKwh = (batteryReserve / 100) * batteryCapacityKwh;
+
+    for (let i = 0; i < slotCount; i++) {
+      if ((importRates[i]?.unitRatePencePerKwh ?? avgImportRate) < 0) {
+        negativePriceSlots.add(i);
+      }
+    }
+
+    if (hasBattery) {
+      const nonNegativeSlots = importRates
+        .map((rate, i) => ({ index: i, rate: rate?.unitRatePencePerKwh ?? avgImportRate }))
+        .filter((s) => !negativePriceSlots.has(s.index));
+
+      // Allocate charging to cheapest slots, respecting cycle limit
+      if (input.constraints.allowGridBatteryCharging) {
+        const maxCycles = input.constraints.maxBatteryCyclesPerDay ?? 999;
+        const chargeCandidates = [...nonNegativeSlots].sort((a, b) => a.rate - b.rate);
+        let chargeRemainingKwh = Math.max(0, batteryMaxKwh - batteryInitialKwh);
+
+        for (const s of chargeCandidates) {
+          if (chargeRemainingKwh <= 0.01) break;
+          preallocChargeSlots.add(s.index);
+          chargeRemainingKwh -= Math.min(batteryRatedChargeKwhPerSlot, chargeRemainingKwh);
+        }
+
+        // Trim to maxCycles contiguous windows (iterate chronologically)
+        const chronoCharge = [...preallocChargeSlots].sort((a, b) => a - b);
+        const trimmed = new Set<number>();
+        let windows = 0;
+        let prev = -2;
+        for (const idx of chronoCharge) {
+          if (idx !== prev + 1) windows++;
+          if (windows > maxCycles) break;
+          trimmed.add(idx);
+          prev = idx;
+        }
+        preallocChargeSlots.clear();
+        for (const idx of trimmed) preallocChargeSlots.add(idx);
+      }
+
+      // Allocate discharging to most expensive slots
+      // Budget = initial energy + planned charges - reserve floor
+      const plannedChargeKwh = preallocChargeSlots.size * batteryRatedChargeKwhPerSlot;
+      const dischargeAvailableKwh = Math.max(
+        0,
+        Math.min(batteryInitialKwh + plannedChargeKwh - batteryMinKwh, batteryMaxKwh - batteryMinKwh),
+      );
+
+      if (dischargeAvailableKwh > 0.01) {
+        // Only discharge when rate exceeds the effective cost of stored energy
+        const cheapestChargeRate = preallocChargeSlots.size > 0
+          ? Math.min(...[...preallocChargeSlots].map((i) => importRates[i]?.unitRatePencePerKwh ?? avgImportRate))
+          : avgImportRate;
+        const minProfitableDischargeRate = cheapestChargeRate / 0.9;
+
+        const dischargeCandidates = [...nonNegativeSlots]
+          .filter((s) => !preallocChargeSlots.has(s.index))
+          .sort((a, b) => b.rate - a.rate);
+
+        let dischargeRemainingKwh = dischargeAvailableKwh;
+        for (const s of dischargeCandidates) {
+          if (dischargeRemainingKwh <= 0.01) break;
+          if (s.rate < minProfitableDischargeRate) break;
+          preallocDischargeSlots.add(s.index);
+          dischargeRemainingKwh -= Math.min(batteryRatedDischargeKwhPerSlot, dischargeRemainingKwh);
+        }
+      }
+    }
+  }
+
+  // ── Pass 2: Build decision timeline chronologically using pre-allocated plan ──────────────
   for (let index = 0; index < slotCount; index += 1) {
     const importRate = importRates[index]?.unitRatePencePerKwh ?? avgImportRate;
     const exportRate = exportRates[index]?.unitRatePencePerKwh ?? importRate * 0.65;
@@ -726,16 +814,20 @@ export function buildCanonicalRuntimeResult(input: OptimizerInput): CanonicalRun
     let expectedExportKwh = 0;
     let targetDeviceIds: string[] = [];
 
+    const isNegativePrice = negativePriceSlots.has(index);
+    const isPreallocCharge = preallocChargeSlots.has(index) && !conservatismPolicy.conservativeAdjustmentApplied;
+    const isPreallocDischarge = preallocDischargeSlots.has(index) && !conservatismPolicy.conservativeAdjustmentApplied;
+
     const canChargeBattery =
       hasBattery &&
       input.constraints.allowGridBatteryCharging &&
       batterySoc < 96 &&
-      importRate <= lowImportThreshold;
+      (isPreallocCharge || (conservatismPolicy.allowHeuristicCycling && importRate <= lowImportThreshold));
 
     const canDischargeBattery =
       hasBattery &&
       batterySoc > batteryReserve + 4 &&
-      importRate >= highImportThreshold;
+      (isPreallocDischarge || (conservatismPolicy.allowHeuristicCycling && importRate >= highImportThreshold));
 
     const evUrgencyFactor = buildEvUrgencyFactor({
       startAt,
@@ -787,8 +879,8 @@ export function buildCanonicalRuntimeResult(input: OptimizerInput): CanonicalRun
     const chargeValueSpread = futureRetentionValue - currentImportCostToStore;
     const dischargeValueSpread = immediateDischargeRealizedValue - futureRetentionGrossValue;
 
-    const chargeForValue = chargeValueSpread >= conservatismPolicy.minValueSpreadPencePerKwh;
-    const dischargeForValue = dischargeValueSpread >= conservatismPolicy.minValueSpreadPencePerKwh;
+    const chargeForValue = isPreallocCharge || chargeValueSpread >= conservatismPolicy.minValueSpreadPencePerKwh;
+    const dischargeForValue = isPreallocDischarge || dischargeValueSpread >= conservatismPolicy.minValueSpreadPencePerKwh;
     const styleSuppressesExport =
       activePlanningStyle !== "balanced" &&
       solarSurplusKwh > 0.05 &&
@@ -798,7 +890,9 @@ export function buildCanonicalRuntimeResult(input: OptimizerInput): CanonicalRun
       activePlanningStyle !== "balanced" &&
       importRate <= currentEvThreshold &&
       importRate > balancedEvThreshold;
+    // Pre-alloc slots already respect maxBatteryCyclesPerDay via trimming in Pass 1
     const canStartBatteryChargeWindow =
+      isPreallocCharge ||
       chargingBatteryInPreviousSlot ||
       batteryChargeWindowsPlanned < (input.constraints.maxBatteryCyclesPerDay ?? Number.MAX_SAFE_INTEGER);
     const styleCycleLimitBlocksCharging =
@@ -807,7 +901,25 @@ export function buildCanonicalRuntimeResult(input: OptimizerInput): CanonicalRun
       batteryChargeWindowsPlanned >= (input.constraints.maxBatteryCyclesPerDay ?? Number.MAX_SAFE_INTEGER) &&
       batteryChargeWindowsPlanned < balancedPlanningStyleProfile.runtimeInputs.maxBatteryCyclesPerDay;
 
-    if (hasBattery && solarSurplusKwh > 0.05 && input.constraints.allowBatteryExport && exportAttractiveEnough) {
+    // Negative-price slot: charge battery and EV simultaneously at full rated power
+    if (isNegativePrice && hasBattery && batterySoc < 96) {
+      const batteryChargeKwh = Math.min(5 * slotHours, ((96 - batterySoc) / 100) * batteryCapacityKwh);
+      if (!chargingBatteryInPreviousSlot) batteryChargeWindowsPlanned += 1;
+      batterySoc = clamp(batterySoc + (batteryChargeKwh / batteryCapacityKwh) * 100, 0, 100);
+      batteryThroughputKwh += batteryChargeKwh;
+      action = "charge_battery";
+      reason = `Negative import rate (${importRate.toFixed(2)}p/kWh) — charging battery and EV at full rated power.`;
+      expectedImportKwh = Math.max(0, loadKwh - solarKwh) + batteryChargeKwh;
+      targetDeviceIds = [...batteryDeviceIds];
+      if (hasEv && evSoc !== undefined && evSoc < (input.constraints.evTargetSocPercent ?? 85)) {
+        const evChargeKwh = Math.min(2.0 * slotHours, Math.max(0, ((input.constraints.evTargetSocPercent ?? 85) - evSoc) / 100 * evCapacityKwh));
+        if (evChargeKwh > 0) {
+          expectedImportKwh += evChargeKwh;
+          targetDeviceIds = [...batteryDeviceIds, ...evChargerDeviceIds];
+          evSoc = clamp(evSoc + (evChargeKwh / evCapacityKwh) * 100, 0, 100);
+        }
+      }
+    } else if (hasBattery && solarSurplusKwh > 0.05 && input.constraints.allowBatteryExport && exportAttractiveEnough) {
       action = "export_to_grid";
       reason = "Solar surplus and favorable export pricing support grid export.";
       expectedImportKwh = 0;
@@ -836,24 +948,21 @@ export function buildCanonicalRuntimeResult(input: OptimizerInput): CanonicalRun
       input.constraints.allowGridBatteryCharging &&
       batterySoc < 96 &&
       canStartBatteryChargeWindow &&
-      (
-        chargeForValue ||
-        (conservatismPolicy.allowHeuristicCycling && canChargeBattery)
-      )
+      (chargeForValue || (conservatismPolicy.allowHeuristicCycling && canChargeBattery))
     ) {
       action = "charge_battery";
-      reason = chargeForValue
-        ? `Charging battery because forward net stored-energy value (${futureRetentionValue.toFixed(2)}p/kWh) exceeds current storage cost (${currentImportCostToStore.toFixed(2)}p/kWh).`
-        : "Charging battery while import rates are below the daily average.";
-      if (conservatismPolicy.conservativeAdjustmentApplied && !chargeForValue) {
+      reason = isPreallocCharge
+        ? `Pre-allocated charge slot — one of the cheapest import windows today (${importRate.toFixed(2)}p/kWh).`
+        : chargeForValue
+          ? `Charging battery because forward net stored-energy value (${futureRetentionValue.toFixed(2)}p/kWh) exceeds current storage cost (${currentImportCostToStore.toFixed(2)}p/kWh).`
+          : "Charging battery while import rates are below the daily average.";
+      if (conservatismPolicy.conservativeAdjustmentApplied && !isPreallocCharge && !chargeForValue) {
         action = "hold";
         reason = `Holding because planning confidence is ${conservatismPolicy.planningConfidenceLevel} and value spread is not strong enough under conservative thresholds.`;
       }
-      const batteryChargeKwh = Math.min(1.6 * slotHours, ((100 - batterySoc) / 100) * batteryCapacityKwh);
+      const batteryChargeKwh = Math.min(5 * slotHours, ((100 - batterySoc) / 100) * batteryCapacityKwh);
       if (action === "charge_battery") {
-        if (!chargingBatteryInPreviousSlot) {
-          batteryChargeWindowsPlanned += 1;
-        }
+        if (!chargingBatteryInPreviousSlot) batteryChargeWindowsPlanned += 1;
         expectedImportKwh = Math.max(0, loadKwh - solarKwh) + batteryChargeKwh;
         targetDeviceIds = [...batteryDeviceIds];
         batterySoc = clamp(batterySoc + (batteryChargeKwh / batteryCapacityKwh) * 100, 0, 100);
@@ -862,20 +971,22 @@ export function buildCanonicalRuntimeResult(input: OptimizerInput): CanonicalRun
     } else if (
       hasBattery &&
       batterySoc > batteryReserve + 4 &&
-      (
-        dischargeForValue ||
-        (conservatismPolicy.allowHeuristicCycling && canDischargeBattery)
-      )
+      (dischargeForValue || (conservatismPolicy.allowHeuristicCycling && canDischargeBattery))
     ) {
       action = "discharge_battery";
-      reason = dischargeForValue
-        ? `Discharging battery because immediate net discharge value (${immediateDischargeRealizedValue.toFixed(2)}p/kWh) exceeds retained future gross value (${futureRetentionGrossValue.toFixed(2)}p/kWh) after wear cost (${batteryDegradationCostPencePerKwh.toFixed(2)}p/kWh).`
-        : "Using battery energy to reduce higher-cost import.";
-      if (conservatismPolicy.conservativeAdjustmentApplied && !dischargeForValue) {
+      reason = isPreallocDischarge
+        ? `Pre-allocated discharge slot — one of the most expensive import windows today (${importRate.toFixed(2)}p/kWh).`
+        : dischargeForValue
+          ? `Discharging battery because immediate net discharge value (${immediateDischargeRealizedValue.toFixed(2)}p/kWh) exceeds retained future gross value (${futureRetentionGrossValue.toFixed(2)}p/kWh) after wear cost (${batteryDegradationCostPencePerKwh.toFixed(2)}p/kWh).`
+          : "Using battery energy to reduce higher-cost import.";
+      if (conservatismPolicy.conservativeAdjustmentApplied && !isPreallocDischarge && !dischargeForValue) {
         action = "hold";
         reason = `Holding because planning confidence is ${conservatismPolicy.planningConfidenceLevel} and discharge value spread is not strong enough under conservative thresholds.`;
       }
-      const dischargeKwh = Math.min(1.4 * slotHours, ((batterySoc - batteryReserve) / 100) * batteryCapacityKwh);
+      // Use load-matching for SoC tracking so the engine's simulated depletion matches
+      // what the adapter will actually discharge (load-matched, not rated-power maximum).
+      const netLoadForDischarge = Math.max(0, loadKwh - solarKwh);
+      const dischargeKwh = Math.min(5 * slotHours, netLoadForDischarge, ((batterySoc - batteryReserve) / 100) * batteryCapacityKwh);
       if (action === "discharge_battery") {
         expectedImportKwh = Math.max(0, loadKwh - solarKwh - dischargeKwh);
         targetDeviceIds = [...batteryDeviceIds];
@@ -947,9 +1058,7 @@ export function buildCanonicalRuntimeResult(input: OptimizerInput): CanonicalRun
       targetDevices: mapDecisionTargets(targetDeviceIds, action, input),
       expectedImportKwh: Number(expectedImportKwh.toFixed(3)),
       expectedExportKwh: expectedExportKwh > 0 ? Number(expectedExportKwh.toFixed(3)) : undefined,
-      // TODO: replace heuristic SOC projection with explicit canonical battery state model.
       expectedBatterySocPercent: hasBattery ? Number(batterySoc.toFixed(1)) : undefined,
-      // TODO: replace heuristic EV projection with deadline-aware canonical EV model.
       expectedEvSocPercent: evSoc !== undefined ? Number(evSoc.toFixed(1)) : undefined,
       reason,
       marginalImportAvoidancePencePerKwh: valuePoint?.importAvoidancePencePerKwh,

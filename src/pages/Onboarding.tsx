@@ -303,9 +303,14 @@ interface OnboardingProps {
   onComplete?: (devices: string[], creds: any) => void;
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export default function Onboarding({ onComplete }: OnboardingProps) {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
+  const [userName, setUserName] = useState("");
+  const [notifyEmail, setNotifyEmail] = useState("");
+  const [emailTouched, setEmailTouched] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [octopusCreds, setOctopusCreds] = useState({ apiKey: "", accountNumber: "" });
   const [solarCreds, setSolarCreds] = useState({ apiKey: "", serial: "" });
@@ -320,36 +325,79 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const needsSolar = selected.includes("solar") || selected.includes("battery");
   const needsEV = selected.includes("ev");
 
+  const emailValid = EMAIL_RE.test(notifyEmail.trim());
+  const profileComplete = userName.trim().length > 0 && emailValid;
+  const emailError = emailTouched && notifyEmail.trim().length > 0 && !emailValid;
+
   const handleComplete = () => {
-    if (onComplete) onComplete(selected, { octopusCreds, solarCreds, evCreds });
+    if (onComplete) onComplete(selected, { octopusCreds, solarCreds, evCreds, userName, notifyEmail });
     navigate(`/dashboard?devices=${selected.join(",")}`);
   };
+
+  const isNextDisabled =
+    (step === 1 && !profileComplete) ||
+    (step === 2 && selected.length === 0);
 
   return (
     <div style={{ background: "linear-gradient(135deg, #111827 0%, #0F1419 100%)", minHeight: "100vh", display: "flex", flexDirection: "column", padding: "20px", color: "#F9FAFB", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto", maxWidth: 420, margin: "0 auto" }}>
 
       <div style={{ marginBottom: 28, marginTop: 20 }}>
         <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 6, letterSpacing: -0.5 }}>
-          {step === 1 && "What do you have?"}
-          {step === 2 && "Connect your devices"}
-          {step === 3 && "You're all set"}
+          {step === 1 && "Let's get to know you"}
+          {step === 2 && "What do you have?"}
+          {step === 3 && "Connect your devices"}
+          {step === 4 && "You're all set"}
         </h1>
         <p style={{ fontSize: 13, color: "#9CA3AF", margin: 0 }}>
-          {step === 1 && "Select everything you have — we'll show you what you could earn"}
-          {step === 2 && "Enter your account details — takes 2 minutes"}
-          {step === 3 && `£${totalSavings}/yr unlocked and optimising`}
+          {step === 1 && "We'll send your daily savings report here"}
+          {step === 2 && "Select everything you have — we'll show you what you could earn"}
+          {step === 3 && "Enter your account details — takes 2 minutes"}
+          {step === 4 && `£${totalSavings}/yr unlocked and optimising`}
         </p>
       </div>
 
       {/* Progress bar */}
       <div style={{ marginBottom: 28, display: "flex", gap: 6 }}>
-        {[1, 2, 3].map(s => (
+        {[1, 2, 3, 4].map(s => (
           <div key={s} style={{ height: 3, flex: 1, background: s <= step ? "#22C55E" : "#1F2937", borderRadius: 2, transition: "background 0.3s ease" }} />
         ))}
       </div>
 
-      {/* Step 1 — device selection */}
+      {/* Step 1 — profile */}
       {step === 1 && (
+        <div style={{ flex: 1, marginBottom: 20 }}>
+          <div style={{ marginBottom: 18 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", display: "block", marginBottom: 5, letterSpacing: 0.5 }}>YOUR NAME</label>
+            <input
+              type="text"
+              placeholder="First name"
+              value={userName}
+              onChange={e => setUserName(e.target.value)}
+              style={{ width: "100%", background: "#111827", border: "1px solid #374151", borderRadius: 10, padding: "12px 14px", color: "#F9FAFB", fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", display: "block", marginBottom: 5, letterSpacing: 0.5 }}>EMAIL ADDRESS</label>
+            <input
+              type="email"
+              placeholder="you@example.com"
+              value={notifyEmail}
+              onChange={e => setNotifyEmail(e.target.value)}
+              onBlur={() => setEmailTouched(true)}
+              style={{ width: "100%", background: "#111827", border: `1px solid ${emailError ? "#EF4444" : "#374151"}`, borderRadius: 10, padding: "12px 14px", color: "#F9FAFB", fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
+            />
+            {emailError && (
+              <span style={{ fontSize: 11, color: "#EF4444", marginTop: 4, display: "block" }}>Enter a valid email address</span>
+            )}
+            {!emailError && (
+              <span style={{ fontSize: 11, color: "#4B5563", marginTop: 4, display: "block" }}>We'll send your daily energy report here</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Step 2 — device selection */}
+      {step === 2 && (
         <div style={{ flex: 1, marginBottom: 20 }}>
           <div style={{ display: "grid", gap: 10 }}>
             {DEVICES.map(device => {
@@ -381,8 +429,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         </div>
       )}
 
-      {/* Step 2 — credentials */}
-      {step === 2 && (
+      {/* Step 3 — credentials */}
+      {step === 3 && (
         <div style={{ flex: 1, marginBottom: 20 }}>
           <div style={{ background: "#0F1929", border: "1px solid #1E3A5F", borderRadius: 10, padding: "10px 14px", marginBottom: 20, display: "flex", gap: 8, alignItems: "flex-start" }}>
             <Lock size={13} color="#60A5FA" style={{ marginTop: 1, flexShrink: 0 }} />
@@ -391,14 +439,14 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           {needsOctopus && <OctopusForm creds={octopusCreds} setCreds={setOctopusCreds} />}
           {needsSolar && <SolarBatteryForm creds={solarCreds} setCreds={setSolarCreds} />}
           {needsEV && <EVForm creds={evCreds} setCreds={setEvCreds} />}
-          <button onClick={() => setStep(3)} style={{ background: "none", border: "none", color: "#4B5563", fontSize: 12, cursor: "pointer", padding: "6px 0", fontFamily: "inherit", display: "block" }}>
+          <button onClick={() => setStep(4)} style={{ background: "none", border: "none", color: "#4B5563", fontSize: 12, cursor: "pointer", padding: "6px 0", fontFamily: "inherit", display: "block" }}>
             Skip — use demo data instead
           </button>
         </div>
       )}
 
-      {/* Step 3 — complete */}
-      {step === 3 && (
+      {/* Step 4 — complete */}
+      {step === 4 && (
         <div style={{ flex: 1, marginBottom: 20, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
           <div style={{ width: 72, height: 72, background: "#16A34A20", borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
             <div style={{ width: 52, height: 52, background: "#22C55E", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26 }}>✓</div>
@@ -430,11 +478,11 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           <button onClick={() => setStep(step - 1)} style={{ flex: 1, background: "#1F2937", border: "1px solid #374151", borderRadius: 10, padding: "13px 16px", color: "#F9FAFB", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Back</button>
         )}
         <button
-          onClick={step === 3 ? handleComplete : () => setStep(step + 1)}
-          disabled={step === 1 && selected.length === 0}
-          style={{ flex: 1, border: "none", borderRadius: 10, padding: "13px 16px", background: step === 1 && selected.length === 0 ? "#374151" : "#22C55E", color: step === 1 && selected.length === 0 ? "#6B7280" : "#111827", fontSize: 14, fontWeight: 700, cursor: step === 1 && selected.length === 0 ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit" }}
+          onClick={step === 4 ? handleComplete : () => setStep(step + 1)}
+          disabled={isNextDisabled}
+          style={{ flex: 1, border: "none", borderRadius: 10, padding: "13px 16px", background: isNextDisabled ? "#374151" : "#22C55E", color: isNextDisabled ? "#6B7280" : "#111827", fontSize: 14, fontWeight: 700, cursor: isNextDisabled ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit", transition: "background 0.15s ease, color 0.15s ease" }}
         >
-          {step === 3 ? "Go to Dashboard" : "Next"}
+          {step === 1 ? "Continue" : step === 4 ? "Go to Dashboard" : "Next"}
           <ChevronRight size={16} />
         </button>
       </div>

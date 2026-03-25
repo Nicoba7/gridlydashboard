@@ -10,9 +10,12 @@ import type { BenchmarkScenario } from "../types";
 // - It deliberately stays solver-free and easy to inspect.
 //
 // High-level behavior:
-// 1) EV: pick cheapest valid import slots before departure deadline.
-// 2) Battery charge: pick cheap import slots.
-// 3) Battery discharge: pick expensive import slots.
+// 1) EV: pick cheapest valid import slots before departure deadline;
+//    force-charge in any slot where deadline pressure requires it.
+// 2) Battery charge: pick cheap import slots, but skip any slot where
+//    solar surplus covers the load (solar-aware charging).
+// 3) Battery discharge: pick expensive import slots, but only when
+//    the net value exceeds the battery degradation wear cost.
 // 4) Apply decisions in time order while enforcing physical constraints.
 
 const SLOT_HOURS = 0.5;
@@ -21,6 +24,10 @@ const SLOT_HOURS = 0.5;
 // Kept intentionally small/simple so founders can read and adjust.
 const BATTERY_CHARGE_SLOT_LIMIT = 10;
 const BATTERY_DISCHARGE_SLOT_LIMIT = 8;
+
+// Battery wear cost subtracted from the value of every discharge kWh.
+// Represents cell degradation cost per cycle amortised over capacity.
+const BATTERY_DEGRADATION_COST_PENCE_PER_KWH = 1.5;
 
 type SlotDecision = {
   slotIndex: number;
@@ -134,14 +141,27 @@ function buildBatterySlotSets(scenario: BenchmarkScenario): {
   const importPrices = scenario.tariffs.importPricesPencePerKwh;
   const slotIndexes = Array.from({ length: scenario.slotCount }, (_, i) => i);
 
-  // Choose cheapest slots for charge and expensive slots for discharge.
-  const cheapest = sortCheapestSlots(importPrices, slotIndexes).slice(0, BATTERY_CHARGE_SLOT_LIMIT);
+  // Solar-awareness: skip grid-charge slots where solar covers the load.
+  // In those slots the battery will be filled by solar anyway — no need
+  // to also pull from the grid.
+  const nonSolarSurplusSlots = slotIndexes.filter((i) => {
+    const solarKwh = toKwh(scenario.solar.generationKwBySlot[i] ?? 0);
+    const loadKwh = toKwh(scenario.load.demandKwBySlot[i] ?? 0);
+    return solarKwh <= loadKwh; // solar surplus → skip grid charge for this slot
+  });
+
+  // Choose cheapest non-surplus slots for grid charge.
+  const cheapest = sortCheapestSlots(importPrices, nonSolarSurplusSlots).slice(0, BATTERY_CHARGE_SLOT_LIMIT);
+
+  // Discharge: most expensive slots, excluding those already chosen for charging.
+  // Only slots where the import price exceeds the degradation cost are worth discharging.
+  const cheapestSet = new Set<number>(cheapest);
   const expensive = sortMostExpensiveSlots(importPrices, slotIndexes)
-    .filter((slot) => !cheapest.includes(slot))
+    .filter((slot) => !cheapestSet.has(slot) && importPrices[slot] > BATTERY_DEGRADATION_COST_PENCE_PER_KWH)
     .slice(0, BATTERY_DISCHARGE_SLOT_LIMIT);
 
   return {
-    chargeSlots: new Set<number>(cheapest),
+    chargeSlots: cheapestSet,
     dischargeSlots: new Set<number>(expensive),
   };
 }
@@ -154,20 +174,17 @@ function runPredbatLikeScenario(scenario: BenchmarkScenario) {
   const battery = scenario.assets.battery;
   const ev = scenario.assets.ev;
 
-  // Always try to meet EV target if feasible: fill all available slots if needed
   const slotIndexes = Array.from({ length: scenario.slotCount }, (_, i) => i);
-  const validEvSlots = slotIndexes.filter((slotIndex) =>
-    isEvAvailableAtSlot(slotIndex, scenario.assets.ev.arrivalSlotIndex, scenario.assets.ev.departureSlotIndex)
+  const maxEvKwhPerSlot = toKwh(ev.maxChargeKw ?? 7);
+
+  // Build the price-optimal EV charge plan (cheapest valid slots first).
+  const evPlanKwhBySlot = buildEvPlanKwhBySlot(scenario);
+
+  // Pre-compute the set of EV-available slots for deadline pressure checks.
+  const validEvSlots = slotIndexes.filter((i) =>
+    isEvAvailableAtSlot(i, ev.arrivalSlotIndex, ev.departureSlotIndex)
   );
-  let remainingNeedKwh = Math.max(0, scenario.assets.ev.requiredChargeKwh - (scenario.assets.ev.currentChargeKwh ?? 0));
-  const maxEvKwhPerSlot = toKwh(scenario.assets.ev.maxChargeKw ?? 7);
-  const evPlanKwhBySlot = new Map<number, number>();
-  for (const slotIndex of validEvSlots) {
-    if (remainingNeedKwh <= 0) break;
-    const plannedKwh = Math.min(maxEvKwhPerSlot, remainingNeedKwh);
-    evPlanKwhBySlot.set(slotIndex, plannedKwh);
-    remainingNeedKwh -= plannedKwh;
-  }
+
   const { chargeSlots, dischargeSlots } = buildBatterySlotSets(scenario);
 
   let batterySocKwh = clamp(0, battery.initialSocKwh, battery.capacityKwh);
@@ -192,25 +209,39 @@ function runPredbatLikeScenario(scenario: BenchmarkScenario) {
     // Positive means import need, negative means surplus.
     let netDemandKwh = loadKwh - solarKwh;
 
-    // EV charging plan (pre-selected cheapest valid slots)
+    // EV charging: use price-optimal plan, but also force-charge when
+    // deadline pressure means the target won't be met otherwise.
     let evChargeKw = 0;
     let evChargeKwhThisSlot = 0;
-    if (hasEv) {
-      const plannedEvKwh = evPlanKwhBySlot.get(slotIndex) ?? 0;
+    if (hasEv && isEvAvailableAtSlot(slotIndex, ev.arrivalSlotIndex, ev.departureSlotIndex)) {
       const evRemainingNeed = Math.max(0, ev.requiredChargeKwh - evChargeKwh);
-      evChargeKwhThisSlot = Math.min(plannedEvKwh, evRemainingNeed);
 
-      if (evChargeKwhThisSlot > 0) {
+      // Count slots remaining (including this one) before departure.
+      const slotsRemaining = validEvSlots.filter((i) => i >= slotIndex).length;
+      const maxDeliverableKwh = slotsRemaining * maxEvKwhPerSlot;
+      const mustChargeNow = evRemainingNeed > 0 && evRemainingNeed >= maxDeliverableKwh;
+
+      const plannedEvKwh = evPlanKwhBySlot.get(slotIndex) ?? 0;
+      const targetKwh = mustChargeNow
+        ? Math.min(maxEvKwhPerSlot, evRemainingNeed)
+        : Math.min(plannedEvKwh, evRemainingNeed);
+
+      if (targetKwh > 0) {
+        evChargeKwhThisSlot = targetKwh;
         evChargeKw = evChargeKwhThisSlot / SLOT_HOURS;
         evChargeKwh += evChargeKwhThisSlot;
         netDemandKwh += evChargeKwhThisSlot;
       }
     }
 
-    // Battery discharge on expensive slots (respect reserve, power, and demand)
+    // Battery discharge on expensive slots (respect reserve, power, demand, and
+    // degradation cost — only discharge when import price net of wear is positive).
     let batteryDischargeKw = 0;
     let batteryDischargeKwhThisSlot = 0;
-    if (hasBattery && dischargeSlots.has(slotIndex)) {
+    const importPrice = scenario.tariffs.importPricesPencePerKwh[slotIndex] ?? 0;
+    const exportPrice = scenario.tariffs.exportPricesPencePerKwh[slotIndex] ?? 0;
+    const netDischargeValuePencePerKwh = importPrice - BATTERY_DEGRADATION_COST_PENCE_PER_KWH;
+    if (hasBattery && dischargeSlots.has(slotIndex) && netDischargeValuePencePerKwh > 0) {
       const maxDischargeKwhThisSlot = toKwh(Math.max(0, battery.maxDischargeKw));
       const availableAboveReserveKwh = Math.max(0, batterySocKwh - battery.reserveSocKwh);
 
@@ -250,9 +281,6 @@ function runPredbatLikeScenario(scenario: BenchmarkScenario) {
 
     totalImportKwh += gridImportKwh;
     totalExportKwh += gridExportKwh;
-
-    const importPrice = scenario.tariffs.importPricesPencePerKwh[slotIndex] ?? 0;
-    const exportPrice = scenario.tariffs.exportPricesPencePerKwh[slotIndex] ?? 0;
 
     totalImportCost += toCost(importPrice, gridImportKwh);
     totalExportRevenue += toCost(exportPrice, gridExportKwh);
@@ -305,6 +333,8 @@ function runPredbatLikeScenario(scenario: BenchmarkScenario) {
       strategyType: "predbat-like-greedy-baseline",
       approximationNote:
         "This is a simple greedy approximation for benchmarking, not an exact competitor replica.",
+      enhancements: ["solar-aware-charging", "ev-deadline-pressure", "battery-degradation-cost"],
+      batteryDegradationCostPencePerKwh: BATTERY_DEGRADATION_COST_PENCE_PER_KWH,
       plannedSlotCounts: {
         evChargeSlots: evPlanKwhBySlot.size,
         batteryChargeSlots: chargeSlots.size,
