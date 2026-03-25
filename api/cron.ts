@@ -1,29 +1,39 @@
 // api/cron.ts — Vercel cron endpoint
-// Reads AVEUM_USER_CONFIGS (JSON array of user config objects) and runs the
-// Aveum optimizer for each user in sequence.
+// Reads registered users from Vercel KV and runs the Aveum optimizer
+// for each user in sequence.
 // Triggered daily at 01:00 UTC by the schedule in vercel.json.
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { kv } from "@vercel/kv";
 import { optimize } from "../src/optimizer/engine";
 import { getCanonicalSimulationSnapshot } from "../src/simulator";
 import { buildDailySavingsReport } from "../src/features/report/dailySavingsReport";
 import { sendMorningReport } from "../src/features/notifications/morningEmailReport";
 import type { OptimizationMode, TariffSchedule } from "../src/domain";
+import type { StoredUser } from "./register";
+
+const KV_KEY = "aveum:users";
+
+async function readStoredUsers(): Promise<StoredUser[]> {
+  try {
+    const raw = await kv.lrange<string>(KV_KEY, 0, -1);
+    return raw.map((entry) => JSON.parse(entry) as StoredUser);
+  } catch {
+    return [];
+  }
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-interface UserConfig {
-  octopusApiKey: string;
-  octopusAccountNumber: string;
-  region?: string;
-  optimizationMode?: string;
-  notifyEmail?: string;
+// StoredUser is imported from register.ts; UserConfig adds optional SMTP overrides
+// that won't be present in the file but can be injected via env vars.
+type UserConfig = StoredUser & {
   smtpHost?: string;
   smtpPort?: number;
   smtpUser?: string;
   smtpPass?: string;
   fromEmail?: string;
-}
+};
 
 interface UserRunResult {
   octopusAccountNumber: string;
@@ -200,22 +210,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  const rawConfigs = process.env.AVEUM_USER_CONFIGS;
-  if (!rawConfigs) {
+  const userConfigs: UserConfig[] = await readStoredUsers();
+  if (userConfigs.length === 0) {
     return res.status(200).json({
       ran: 0,
-      message: "AVEUM_USER_CONFIGS not set — nothing to do.",
+      message: "No registered users found in /tmp/aveum-users.json — nothing to do.",
       results: [],
-    });
-  }
-
-  let userConfigs: UserConfig[];
-  try {
-    userConfigs = JSON.parse(rawConfigs) as UserConfig[];
-    if (!Array.isArray(userConfigs)) throw new Error("AVEUM_USER_CONFIGS must be a JSON array");
-  } catch (err: unknown) {
-    return res.status(500).json({
-      error: `Failed to parse AVEUM_USER_CONFIGS: ${err instanceof Error ? err.message : String(err)}`,
     });
   }
 

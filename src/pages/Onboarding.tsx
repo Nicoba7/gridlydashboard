@@ -328,8 +328,33 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const emailValid = EMAIL_RE.test(notifyEmail.trim());
   const profileComplete = userName.trim().length > 0 && emailValid;
   const emailError = emailTouched && notifyEmail.trim().length > 0 && !emailValid;
+  const [registering, setRegistering] = useState(false);
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
+    setRegistering(true);
+    try {
+      const res = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userName,
+          notifyEmail,
+          octopusApiKey: octopusCreds.apiKey,
+          octopusAccountNumber: octopusCreds.accountNumber,
+          region: "C",
+          optimizationMode: "balanced",
+          devices: selected,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.userId) localStorage.setItem("aveum_user_id", data.userId);
+      }
+    } catch {
+      // Registration failure is non-blocking — still proceed to dashboard
+    } finally {
+      setRegistering(false);
+    }
     if (onComplete) onComplete(selected, { octopusCreds, solarCreds, evCreds, userName, notifyEmail });
     navigate(`/dashboard?devices=${selected.join(",")}`);
   };
@@ -479,11 +504,11 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         )}
         <button
           onClick={step === 4 ? handleComplete : () => setStep(step + 1)}
-          disabled={isNextDisabled}
-          style={{ flex: 1, border: "none", borderRadius: 10, padding: "13px 16px", background: isNextDisabled ? "#374151" : "#22C55E", color: isNextDisabled ? "#6B7280" : "#111827", fontSize: 14, fontWeight: 700, cursor: isNextDisabled ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit", transition: "background 0.15s ease, color 0.15s ease" }}
+          disabled={isNextDisabled || registering}
+          style={{ flex: 1, border: "none", borderRadius: 10, padding: "13px 16px", background: isNextDisabled || registering ? "#374151" : "#22C55E", color: isNextDisabled || registering ? "#6B7280" : "#111827", fontSize: 14, fontWeight: 700, cursor: isNextDisabled || registering ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit", transition: "background 0.15s ease, color 0.15s ease" }}
         >
-          {step === 1 ? "Continue" : step === 4 ? "Go to Dashboard" : "Next"}
-          <ChevronRight size={16} />
+          {step === 4 && registering ? "Saving…" : step === 1 ? "Continue" : step === 4 ? "Go to Dashboard" : "Next"}
+          {!registering && <ChevronRight size={16} />}
         </button>
       </div>
     </div>
