@@ -13,6 +13,10 @@ import {
   type RuntimeTariffResolution,
 } from "./resolveRuntimeTariffSchedule";
 import {
+  resolveRuntimeSolarForecast,
+  type RuntimeSolarForecastResolution,
+} from "./resolveRuntimeSolarForecast";
+import {
   TeslaSingleRunBootstrapError,
   type TeslaSingleRunRuntime,
   type TeslaSingleRunRuntimeConfigSource,
@@ -38,6 +42,8 @@ export interface TeslaLocalSingleRunSource extends TeslaSingleRunRuntimeConfigSo
   GRIDLY_OCTOPUS_PRODUCT?: string;
   GRIDLY_OCTOPUS_EXPORT_PRODUCT?: string;
   GRIDLY_OCTOPUS_EXPORT_TARIFF_CODE?: string;
+  SOLCAST_API_KEY?: string;
+  SOLCAST_RESOURCE_ID?: string;
 }
 
 export interface TeslaLocalPlanningStyleSummary {
@@ -83,6 +89,11 @@ export interface TeslaLocalSingleRunSuccessSummary {
     source: RuntimeTariffResolution["source"];
     importRateCount: number;
     exportRateCount: number;
+    caveats: string[];
+  };
+  solarForecastSummary: {
+    source: RuntimeSolarForecastResolution["source"];
+    slotCount: number;
     caveats: string[];
   };
   valueLedger: CanonicalValueLedger;
@@ -132,6 +143,10 @@ export interface TeslaLocalSingleRunDependencies {
     fallbackTariffSchedule: ReturnType<typeof getCanonicalSimulationSnapshot>["tariffSchedule"];
     sourceEnv: TeslaLocalSingleRunSource;
   }) => Promise<RuntimeTariffResolution>;
+  resolveSolarForecast?: (params: {
+    fallbackSolarForecast: ReturnType<typeof getCanonicalSimulationSnapshot>["forecasts"]["solarGenerationKwh"];
+    sourceEnv: TeslaLocalSingleRunSource;
+  }) => Promise<RuntimeSolarForecastResolution>;
 }
 
 function buildTeslaLocalJournalStore(
@@ -281,6 +296,9 @@ export async function runTeslaSingleRunLocal(
   const getSnapshot = dependencies?.getSnapshot ?? getCanonicalSimulationSnapshot;
   const optimizeInput = dependencies?.optimizeInput ?? optimize;
   const resolveTariffSchedule = dependencies?.resolveTariffSchedule ?? resolveRuntimeTariffSchedule;
+  const resolveSolarForecast = dependencies?.resolveSolarForecast ??
+    (async (params: { fallbackSolarForecast: Parameters<typeof resolveRuntimeSolarForecast>[0]["fallbackSolarForecast"]; sourceEnv: TeslaLocalSingleRunSource }) =>
+      resolveRuntimeSolarForecast({ fallbackSolarForecast: params.fallbackSolarForecast, sourceEnv: params.sourceEnv }));
   const resolvedPlanningStyle = resolvePlanningStyle(source as PlanningStyleSourceEnvironment);
   const planningStyle = buildPlanningStyleSummary(resolvedPlanningStyle);
   const optimizationMode = buildOptimizationModeSummary(resolvedPlanningStyle, source);
@@ -296,11 +314,17 @@ export async function runTeslaSingleRunLocal(
 
     const nowIso = now.toISOString();
     const snapshot = getSnapshot(now);
-    const tariffResolution = await resolveTariffSchedule({
-      now,
-      fallbackTariffSchedule: snapshot.tariffSchedule,
-      sourceEnv: source,
-    });
+    const [tariffResolution, solarResolution] = await Promise.all([
+      resolveTariffSchedule({
+        now,
+        fallbackTariffSchedule: snapshot.tariffSchedule,
+        sourceEnv: source,
+      }),
+      resolveSolarForecast({
+        fallbackSolarForecast: snapshot.forecasts.solarGenerationKwh,
+        sourceEnv: source,
+      }),
+    ]);
     const baseSystemState = {
       ...snapshot.systemState,
       capturedAt: nowIso,
@@ -310,9 +334,13 @@ export async function runTeslaSingleRunLocal(
 
     const systemState = ensureTeslaDeviceIdentity(baseSystemState, runtime.config.vehicleId, nowIso);
     const constraints = buildConstraintsForPlanningStyle(systemState.devices, resolvedPlanningStyle);
+    const resolvedForecasts = {
+      ...snapshot.forecasts,
+      solarGenerationKwh: solarResolution.solarGenerationKwh,
+    };
     const optimizerOutput = optimizeInput({
       systemState,
-      forecasts: snapshot.forecasts,
+      forecasts: resolvedForecasts,
       tariffSchedule: tariffResolution.tariffSchedule,
       constraints,
     });
@@ -320,7 +348,7 @@ export async function runTeslaSingleRunLocal(
     const valueLedger = buildCanonicalValueLedger({
       optimizationMode: optimizationMode.activeMode,
       optimizerOutput,
-      forecasts: snapshot.forecasts,
+      forecasts: resolvedForecasts,
       tariffSchedule: tariffResolution.tariffSchedule,
     });
 
@@ -369,6 +397,11 @@ export async function runTeslaSingleRunLocal(
         importRateCount: tariffResolution.tariffSchedule.importRates.length,
         exportRateCount: tariffResolution.tariffSchedule.exportRates?.length ?? 0,
         caveats: tariffResolution.caveats,
+      },
+      solarForecastSummary: {
+        source: solarResolution.source,
+        slotCount: solarResolution.solarGenerationKwh.length,
+        caveats: solarResolution.caveats,
       },
       valueLedger,
       telemetryIngestionResult: {
