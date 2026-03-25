@@ -28,6 +28,10 @@ import {
   type PlanningStyleSourceEnvironment,
   type ResolvedPlanningStyle,
 } from "./planningStyleStore";
+import {
+  buildDailySavingsReport,
+  type DailySavingsReport,
+} from "../../features/report/dailySavingsReport";
 
 export interface TeslaLocalSingleRunSource extends TeslaSingleRunRuntimeConfigSource {
   GRIDLY_NOW_ISO?: string;
@@ -44,6 +48,8 @@ export interface TeslaLocalSingleRunSource extends TeslaSingleRunRuntimeConfigSo
   GRIDLY_OCTOPUS_EXPORT_TARIFF_CODE?: string;
   SOLCAST_API_KEY?: string;
   SOLCAST_RESOURCE_ID?: string;
+  /** Set-and-forget baseline net cost in pence for savings comparison. Defaults to 0 when absent. */
+  GRIDLY_BASELINE_NET_COST_PENCE?: string;
 }
 
 export interface TeslaLocalPlanningStyleSummary {
@@ -96,6 +102,7 @@ export interface TeslaLocalSingleRunSuccessSummary {
     slotCount: number;
     caveats: string[];
   };
+  dailySavingsReport: DailySavingsReport;
   valueLedger: CanonicalValueLedger;
   telemetryIngestionResult: {
     ingestedCount: number;
@@ -352,6 +359,13 @@ export async function runTeslaSingleRunLocal(
       tariffSchedule: tariffResolution.tariffSchedule,
     });
 
+    const setAndForgetNetCostPence = parseFloat(source.GRIDLY_BASELINE_NET_COST_PENCE ?? "0") || 0;
+    const dailySavingsReport = buildDailySavingsReport({
+      optimizerOutput,
+      tariffSchedule: tariffResolution.tariffSchedule,
+      setAndForgetNetCostPence,
+    });
+
     const journalStore = buildTeslaLocalJournalStore(source, dependencies);
 
     const result = await runtime.runCycle({
@@ -403,6 +417,7 @@ export async function runTeslaSingleRunLocal(
         slotCount: solarResolution.solarGenerationKwh.length,
         caveats: solarResolution.caveats,
       },
+      dailySavingsReport,
       valueLedger,
       telemetryIngestionResult: {
         ingestedCount: result.telemetryIngestionResult.ingestedCount,
