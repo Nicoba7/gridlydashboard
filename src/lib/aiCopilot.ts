@@ -1,4 +1,4 @@
-import { type GridlyMode } from "./gridlyEngine";
+import { type AveumMode } from "./gridlyEngine";
 
 export type OptimisationGoal = "MAX_SAVINGS" | "LOWEST_CARBON" | "BATTERY_CARE" | "EV_READY";
 
@@ -14,7 +14,7 @@ type CandidateAction = {
 };
 
 export type AiRecommendationInput = {
-  mode: GridlyMode;
+  mode: AveumMode;
   currentPence: number;
   bestSlotPence: number;
   hasBattery: boolean;
@@ -114,7 +114,7 @@ function getCandidates(input: AiRecommendationInput): CandidateAction[] {
     {
       action: "HOLD",
       title: "Hold current plan",
-      reason: "Gridly is already in a near-optimal state for your selected goal.",
+      reason: "Aveum is already in a near-optimal state for your selected goal.",
       impact: "No major change expected",
     },
   ].filter((candidate) => {

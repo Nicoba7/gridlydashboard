@@ -1,5 +1,5 @@
 /**
- * First working optimizer entry point for Gridly.
+ * First working optimizer entry point for Aveum.
  *
  * This is intentionally simple and deterministic so we can safely wire UX
  * while keeping behavior easy for founders and reviewers to reason about.
@@ -8,8 +8,8 @@
 import type {
   Diagnostic,
   EngineAction,
-  GridlyInput,
-  GridlyOutput,
+  AveumInput,
+  AveumOutput,
   Recommendation,
 } from "../types";
 
@@ -39,7 +39,7 @@ function pickAction(
   if (lowBattery && exportPrice !== undefined && exportPrice >= HIGH_EXPORT_THRESHOLD) {
     return {
       action: "hold",
-      reason: "Export price is attractive, but Gridly is protecting battery reserve.",
+      reason: "Export price is attractive, but Aveum is protecting battery reserve.",
       value: 0.55,
       confidence: 0.8,
     };
@@ -49,7 +49,7 @@ function pickAction(
   if (importPrice <= LOW_IMPORT_THRESHOLD) {
     return {
       action: "charge",
-      reason: "Import price is in a cheap window, so Gridly charges for later use.",
+      reason: "Import price is in a cheap window, so Aveum charges for later use.",
       value: 0.85,
       confidence: 0.9,
     };
@@ -59,7 +59,7 @@ function pickAction(
   if (!lowBattery && exportPrice !== undefined && exportPrice >= HIGH_EXPORT_THRESHOLD) {
     return {
       action: "export",
-      reason: "Export price is high, so Gridly can sell surplus value back to the grid.",
+      reason: "Export price is high, so Aveum can sell surplus value back to the grid.",
       value: 0.8,
       confidence: 0.86,
     };
@@ -68,14 +68,14 @@ function pickAction(
   // Default safe behavior when there is no clear market opportunity.
   return {
     action: "hold",
-    reason: "Prices are neutral right now, so Gridly holds energy for later.",
+    reason: "Prices are neutral right now, so Aveum holds energy for later.",
     value: 0.5,
     confidence: 0.75,
   };
 }
 
 /** @deprecated use optimize(input) from src/optimizer/engine */
-export function optimizePlan(input: GridlyInput): GridlyOutput {
+export function optimizePlan(input: AveumInput): AveumOutput {
   const diagnostics: Diagnostic[] = [];
   const avgImportPrice = average(input.importPrice);
   const avgSolarForecast = average(input.forecastSolarKwh);
@@ -92,7 +92,7 @@ export function optimizePlan(input: GridlyInput): GridlyOutput {
   if (lowBatteryReserve) {
     diagnostics.push({
       code: "LOW_BATTERY_RESERVE",
-      message: "Battery reserve is low, so Gridly is prioritizing energy protection.",
+      message: "Battery reserve is low, so Aveum is prioritizing energy protection.",
       severity: "warning",
     });
   }
@@ -116,7 +116,7 @@ export function optimizePlan(input: GridlyInput): GridlyOutput {
   if (strongSolarForecast) {
     diagnostics.push({
       code: "STRONG_SOLAR_FORECAST",
-      message: "Strong solar generation is expected, so Gridly is avoiding unnecessary charging.",
+      message: "Strong solar generation is expected, so Aveum is avoiding unnecessary charging.",
       severity: "info",
     });
   }
@@ -136,7 +136,7 @@ export function optimizePlan(input: GridlyInput): GridlyOutput {
       ? {
           slot,
           action: "hold",
-          reason: "Strong solar is expected soon, so Gridly avoids unnecessary pre-charging.",
+          reason: "Strong solar is expected soon, so Aveum avoids unnecessary pre-charging.",
           value: 0.68,
           confidence: 0.84,
         }
@@ -165,9 +165,9 @@ export function optimizePlan(input: GridlyInput): GridlyOutput {
 
   // Simple deterministic counterfactual math (believable but intentionally lightweight):
   // - baseline assumes all load is imported at average import price
-  // - Gridly reduces cost in cheap charge slots and improves value in export slots
+  // - Aveum reduces cost in cheap charge slots and improves value in export slots
   const totalForecastLoad = input.forecastLoadKwh.reduce((sum, value) => sum + value, 0);
-  const baselineWithoutGridly = totalForecastLoad * avgImportPrice;
+  const baselineWithoutAveum = totalForecastLoad * avgImportPrice;
   const chargeBenefit = actionCounts.charge * 0.12;
   const exportBenefit = actionCounts.export * 0.18;
   const reservePenalty = lowBatteryReserve ? 0.08 : 0;
@@ -175,16 +175,16 @@ export function optimizePlan(input: GridlyInput): GridlyOutput {
     0.02,
     Math.min(0.22, chargeBenefit + exportBenefit - reservePenalty),
   );
-  const withGridly = Number((baselineWithoutGridly * (1 - improvementFactor)).toFixed(2));
-  const withoutGridly = Number(baselineWithoutGridly.toFixed(2));
-  const savings = Number((withoutGridly - withGridly).toFixed(2));
+  const withAveum = Number((baselineWithoutAveum * (1 - improvementFactor)).toFixed(2));
+  const withoutAveum = Number(baselineWithoutAveum.toFixed(2));
+  const savings = Number((withoutAveum - withAveum).toFixed(2));
 
   const headline =
     actionCounts.export > 0
-      ? "Gridly sees a strong export opportunity"
+      ? "Aveum sees a strong export opportunity"
       : actionCounts.charge > 0
-        ? "Gridly is charging while prices are low"
-        : "Gridly is holding energy for later";
+        ? "Aveum is charging while prices are low"
+        : "Aveum is holding energy for later";
 
   const subheadline =
     actionCounts.export > 0
@@ -203,8 +203,8 @@ export function optimizePlan(input: GridlyInput): GridlyOutput {
     recommendations,
     timeline,
     counterfactual: {
-      withGridly,
-      withoutGridly,
+      withAveum,
+      withoutAveum,
       savings,
     },
     diagnostics,

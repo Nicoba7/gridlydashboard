@@ -8,7 +8,7 @@ No schedules. No rules. No manual optimisation.
 
 ## Local dev run-once
 
-Runs one stubbed-input Gridly observe -> decide -> act cycle locally and persists the output to the same durable journal used by `/api/runtime-truth`.
+Runs one stubbed-input Aveum observe -> decide -> act cycle locally and persists the output to the same durable journal used by `/api/runtime-truth`.
 
 ### What it does
 

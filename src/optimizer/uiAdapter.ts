@@ -1,4 +1,4 @@
-import type { GridlyPlanSummary, PlanSummary, PlanWithSessions } from "../types/planCompat";
+import type { AveumPlanSummary, PlanSummary, PlanWithSessions } from "../types/planCompat";
 import type { CanonicalValueLedger, OptimizerInput, OptimizerOutput } from "../domain";
 import { mapValueLedgerToCustomerValueSummary } from "../domain";
 import { optimize } from "./engine";
@@ -9,7 +9,7 @@ export interface LegacyPlanUiResult {
   optimizerOutput: OptimizerOutput;
   plan: PlanWithSessions;
   summary: PlanSummary;
-  gridlySummary: GridlyPlanSummary;
+  gridlySummary: AveumPlanSummary;
 }
 
 function buildEmptyLegacyPlan(): PlanWithSessions {
@@ -44,10 +44,10 @@ function buildDefaultLegacySummary(
   };
 }
 
-function buildDefaultGridlySummary(
+function buildDefaultAveumSummary(
   optimizerOutput: OptimizerOutput,
   valueLedger: CanonicalValueLedger,
-): GridlyPlanSummary {
+): AveumPlanSummary {
   const customerValue = mapValueLedgerToCustomerValueSummary(valueLedger);
 
   return {
@@ -79,7 +79,7 @@ export function optimizeForLegacyPlanUi(input: OptimizerInput): LegacyPlanUiResu
   void buildCanonicalPlan(input);
   const plan = buildEmptyLegacyPlan();
   const summary = buildDefaultLegacySummary(optimizerOutput, valueLedger);
-  const gridlySummary = buildDefaultGridlySummary(optimizerOutput, valueLedger);
+  const gridlySummary = buildDefaultAveumSummary(optimizerOutput, valueLedger);
 
   return {
     optimizerOutput,

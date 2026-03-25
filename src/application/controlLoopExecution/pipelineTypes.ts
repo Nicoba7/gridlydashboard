@@ -14,7 +14,7 @@ import type { CycleHeartbeatEntry, ExecutionJournalEntry } from "../../journal/e
 /**
  * Canonical runtime contracts shared across the staged decision pipeline.
  *
- * These types describe Gridly's internal decision model. Transitional
+ * These types describe Aveum's internal decision model. Transitional
  * request-centric compatibility payloads belong at stage edges, not here.
  */
 export type OpportunityReasonCode =

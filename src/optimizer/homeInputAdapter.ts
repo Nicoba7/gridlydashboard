@@ -196,7 +196,7 @@ function mapRatesToTariff(
 
   return {
     tariffId: "home-rates-bridge",
-    provider: "Gridly",
+    provider: "Aveum",
     name: "Home Rates Bridge",
     currency: "GBP",
     updatedAt: now.toISOString(),

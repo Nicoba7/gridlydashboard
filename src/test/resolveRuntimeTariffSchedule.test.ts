@@ -5,7 +5,7 @@ import { resolveRuntimeTariffSchedule } from "../application/runtime/resolveRunt
 function buildFallbackTariffSchedule(): TariffSchedule {
   return {
     tariffId: "fallback-tariff",
-    provider: "Gridly",
+    provider: "Aveum",
     name: "Fallback",
     currency: "GBP",
     updatedAt: "2026-03-16T10:00:00.000Z",

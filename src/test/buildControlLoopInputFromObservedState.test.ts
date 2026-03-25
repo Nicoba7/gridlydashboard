@@ -10,7 +10,7 @@ function buildDevices(): DeviceState[] {
     {
       deviceId: "battery",
       kind: "battery",
-      brand: "GridlySim",
+      brand: "AveumSim",
       name: "Home Battery",
       connectionStatus: "online",
       lastUpdatedAt: "2026-03-16T10:00:00.000Z",

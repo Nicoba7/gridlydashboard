@@ -1,5 +1,5 @@
 import { PricingState } from "../../hooks/useAgileRates";
-import { PlanSlot, PlanSummary, ConnectedDeviceId, OptimisationMode, GridlyPlanSummary, GridlyPlanSession } from "../../types/planCompat";
+import { PlanSlot, PlanSummary, ConnectedDeviceId, OptimisationMode, AveumPlanSummary, AveumPlanSession } from "../../types/planCompat";
 import { buildDecisionExplanation } from "../../lib/decisionExplanation";
 
 export type PlanHeroViewModel = {
@@ -76,7 +76,7 @@ function formatRange(start: string, end: string) {
   return `${start}–${end}`;
 }
 
-function coreActionFromSessionType(sessionType: GridlyPlanSession["type"]) {
+function coreActionFromSessionType(sessionType: AveumPlanSession["type"]) {
   if (sessionType === "ev_charge") return "charge_ev" as const;
   if (sessionType === "battery_charge") return "charge_battery" as const;
   if (sessionType === "solar_use") return "solar_use" as const;
@@ -84,7 +84,7 @@ function coreActionFromSessionType(sessionType: GridlyPlanSession["type"]) {
   return "hold" as const;
 }
 
-export function getSessionActionLabel(sessionType: GridlyPlanSession["type"]) {
+export function getSessionActionLabel(sessionType: AveumPlanSession["type"]) {
   if (sessionType === "battery_charge") return "Top up battery while rates are low";
   if (sessionType === "ev_charge") return "Charge your EV before morning";
   if (sessionType === "export") return "Sell surplus when prices peak";
@@ -98,8 +98,8 @@ function buildCalmHeroTitle({
   solarForecastKwh,
   summary,
 }: {
-  intent: GridlyPlanSummary["intent"];
-  sessions: GridlyPlanSession[];
+  intent: AveumPlanSummary["intent"];
+  sessions: AveumPlanSession[];
   solarForecastKwh: number;
   summary: PlanSummary;
 }): string {
@@ -128,7 +128,7 @@ function buildConfidenceViewModel({
   loading: boolean;
   summary: PlanSummary;
   solarForecastKwh: number;
-  sessions: GridlyPlanSession[];
+  sessions: AveumPlanSession[];
 }) {
   if (loading) {
     return {
@@ -185,7 +185,7 @@ function buildWhatChangedMessage({
   solarForecastKwh,
   summary,
 }: {
-  sessions: GridlyPlanSession[];
+  sessions: AveumPlanSession[];
   solarForecastKwh: number;
   summary: PlanSummary;
 }) {
@@ -198,7 +198,7 @@ function buildWhatChangedMessage({
   }
 
   if (hasExport && spread >= 10) {
-    return "Stronger peak prices mean Gridly plans to export later.";
+    return "Stronger peak prices mean Aveum plans to export later.";
   }
 
   if (hasBatteryCharge && summary.cheapestPrice <= 10) {
@@ -212,19 +212,19 @@ function conciseSubline(text: string): string {
   const normalized = text.toLowerCase();
 
   if (normalized.includes("overnight prices are low enough")) {
-    return "Overnight prices are low, so Gridly charges before tomorrow’s expensive periods.";
+    return "Overnight prices are low, so Aveum charges before tomorrow’s expensive periods.";
   }
 
   if (normalized.includes("spacing charging through sensible overnight windows")) {
-    return "Gridly spaces overnight charging so your EV is ready without unnecessary battery wear.";
+    return "Aveum spaces overnight charging so your EV is ready without unnecessary battery wear.";
   }
 
   if (normalized.includes("strong solar is expected tomorrow")) {
-    return "Strong solar is expected tomorrow, so Gridly avoids unnecessary overnight charging.";
+    return "Strong solar is expected tomorrow, so Aveum avoids unnecessary overnight charging.";
   }
 
   if (normalized.includes("capturing cheaper energy now")) {
-    return "Gridly captures cheaper energy now for tomorrow’s highest-value periods.";
+    return "Aveum captures cheaper energy now for tomorrow’s highest-value periods.";
   }
 
   if (normalized.includes("battery reserve is already healthy")) {
@@ -232,7 +232,7 @@ function conciseSubline(text: string): string {
   }
 
   if (normalized.includes("cleaner daytime and solar energy")) {
-    return "Gridly is waiting for cleaner daytime and solar energy instead of charging overnight.";
+    return "Aveum is waiting for cleaner daytime and solar energy instead of charging overnight.";
   }
 
   if (normalized.includes("do not create a strong enough saving opportunity")) {
@@ -276,7 +276,7 @@ function compactReason(
   if (coreAction === "solar_use") return "Let solar cover home demand around midday.";
 
   if (mode === "BALANCED" && context.hasBattery && !context.hasBatteryCharge) {
-    return "Battery reserve is healthy, so Gridly avoids unnecessary overnight charging.";
+    return "Battery reserve is healthy, so Aveum avoids unnecessary overnight charging.";
   }
 
   if (mode === "GREENEST" && context.hasBattery && !context.hasBatteryCharge) {
@@ -286,17 +286,17 @@ function compactReason(
   }
 
   if (mode === "CHEAPEST" && context.hasBattery && !context.hasBatteryCharge) {
-    return "No strong overnight arbitrage window, so Gridly keeps your battery steady.";
+    return "No strong overnight arbitrage window, so Aveum keeps your battery steady.";
   }
 
   return "No action needed in this window.";
 }
 
-function formatSessionOutcome(session: GridlyPlanSession) {
+function formatSessionOutcome(session: AveumPlanSession) {
   return getSessionActionLabel(session.type);
 }
 
-export function selectDisplaySessions(sessions: GridlyPlanSession[]) {
+export function selectDisplaySessions(sessions: AveumPlanSession[]) {
   const actionable = sessions.filter((session) => session.type !== "hold");
   return actionable.length ? actionable : sessions;
 }
@@ -317,7 +317,7 @@ function formatPriceRange(min: number, max: number) {
   return min === max ? `${min.toFixed(1)}p` : `${min.toFixed(1)}–${max.toFixed(1)}p`;
 }
 
-function mergeSessionGroup(sessions: GridlyPlanSession[]): GridlyPlanSession {
+function mergeSessionGroup(sessions: AveumPlanSession[]): AveumPlanSession {
   const sorted = [...sessions].sort((a, b) => toSlotIndex(a.start) - toSlotIndex(b.start));
   const first = sorted[0];
   const minStart = Math.min(...sorted.map((session) => toSlotIndex(session.start)));
@@ -340,19 +340,19 @@ function mergeSessionGroup(sessions: GridlyPlanSession[]): GridlyPlanSession {
   };
 }
 
-function isOvernightSession(session: GridlyPlanSession) {
+function isOvernightSession(session: AveumPlanSession) {
   const start = toSlotIndex(session.start);
   const end = toSlotIndex(session.end);
   return start >= 44 || start < 16 || end <= 16;
 }
 
-export function groupDisplaySessions(sessions: GridlyPlanSession[]) {
+export function groupDisplaySessions(sessions: AveumPlanSession[]) {
   if (sessions.length <= 1) return sessions;
 
   const sorted = [...sessions].sort((a, b) => toSlotIndex(a.start) - toSlotIndex(b.start));
-  const overnightChargeTypes = new Set<GridlyPlanSession["type"]>(["battery_charge", "ev_charge"]);
+  const overnightChargeTypes = new Set<AveumPlanSession["type"]>(["battery_charge", "ev_charge"]);
 
-  const overnightGrouped: GridlyPlanSession[] = [];
+  const overnightGrouped: AveumPlanSession[] = [];
   for (const type of overnightChargeTypes) {
     const matching = sorted.filter((session) => session.type === type && isOvernightSession(session));
     if (matching.length) overnightGrouped.push(mergeSessionGroup(matching));
@@ -368,7 +368,7 @@ export function groupDisplaySessions(sessions: GridlyPlanSession[]) {
     (session) => !usedOvernight.has(`${session.type}|${session.start}|${session.end}`)
   );
 
-  const mergedRemainder: GridlyPlanSession[] = [];
+  const mergedRemainder: AveumPlanSession[] = [];
   for (const session of remainder) {
     const last = mergedRemainder[mergedRemainder.length - 1];
     if (!last) {
@@ -399,8 +399,8 @@ export function buildPlanHeroViewModel({
   solarForecastKwh,
 }: {
   summary: PlanSummary;
-  gridlySummary: GridlyPlanSummary;
-  sessions: GridlyPlanSession[];
+  gridlySummary: AveumPlanSummary;
+  sessions: AveumPlanSession[];
   pricingStatus: PricingState;
   loading: boolean;
   solarForecastKwh: number;
@@ -410,9 +410,9 @@ export function buildPlanHeroViewModel({
   const trustNote = loading
     ? "Refreshing the latest prices and forecasts."
     : pricingStatus === "live"
-    ? "Using live prices. Gridly will adapt automatically if conditions shift."
+    ? "Using live prices. Aveum will adapt automatically if conditions shift."
     : pricingStatus === "fallback_live"
-    ? "Live prices are briefly delayed. Gridly is running a safe plan and will refresh automatically."
+    ? "Live prices are briefly delayed. Aveum is running a safe plan and will refresh automatically."
     : "Preview mode: showing a representative strategy.";
 
   const statusNote = loading
@@ -458,7 +458,7 @@ export function buildPlanHeroViewModel({
 }
 
 export function buildPlanTimelineViewModel(
-  sessions: GridlyPlanSession[],
+  sessions: AveumPlanSession[],
   connectedDeviceIds: ConnectedDeviceId[],
   mode: OptimisationMode,
   options?: {
@@ -554,8 +554,8 @@ export function buildPlanSummaryViewModel({
   sessions,
 }: {
   summary: PlanSummary;
-  gridlySummary: GridlyPlanSummary;
-  sessions: GridlyPlanSession[];
+  gridlySummary: AveumPlanSummary;
+  sessions: AveumPlanSession[];
 }): PlanSummaryViewModel {
   const highlights = sessions.map(formatSessionOutcome);
 
@@ -573,14 +573,14 @@ export function buildAIInsightViewModel({
   pricingStatus,
   mode,
 }: {
-  gridlySummary: GridlyPlanSummary;
+  gridlySummary: AveumPlanSummary;
   summary: PlanSummary;
   pricingStatus: PricingState;
   mode: OptimisationMode;
 }): AIInsightViewModel | null {
   if (pricingStatus === "fallback_live") {
     return {
-      insight: "Live prices are briefly delayed. Gridly is running a safe plan and will refresh automatically.",
+      insight: "Live prices are briefly delayed. Aveum is running a safe plan and will refresh automatically.",
     };
   }
 
@@ -617,7 +617,7 @@ export function buildAIInsightViewModel({
 
   if (gridlySummary.intent === "export_at_peak") {
     return {
-      insight: "Gridly keeps flexibility for tomorrow’s highest-value export window rather than acting early.",
+      insight: "Aveum keeps flexibility for tomorrow’s highest-value export window rather than acting early.",
     };
   }
 

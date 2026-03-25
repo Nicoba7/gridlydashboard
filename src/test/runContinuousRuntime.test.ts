@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type {
   ContinuousRuntimeIntegration,
-  GridlyContinuousRuntimeSource,
+  AveumContinuousRuntimeSource,
 } from "../application/runtime/runContinuousRuntime";
 import { runContinuousRuntime } from "../application/runtime/runContinuousRuntime";
 import { runControlLoopExecutionService } from "../application/controlLoopExecution/service";
@@ -78,7 +78,7 @@ function buildGenericIntegration(options: {
   journalStore: FileExecutionJournalStore;
   executor: DeviceCommandExecutor;
   omitRuntimeContext?: boolean;
-}): ContinuousRuntimeIntegration<GridlyContinuousRuntimeSource> {
+}): ContinuousRuntimeIntegration<AveumContinuousRuntimeSource> {
   const plan = buildPlan("battery-1");
 
   return {

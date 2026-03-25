@@ -1,5 +1,5 @@
 /**
- * Deterministic solar production model for the Gridly virtual home.
+ * Deterministic solar production model for the Aveum virtual home.
  *
  * The shape is intentionally simple: daylight hours create a smooth bell-like
  * curve with seasonal amplitude and a fixed weather factor.

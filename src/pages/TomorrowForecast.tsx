@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Sun, Cloud, CloudRain, TrendingUp, Zap, Battery } from "lucide-react";
-import type { GridlyPlanSession } from "../types/planCompat";
+import type { AveumPlanSession } from "../types/planCompat";
 import { getSessionActionLabel } from "../components/plan/planViewModels";
 
 // ── SANDBOX FORECAST DATA ─────────────────────────────────────────────────
@@ -53,11 +53,11 @@ function getBarColor(p: number) {
 }
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────
-function sessionLabel(session: GridlyPlanSession) {
+function sessionLabel(session: AveumPlanSession) {
   return getSessionActionLabel(session.type);
 }
 
-function sessionIcon(session: GridlyPlanSession) {
+function sessionIcon(session: AveumPlanSession) {
   if (session.type === "battery_charge") return <Battery size={15} color="#22C55E" />;
   if (session.type === "ev_charge") return <Zap size={15} color="#38BDF8" />;
   if (session.type === "export") return <TrendingUp size={15} color="#F59E0B" />;
@@ -65,7 +65,7 @@ function sessionIcon(session: GridlyPlanSession) {
   return <Cloud size={15} color="#9CA3AF" />;
 }
 
-function sessionStyles(session: GridlyPlanSession) {
+function sessionStyles(session: AveumPlanSession) {
   if (session.type === "battery_charge") return { bg: "#16A34A10", border: "#16A34A20" };
   if (session.type === "ev_charge") return { bg: "#38BDF810", border: "#38BDF820" };
   if (session.type === "export") return { bg: "#F59E0B10", border: "#F59E0B20" };
@@ -73,7 +73,7 @@ function sessionStyles(session: GridlyPlanSession) {
   return { bg: "#6B728010", border: "#6B728020" };
 }
 
-export default function TomorrowForecast({ sessions }: { sessions: GridlyPlanSession[] }) {
+export default function TomorrowForecast({ sessions }: { sessions: AveumPlanSession[] }) {
   const [revealed, setRevealed] = useState(false);
   const maxPence = Math.max(...TOMORROW_RATES);
   const f = FORECAST;
@@ -103,7 +103,7 @@ export default function TomorrowForecast({ sessions }: { sessions: GridlyPlanSes
 
       {/* Big number */}
       <div style={{ background: "linear-gradient(135deg, #0D1F14, #071510)", border: "1px solid #16A34A25", borderRadius: 14, padding: "20px", marginBottom: 14, textAlign: "center" }}>
-        <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 6 }}>Gridly expects to make you</div>
+        <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 6 }}>Aveum expects to make you</div>
         <div style={{
           fontSize: 48, fontWeight: 900, color: "#22C55E", letterSpacing: -2, lineHeight: 1,
           opacity: revealed ? 1 : 0, transform: revealed ? "translateY(0)" : "translateY(8px)",
@@ -125,7 +125,7 @@ export default function TomorrowForecast({ sessions }: { sessions: GridlyPlanSes
         </div>
       </div>
 
-      {/* What Gridly will do */}
+      {/* What Aveum will do */}
       <div style={{ marginBottom: 14 }}>
         <div style={{ fontSize: 10, color: "#4B5563", fontWeight: 700, letterSpacing: 1, marginBottom: 10 }}>WHAT GRIDLY WILL DO</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

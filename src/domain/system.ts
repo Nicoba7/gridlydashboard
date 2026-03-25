@@ -7,7 +7,7 @@ import type { DeviceState } from "./device";
  * state directly from UI fixtures or API payloads.
  */
 export interface SystemState {
-  /** Internal Gridly site or household identifier. */
+  /** Internal Aveum site or household identifier. */
   siteId: string;
   /** Timestamp when the aggregate system snapshot was assembled. */
   capturedAt: string;

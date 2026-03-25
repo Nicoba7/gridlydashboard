@@ -1,5 +1,5 @@
 /**
- * Shared type contract for the Gridly intelligence engine.
+ * Shared type contract for the Aveum intelligence engine.
  *
  * This file defines stable input/output shapes so UI features can call
  * engine logic safely without depending on implementation details.
@@ -8,7 +8,7 @@
 /**
  * Input payload passed from UI state into engine functions.
  */
-export type GridlyInput = {
+export type AveumInput = {
   /** Current battery state-of-charge in percent (0-100). */
   batterySocPercent: number;
   /** Forecasted site load by time slot (kWh). */
@@ -45,13 +45,13 @@ export type Recommendation = {
 };
 
 /**
- * Headline counterfactual used to compare outcomes with and without Gridly.
+ * Headline counterfactual used to compare outcomes with and without Aveum.
  */
 export type CounterfactualSummary = {
-  /** Expected cost/impact when Gridly actions are applied. */
-  withGridly: number;
-  /** Baseline cost/impact without Gridly optimization. */
-  withoutGridly: number;
+  /** Expected cost/impact when Aveum actions are applied. */
+  withAveum: number;
+  /** Baseline cost/impact without Aveum optimization. */
+  withoutAveum: number;
   /** Difference between baseline and optimized outcome. */
   savings: number;
 };
@@ -83,7 +83,7 @@ export type Diagnostic = {
 /**
  * Standard output returned by engine functions.
  */
-export type GridlyOutput = {
+export type AveumOutput = {
   /** Optional hero headline shown at the top of plan and home experiences. */
   headline?: string;
   /** Optional supporting message shown under the headline. */

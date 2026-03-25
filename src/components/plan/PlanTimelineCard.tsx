@@ -173,7 +173,7 @@ export default function PlanTimelineCard({ viewModel, nowDate }: { viewModel: Pl
 
       <DecisionExplanationSheet
         open={Boolean(selectedRow)}
-        title="Why Gridly chose this"
+        title="Why Aveum chose this"
         subtitle={selectedRow ? `${selectedRow.action} · ${selectedRow.value}` : undefined}
         reasoning={selectedRow?.reasoning ?? []}
         onClose={() => setSelectedKey(null)}

@@ -1,4 +1,4 @@
-import type { GridlyPlanSession } from "../../types/planCompat";
+import type { AveumPlanSession } from "../../types/planCompat";
 import { ENERGY_COLORS } from "../energyColors";
 import { FlowConnector, FlowNode } from "../flowPrimitives";
 
@@ -9,7 +9,7 @@ type Props = {
   hasGrid: boolean;
   solarForecastKwh: number;
   projectedBatteryPct: number;
-  sessions: GridlyPlanSession[];
+  sessions: AveumPlanSession[];
 };
 
 export default function PlanEnergyFlowCard({

@@ -87,7 +87,7 @@ export default function Landing() {
           color: "#22C55E",
           textTransform: "uppercase",
         }}>
-          Gridly
+          Aveum
         </div>
       </div>
 

@@ -193,7 +193,7 @@ function buildTariffScheduleFromRates(
 
   return {
     tariffId: "legacy-rates-bridge",
-    provider: "Gridly",
+    provider: "Aveum",
     name: "Legacy Rates Bridge",
     currency: "GBP",
     updatedAt: now.toISOString(),

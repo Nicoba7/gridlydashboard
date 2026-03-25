@@ -1,7 +1,7 @@
 import { expect } from "vitest";
 import type {
   ContinuousRuntimeIntegration,
-  GridlyContinuousRuntimeSource,
+  AveumContinuousRuntimeSource,
 } from "../../application/runtime/runContinuousRuntime";
 import { runContinuousRuntime } from "../../application/runtime/runContinuousRuntime";
 import { ManualIntervalScheduler } from "../../application/continuousLoop/intervalScheduler";
@@ -24,7 +24,7 @@ const PROTECTIVE_REASON_CODES = new Set([
 ]);
 
 export interface IntegrationConformanceScenario<
-  TSource extends GridlyContinuousRuntimeSource,
+  TSource extends AveumContinuousRuntimeSource,
   TDependencies = unknown,
 > {
   suiteName: string;
@@ -67,7 +67,7 @@ function entriesForCycle(
 }
 
 export function assertEconomicInputFreshness(
-  scenario: IntegrationConformanceScenario<GridlyContinuousRuntimeSource, unknown>,
+  scenario: IntegrationConformanceScenario<AveumContinuousRuntimeSource, unknown>,
   report: IntegrationConformanceReport,
 ): void {
   const staleHeartbeat = report.heartbeats[scenario.staleObservedStateCycleIndex];
@@ -84,7 +84,7 @@ export function assertEconomicInputFreshness(
 }
 
 export function assertEconomicDecisionIntegrity(
-  scenario: IntegrationConformanceScenario<GridlyContinuousRuntimeSource, unknown>,
+  scenario: IntegrationConformanceScenario<AveumContinuousRuntimeSource, unknown>,
   report: IntegrationConformanceReport,
 ): void {
   const economicUncertaintyHeartbeat = report.heartbeats[scenario.economicUncertaintyCycleIndex];
@@ -121,7 +121,7 @@ export function assertEconomicDecisionIntegrity(
  * Integration-agnostic: applies identically to Tesla, simulated, and storage-stub.
  */
 export function assertEconomicPreferenceSelection(
-  scenario: IntegrationConformanceScenario<GridlyContinuousRuntimeSource, unknown>,
+  scenario: IntegrationConformanceScenario<AveumContinuousRuntimeSource, unknown>,
   report: IntegrationConformanceReport,
 ): void {
   const preferenceHeartbeat = report.heartbeats[scenario.economicPreferenceCycleIndex];
@@ -175,7 +175,7 @@ export function assertEconomicDecisionTraceability(
  * successfully dispatched in its place).
  */
 export function assertInferiorActionRejection(
-  scenario: IntegrationConformanceScenario<GridlyContinuousRuntimeSource, unknown>,
+  scenario: IntegrationConformanceScenario<AveumContinuousRuntimeSource, unknown>,
   report: IntegrationConformanceReport,
 ): void {
   const preferenceHeartbeat = report.heartbeats[scenario.economicPreferenceCycleIndex];
@@ -201,7 +201,7 @@ export function assertInferiorActionRejection(
 }
 
 export function assertCrossAssetEconomicSelection(
-  scenario: IntegrationConformanceScenario<GridlyContinuousRuntimeSource, unknown>,
+  scenario: IntegrationConformanceScenario<AveumContinuousRuntimeSource, unknown>,
   report: IntegrationConformanceReport,
 ): void {
   const heartbeat = report.heartbeats[scenario.crossAssetEconomicCycleIndex];
@@ -223,7 +223,7 @@ export function assertCrossAssetEconomicSelection(
 }
 
 export function assertCrossAssetOpportunityTraceability(
-  scenario: IntegrationConformanceScenario<GridlyContinuousRuntimeSource, unknown>,
+  scenario: IntegrationConformanceScenario<AveumContinuousRuntimeSource, unknown>,
   report: IntegrationConformanceReport,
 ): void {
   const heartbeat = report.heartbeats[scenario.crossAssetEconomicCycleIndex];
@@ -249,7 +249,7 @@ export function assertCrossAssetOpportunityTraceability(
 }
 
 export function assertInferiorOpportunityRejection(
-  scenario: IntegrationConformanceScenario<GridlyContinuousRuntimeSource, unknown>,
+  scenario: IntegrationConformanceScenario<AveumContinuousRuntimeSource, unknown>,
   report: IntegrationConformanceReport,
 ): void {
   const heartbeat = report.heartbeats[scenario.crossAssetEconomicCycleIndex];
@@ -298,7 +298,7 @@ export function assertFinancialDecisionTraceability(report: IntegrationConforman
 }
 
 export async function runIntegrationConformanceScenario<
-  TSource extends GridlyContinuousRuntimeSource,
+  TSource extends AveumContinuousRuntimeSource,
   TDependencies = unknown,
 >(
   scenario: IntegrationConformanceScenario<TSource, TDependencies>,
@@ -339,7 +339,7 @@ export async function runIntegrationConformanceScenario<
 }
 
 export function assertIntegrationConformance(
-  scenario: IntegrationConformanceScenario<GridlyContinuousRuntimeSource, unknown>,
+  scenario: IntegrationConformanceScenario<AveumContinuousRuntimeSource, unknown>,
   report: IntegrationConformanceReport,
 ): void {
   expect(report.state.cycleCount).toBe(scenario.cycleTimesIso.length);

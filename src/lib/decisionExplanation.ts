@@ -1,4 +1,4 @@
-import type { GridlyPlanSession } from "../types/planCompat";
+import type { AveumPlanSession } from "../types/planCompat";
 
 type DecisionForecast = {
   solarForecastKwh?: number;
@@ -29,7 +29,7 @@ function compact(items: Array<string | undefined>) {
 }
 
 export function buildDecisionExplanation(
-  session: GridlyPlanSession,
+  session: AveumPlanSession,
   forecast: DecisionForecast,
   tariff: DecisionTariff
 ) {
@@ -51,7 +51,7 @@ export function buildDecisionExplanation(
 
   if (session.type === "battery_charge") {
     return compact([
-      cheapest ? `Gridly charges storage when prices are near ${cheapest}.` : "Gridly charges storage in the cheapest overnight periods.",
+      cheapest ? `Aveum charges storage when prices are near ${cheapest}.` : "Aveum charges storage in the cheapest overnight periods.",
       peak ? `Stored energy is kept for later windows near ${peak}.` : "Stored energy is held for higher-value windows later.",
       solarStrong ? `Solar forecast is strong, so charging stays measured.` : "Battery strategy keeps evening reserve protected.",
       gridCondition,
@@ -65,7 +65,7 @@ export function buildDecisionExplanation(
         : peak
         ? `Export prices are peaking near ${peak}.`
         : "Export value is currently stronger than import value.",
-      "Gridly stored energy earlier to use this export window.",
+      "Aveum stored energy earlier to use this export window.",
       solarStrong ? "Solar generation helps maintain home demand while exporting." : "Home reserve remains protected while exporting.",
       gridCondition,
     ]);
@@ -82,7 +82,7 @@ export function buildDecisionExplanation(
 
   return compact([
     sessionWindow ? `No urgent action is required in ${sessionWindow}.` : "No urgent action is required in this window.",
-    cheapest ? `Gridly waits for stronger value than ${cheapest} before moving energy.` : "Gridly waits for a stronger tariff signal before moving energy.",
+    cheapest ? `Aveum waits for stronger value than ${cheapest} before moving energy.` : "Aveum waits for a stronger tariff signal before moving energy.",
     "Battery strategy remains available for later EV and evening needs.",
     gridCondition,
   ]);

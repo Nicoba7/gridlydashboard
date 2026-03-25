@@ -31,12 +31,12 @@ import {
 } from "../../application/runtime/teslaContinuousCycleExecutor";
 import type {
   ContinuousRuntimeIntegration,
-  GridlyContinuousRuntimeSource,
+  AveumContinuousRuntimeSource,
   PreparedContinuousRuntimeIntegration,
 } from "../../application/runtime/runContinuousRuntime";
 
 export interface TeslaRuntimeIntegrationSource
-  extends GridlyContinuousRuntimeSource,
+  extends AveumContinuousRuntimeSource,
     TeslaSingleRunRuntimeConfigSource {
   GRIDLY_TIMEZONE?: string;
   GRIDLY_PLANNING_STYLE?: string;

@@ -1,7 +1,7 @@
 /**
  * Desired-vs-believed command reconciliation result.
  *
- * This is canonical Gridly logic and does not use vendor telemetry payloads.
+ * This is canonical Aveum logic and does not use vendor telemetry payloads.
  */
 export type CanonicalCommandReconciliationAction = "execute" | "skip";
 

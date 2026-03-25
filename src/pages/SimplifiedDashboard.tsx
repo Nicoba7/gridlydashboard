@@ -144,7 +144,7 @@ export function ManualOverride({ currentPence, connectedDevices }: { currentPenc
           <div>
             <div style={{ fontSize: 10, color: "#70829B", fontWeight: 700, letterSpacing: 0.8, marginBottom: 4 }}>MANUAL CONTROL</div>
             <div style={{ fontSize: 14, fontWeight: 700, color: "#F9FAFB" }}>
-              {override === "charge_now" ? "⚡ Battery charging" : override === "charge_ev" ? "🚗 EV charging" : "⏸ Gridly paused"}
+              {override === "charge_now" ? "⚡ Battery charging" : override === "charge_ev" ? "🚗 EV charging" : "⏸ Aveum paused"}
             </div>
             <div style={{ fontSize: 11, color: "#6B7280", marginTop: 2 }}>Running at {currentPence}p.</div>
           </div>
@@ -177,7 +177,7 @@ export function ManualOverride({ currentPence, connectedDevices }: { currentPenc
               </button>
             )}
             <button onClick={() => handleOverride("pause")} style={{ background: "#111827", border: "1px solid #1F2937", borderRadius: 10, padding: "11px 13px", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#B7BDC7", marginBottom: 2 }}>⏸ Pause Gridly</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#B7BDC7", marginBottom: 2 }}>⏸ Pause Aveum</div>
               <div style={{ fontSize: 11, color: "#6B7280" }}>Stop schedules.</div>
             </button>
           </div>
@@ -234,7 +234,7 @@ export function EVReadyBy() {
             <input type="range" min={20} max={100} step={10} value={targetPct} onChange={e => setTargetPct(Number(e.target.value))} style={{ width: "100%", accentColor: "#38BDF8", cursor: "pointer" }} />
           </div>
           <div style={{ background: "#111827", borderRadius: 10, padding: "10px 14px", marginBottom: 10 }}>
-            <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 4 }}>Gridly plan</div>
+            <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 4 }}>Aveum plan</div>
             <div style={{ fontSize: 13, color: "#F9FAFB", lineHeight: 1.5 }}>
               Finish by <span style={{ color: "#38BDF8", fontWeight: 700 }}>{plan.finishTime}</span>. {plan.slots.length} low-cost slots.
             </div>
@@ -327,10 +327,10 @@ export function SolarForecastCard() {
     ? "Moderate solar tomorrow."
     : "Low solar tomorrow.";
   const nextMove = f.kwh > 15
-    ? "Gridly will charge less overnight."
+    ? "Aveum will charge less overnight."
     : f.kwh > 8
-    ? "Gridly will split overnight charging."
-    : "Gridly will charge overnight.";
+    ? "Aveum will split overnight charging."
+    : "Aveum will charge overnight.";
 
   return (
     <div style={{ margin: "0 20px 16px", background: "#0E1622", border: "1px solid #1E2A3D", borderRadius: 16, padding: "13px 16px" }}>
@@ -363,8 +363,8 @@ export function CrossDeviceCoordination({ connectedDevices, currentPence }: { co
   const decision = batteryPct >= 90
     ? { icon: "🚗", title: "Charging your EV instead", reason: `Battery is already at ${batteryPct}% — spare capacity going to your car tonight.`, color: "#38BDF8", bg: "#0D1521", border: "#38BDF820" }
     : batteryPct < 30
-    ? { icon: "⚡", title: "Battery first, then EV", reason: `Battery at ${batteryPct}% — Gridly fills it first, then switches to the car.`, color: "#22C55E", bg: "#0D1F14", border: "#16A34A20" }
-    : { icon: "⚡🚗", title: "Splitting charge tonight", reason: `Battery at ${batteryPct}% — Gridly splits the cheap slots between battery and EV for maximum value.`, color: "#F59E0B", bg: "#1A1200", border: "#F59E0B20" };
+    ? { icon: "⚡", title: "Battery first, then EV", reason: `Battery at ${batteryPct}% — Aveum fills it first, then switches to the car.`, color: "#22C55E", bg: "#0D1F14", border: "#16A34A20" }
+    : { icon: "⚡🚗", title: "Splitting charge tonight", reason: `Battery at ${batteryPct}% — Aveum splits the cheap slots between battery and EV for maximum value.`, color: "#F59E0B", bg: "#1A1200", border: "#F59E0B20" };
   return (
     <div style={{ margin: "0 20px 16px", background: decision.bg, border: `1px solid ${decision.border}`, borderRadius: 16, padding: "14px 16px" }}>
       <div style={{ fontSize: 11, color: decision.color, fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>JOINT OPTIMISATION</div>
@@ -397,7 +397,7 @@ export function BatteryHealthScore() {
       {expanded && (
         <div style={{ padding: "0 16px 16px", borderTop: "1px solid #1F2937" }}>
           <div style={{ paddingTop: 14, marginBottom: 10, fontSize: 12, color: "#AEB7C4", lineHeight: 1.45 }}>
-            Battery health is strong. Gridly is protecting long-term performance.
+            Battery health is strong. Aveum is protecting long-term performance.
           </div>
           <button
             onClick={() => setShowDetails((value) => !value)}
@@ -438,7 +438,7 @@ export function BatteryHealthScore() {
             </div>
           </div>
           <div style={{ marginTop: 10, background: "#0D1F14", borderRadius: 8, padding: "8px 12px", fontSize: 11, color: "#6B7280", lineHeight: 1.45 }}>
-            Gridly protects battery life by avoiding unnecessary cycling.
+            Aveum protects battery life by avoiding unnecessary cycling.
           </div>
             </div>
           )}
@@ -487,7 +487,7 @@ export function TariffSwitcher({ connectedDevices }: { connectedDevices: DeviceC
         <div style={{ padding: "0 16px 16px", borderTop: "1px solid #1F2937" }}>
           <div style={{ paddingTop: 14, fontSize: 12, color: "#AEB7C4", lineHeight: 1.45 }}>
             {uplift > 0
-              ? `${best.name} looks better for your home. Gridly estimates +£${uplift} each year.`
+              ? `${best.name} looks better for your home. Aveum estimates +£${uplift} each year.`
               : `${current.name} already fits your home well.`}
           </div>
           <div style={{ marginTop: 12, background: "#111827", borderRadius: 10, padding: "10px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -519,7 +519,7 @@ export function CarbonTracker({ connectedDevices }: { connectedDevices: DeviceCo
   const pct = Math.round(((current - min) / (max - min)) * 100);
   const isGreen = current < 160;
   const color = current < 160 ? "#22C55E" : current < 190 ? "#F59E0B" : "#EF4444";
-  const label = current < 160 ? "Very clean — great time to charge" : current < 190 ? "Moderate — Gridly will wait if possible" : "Dirty grid — Gridly avoiding where it can";
+  const label = current < 160 ? "Very clean — great time to charge" : current < 190 ? "Moderate — Aveum will wait if possible" : "Dirty grid — Aveum avoiding where it can";
   const todaySessions = SANDBOX.chargeSessions.filter(s => s.date === "Today");
   const totalCarbonKg = todaySessions.reduce((s, c) => s + c.carbonG, 0) / 1000;
 
@@ -527,7 +527,7 @@ export function CarbonTracker({ connectedDevices }: { connectedDevices: DeviceCo
     <div style={{ margin: "0 20px 16px", background: "#0D1117", border: `1px solid ${color}20`, borderRadius: 16, padding: "14px 16px" }}>
       <div style={{ fontSize: 11, color, fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>GRID CARBON</div>
       <div style={{ fontSize: 11, color: "#9CA3AF", lineHeight: 1.5, marginBottom: 10 }}>
-        Live grid cleanliness, so you can decide whether to charge now or let Gridly wait for a cleaner window.
+        Live grid cleanliness, so you can decide whether to charge now or let Aveum wait for a cleaner window.
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
         <div>
@@ -584,7 +584,7 @@ export function DeviceHealthAlerts({ connectedDevices }: { connectedDevices: Dev
                 {fix}
               </div>
               <div style={{ fontSize: 10, color: "#738197" }}>
-                Gridly is paused for this device until it reconnects.
+                Aveum is paused for this device until it reconnects.
               </div>
             </div>
           </div>
@@ -597,7 +597,7 @@ export function DeviceHealthAlerts({ connectedDevices }: { connectedDevices: Dev
 // ── NIGHTLY REPORT CARD ───────────────────────────────────────────────────
 export function NightlyReportCard() {
   const summaryLine = "Battery and EV charged in low-cost windows.";
-  const nextLine = "Gridly prepared your home for today.";
+  const nextLine = "Aveum prepared your home for today.";
 
   return (
     <div style={{ margin: "0 20px 16px", background: "#0E1724", border: "1px solid #1D2B40", borderRadius: 16, padding: "12px 16px" }}>
@@ -716,7 +716,7 @@ export function ChargerLock({ connectedDevices }: { connectedDevices: DeviceConf
             Charger access
           </div>
           <div style={{ fontSize: 11, color: locked ? "#C48E94" : "#6B7280" }}>
-            {locked ? "Gridly only" : "Ready to charge"}
+            {locked ? "Aveum only" : "Ready to charge"}
           </div>
         </div>
 

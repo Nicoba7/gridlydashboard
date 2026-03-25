@@ -1,6 +1,6 @@
-# Gridly Engineering Constitution
+# Aveum Engineering Constitution
 
-This document defines non-negotiable architecture rules for Gridly system work.
+This document defines non-negotiable architecture rules for Aveum system work.
 
 ## Design Principles
 

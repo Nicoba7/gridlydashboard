@@ -126,11 +126,11 @@ async function handleEasee(req: VercelRequest, res: VercelResponse) {
 async function handlePodPoint(req: VercelRequest, res: VercelResponse) {
   if (!process.env.PODPOINT_EMAIL || !process.env.PODPOINT_PASSWORD || !process.env.PODPOINT_UNIT_ID) return res.status(200).json({ error: "PODPOINT credentials not set", mock: true, isCharging: false });
   const BASE = "https://api.pod-point.com/v4";
-  const authData = await (await fetch(`${BASE}/users/sign_in`, { method: "POST", headers: { "Content-Type": "application/json", "User-Agent": "Gridly/1.0" }, body: JSON.stringify({ email: process.env.PODPOINT_EMAIL, password: process.env.PODPOINT_PASSWORD }) })).json();
+  const authData = await (await fetch(`${BASE}/users/sign_in`, { method: "POST", headers: { "Content-Type": "application/json", "User-Agent": "Aveum/1.0" }, body: JSON.stringify({ email: process.env.PODPOINT_EMAIL, password: process.env.PODPOINT_PASSWORD }) })).json();
   const token = authData.access_token;
   const userId = authData.id;
   const unitId = process.env.PODPOINT_UNIT_ID;
-  const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "User-Agent": "Gridly/1.0" };
+  const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "User-Agent": "Aveum/1.0" };
   if (req.method === "POST") {
     const { action } = req.body || {};
     if (action === "start") await fetch(`${BASE}/users/${userId}/units/${unitId}/schedules`, { method: "DELETE", headers });

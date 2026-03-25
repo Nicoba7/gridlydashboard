@@ -2,7 +2,7 @@ import type { CanonicalDeviceCommand } from "../application/controlLoopExecution
 import type { TimeWindow } from "../domain";
 
 /**
- * Canonical last-known device belief held by Gridly core.
+ * Canonical last-known device belief held by Aveum core.
  *
  * This represents system belief after execution outcomes, not guaranteed
  * physical truth and not a vendor payload.

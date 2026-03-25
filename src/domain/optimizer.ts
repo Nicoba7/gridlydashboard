@@ -27,7 +27,7 @@ export interface Constraints {
   mode: OptimizationMode;
   /** Canonical planning style selected for this runtime cycle. */
   planningStyle?: PlanningStyle;
-  /** Minimum battery reserve Gridly should preserve. */
+  /** Minimum battery reserve Aveum should preserve. */
   batteryReservePercent?: number;
   /** Upper limit on full battery cycles planned within a day. */
   maxBatteryCyclesPerDay?: number;
@@ -35,7 +35,7 @@ export interface Constraints {
   allowGridBatteryCharging: boolean;
   /** Whether battery export to the grid is permitted. */
   allowBatteryExport: boolean;
-  /** Whether Gridly may schedule EV charging automatically. */
+  /** Whether Aveum may schedule EV charging automatically. */
   allowAutomaticEvCharging: boolean;
   /** Latest acceptable EV ready time for deadline-aware charging. */
   evReadyBy?: string;
@@ -62,7 +62,7 @@ export interface Constraints {
 }
 
 /**
- * Canonical input for the single Gridly optimizer engine.
+ * Canonical input for the single Aveum optimizer engine.
  */
 export interface OptimizerInput {
   /** Current site snapshot assembled from adapters. */
@@ -87,7 +87,7 @@ export interface OptimizerDecision {
   endAt: string;
   /** Explicit execution window for schedulers and adapter dispatchers. */
   executionWindow: TimeWindow;
-  /** High-level action Gridly wants the site to take. */
+  /** High-level action Aveum wants the site to take. */
   action: OptimizerAction;
   /** Devices expected to execute or participate in the action. */
   targetDeviceIds: string[];
@@ -231,7 +231,7 @@ export interface OptimizerFeasibility {
 }
 
 /**
- * Canonical output from the single Gridly optimizer engine.
+ * Canonical output from the single Aveum optimizer engine.
  */
 export interface OptimizerOutput {
   /** Contract schema version for persisted-plan compatibility checks. */

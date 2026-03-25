@@ -179,11 +179,11 @@ function DeliveredHeroCard({
 
         <div className="flex items-end gap-4 border-t border-[#162235] pt-3 tabular-nums">
           <div className="min-w-[98px]">
-            <div className="mb-[3px] text-[10px] font-semibold tracking-[0.45px] text-[#566279]">Saved by Gridly</div>
+            <div className="mb-[3px] text-[10px] font-semibold tracking-[0.45px] text-[#566279]">Saved by Aveum</div>
             <div className="text-[18px] font-extrabold tracking-[-0.4px] text-[#4ADE80]">£{weekSavings.toFixed(2)}</div>
           </div>
           <div className="min-w-[98px]">
-            <div className="mb-[3px] text-[10px] font-semibold tracking-[0.45px] text-[#566279]">Earned by Gridly</div>
+            <div className="mb-[3px] text-[10px] font-semibold tracking-[0.45px] text-[#566279]">Earned by Aveum</div>
             <div className="text-[18px] font-extrabold tracking-[-0.4px] text-[#F5B942]">£{weekEarnings.toFixed(2)}</div>
           </div>
           <div className="ml-auto min-w-[80px] text-right">
@@ -473,7 +473,7 @@ function WeekAtGlanceSection({
             ))}
           </div>
         ) : (
-          <div style={{ fontSize: 10.5, color: "#70839B" }}>Gridly balanced demand and tariff windows automatically that day.</div>
+          <div style={{ fontSize: 10.5, color: "#70839B" }}>Aveum balanced demand and tariff windows automatically that day.</div>
         )}
       </div>
     </div>
@@ -595,7 +595,7 @@ export default function HistoryTab({
   const todayTopContributor = todayDeviceCandidates.reduce((best, c) => (c.value > best.value ? c : best), { key: "solar" as const, value: -1 });
   const todayTopDevice = todayTopContributor.value > 0 ? todayTopContributor.key : null;
 
-  const topContributorName = viewModel.topDevice ? deviceDisplayName(viewModel.topDevice.id) : "Gridly";
+  const topContributorName = viewModel.topDevice ? deviceDisplayName(viewModel.topDevice.id) : "Aveum";
   const weeklyNarrative =
     viewModel.weekEarnings > 0
       ? `${topContributorName} was the primary value source. Export and overnight charging added further gains.`
@@ -635,7 +635,7 @@ export default function HistoryTab({
     }
 
     try {
-      await navigator.share({ title: "Gridly weekly delivery", text: viewModel.weeklySummaryText });
+      await navigator.share({ title: "Aveum weekly delivery", text: viewModel.weeklySummaryText });
       setShareStatus("Shared successfully");
     } catch {
       setShareStatus("Share cancelled");

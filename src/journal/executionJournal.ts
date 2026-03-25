@@ -75,7 +75,7 @@ export interface CycleEconomicSnapshot {
   /**
    * True when execution posture was non-normal AND at least one command was
    * suppressed by the runtime guardrail, indicating value-seeking dispatch was
-   * intentionally deferred by Gridly's conservatism logic.
+   * intentionally deferred by Aveum's conservatism logic.
    */
   valueSeekingExecutionDeferred: boolean;
   /**

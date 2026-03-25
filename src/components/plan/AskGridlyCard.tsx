@@ -1,4 +1,4 @@
-export default function AskGridlyCard() {
+export default function AskAveumCard() {
   return (
     <div style={{ margin: "0 20px 16px", background: "#0D1117", border: "1px solid #1F2937", borderRadius: 16, padding: "16px 20px" }}>
       <div style={{ fontSize: 10, color: "#93C5FD", fontWeight: 700, letterSpacing: 1.5, marginBottom: 10 }}>ASK GRIDLY</div>
@@ -23,7 +23,7 @@ export default function AskGridlyCard() {
               textAlign: "left",
             }}
             onClick={() => {
-              window.alert("Gridly: " + q);
+              window.alert("Aveum: " + q);
             }}
           >
             {q}

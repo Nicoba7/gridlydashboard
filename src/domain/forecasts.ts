@@ -26,7 +26,7 @@ export interface Forecasts {
   horizonStartAt: string;
   /** Horizon end for the optimization window. */
   horizonEndAt: string;
-  /** Slot resolution in minutes. Gridly currently operates in 30-minute slots. */
+  /** Slot resolution in minutes. Aveum currently operates in 30-minute slots. */
   slotDurationMinutes: number;
   /** Forecasted household demand for each slot, in kWh. */
   householdLoadKwh: ForecastPoint[];

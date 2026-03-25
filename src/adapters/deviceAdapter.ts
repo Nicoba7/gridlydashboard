@@ -28,7 +28,7 @@ export interface DeviceAdapterExecutionResult {
 }
 
 /**
- * Adapter boundary for translating canonical Gridly commands into future vendor APIs.
+ * Adapter boundary for translating canonical Aveum commands into future vendor APIs.
  */
 export interface DeviceAdapter {
   canHandle(targetDeviceId: string): boolean;
@@ -41,7 +41,7 @@ export interface DeviceAdapter {
 /**
  * Optional extension for adapters that expose read-only telemetry/state/capabilities.
  *
- * This extends (not replaces) the canonical execution adapter contract so Gridly
+ * This extends (not replaces) the canonical execution adapter contract so Aveum
  * keeps a single adapter architecture.
  */
 export interface ObservableDeviceAdapter<TTelemetry, TState, TCapabilities> extends DeviceAdapter {

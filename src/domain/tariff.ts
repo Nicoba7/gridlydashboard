@@ -19,7 +19,7 @@ export interface TariffRate {
 }
 
 export interface TariffSchedule {
-  /** Internal Gridly tariff identifier. */
+  /** Internal Aveum tariff identifier. */
   tariffId: string;
   /** Supplier or tariff provider, for example Octopus. */
   provider: string;

@@ -1,7 +1,7 @@
 import type { CanonicalDeviceCommandKind } from "../application/controlLoopExecution/canonicalCommand";
 
 /**
- * Canonical planning/execution capability contract used by Gridly core.
+ * Canonical planning/execution capability contract used by Aveum core.
  *
  * This is a vendor-neutral model and not a provider-specific payload.
  */

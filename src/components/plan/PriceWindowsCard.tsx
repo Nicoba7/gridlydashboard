@@ -1,6 +1,6 @@
 import { PriceWindowsViewModel, getBarColor } from "./planViewModels";
 import { useState } from "react";
-import type { GridlyPlanSession } from "../../types/planCompat";
+import type { AveumPlanSession } from "../../types/planCompat";
 
 function toSlotIndex(time: string) {
   const [hours, minutes] = time.split(":").map(Number);
@@ -16,7 +16,7 @@ export default function PriceWindowsCard({
   viewModel: PriceWindowsViewModel;
   rates: { time: string; pence: number }[];
   currentSlot: number;
-  sessions: GridlyPlanSession[];
+  sessions: AveumPlanSession[];
 }) {
   const [hovered, setHovered] = useState<number | null>(null);
   const maxPence = Math.max(...rates.map((r) => r.pence));

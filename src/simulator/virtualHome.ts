@@ -423,7 +423,7 @@ function buildNightlyReport(now: Date, config: VirtualHomeConfig): string {
   const bestExportSlot = [...dayMetrics.timeline].sort((a, b) => b.exportRatePencePerKwh - a.exportRatePencePerKwh)[0];
   const solarForecastKwh = sumBy(dayMetrics.timeline, (slot) => slot.solarGenerationKwh);
 
-  return `Gridly is charging into ${cheapestSlot.importRatePencePerKwh.toFixed(1)}p low-price windows, protecting battery reserve, and targeting export near ${bestExportSlot.exportRatePencePerKwh.toFixed(1)}p. Solar forecast is ${solarForecastKwh.toFixed(1)}kWh today.`;
+  return `Aveum is charging into ${cheapestSlot.importRatePencePerKwh.toFixed(1)}p low-price windows, protecting battery reserve, and targeting export near ${bestExportSlot.exportRatePencePerKwh.toFixed(1)}p. Solar forecast is ${solarForecastKwh.toFixed(1)}kWh today.`;
 }
 
 export function simulateTariffSchedule(

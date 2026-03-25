@@ -55,7 +55,7 @@ export interface CanonicalRefreshStateCommand extends CanonicalDeviceCommandBase
 }
 
 /**
- * Stable Gridly-native command language for future device adapters.
+ * Stable Aveum-native command language for future device adapters.
  * See docs/architecture/execution-architecture.md for boundary rules.
  */
 export type CanonicalDeviceCommand =

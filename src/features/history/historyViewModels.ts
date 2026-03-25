@@ -611,7 +611,7 @@ function buildSmartMoments({
       moment: {
         id: "streak-all-positive",
           title: "Positive all week",
-          detail: `Gridly delivered positive value on all ${history.length} days.`,
+          detail: `Aveum delivered positive value on all ${history.length} days.`,
         type: "streak",
       },
       score: 90,
@@ -727,7 +727,7 @@ export function buildHistoryViewModel({
   const weeklyTotalValue = round(currentWeek.reduce((sum, day) => sum + getDayTotal(day), 0));
   const weekSavings = round(currentWeek.reduce((sum, day) => sum + getDaySavings(day), 0));
   const weekEarnings = round(currentWeek.reduce((sum, day) => sum + getDayEarnings(day), 0));
-  const weeklyRecap = `Gridly delivered £${weekTotal.toFixed(2)} in value this week.`;
+  const weeklyRecap = `Aveum delivered £${weekTotal.toFixed(2)} in value this week.`;
   const freeDays = currentWeek.filter((day) => getDayTotal(day) > 0).length;
 
   const activeColor =
@@ -810,8 +810,8 @@ export function buildHistoryViewModel({
 
   const weeklySummaryText =
     weekTotal > 0
-      ? `This week Gridly delivered £${weekTotal.toFixed(2)} total value (£${weekSavings.toFixed(2)} savings + £${weekEarnings.toFixed(2)} earnings).`
-      : "This week has no recorded Gridly value yet.";
+      ? `This week Aveum delivered £${weekTotal.toFixed(2)} total value (£${weekSavings.toFixed(2)} savings + £${weekEarnings.toFixed(2)} earnings).`
+      : "This week has no recorded Aveum value yet.";
 
   const chargeSessionTotals = {
     totalKwh: round(chargeSessions.reduce((sum, session) => sum + session.kwh, 0), 1),

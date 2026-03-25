@@ -125,7 +125,7 @@ function buildInput(params: {
     },
     tariffSchedule: {
       tariffId: "tariff-1",
-      provider: "Gridly",
+      provider: "Aveum",
       name: "Synthetic",
       currency: "GBP",
       updatedAt: startAt,

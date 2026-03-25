@@ -453,7 +453,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           </div>
           <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6, textAlign: "center" }}>Connected & optimising</h2>
           <p style={{ fontSize: 13, color: "#9CA3AF", textAlign: "center", marginBottom: 24, maxWidth: 260, lineHeight: 1.6 }}>
-            Gridly is reading prices every 30 minutes and automatically optimising your system.
+            Aveum is reading prices every 30 minutes and automatically optimising your system.
           </p>
           <div style={{ background: "#0D1F14", border: "1px solid #16A34A40", borderRadius: 12, padding: 16, width: "100%", textAlign: "center", marginBottom: 16 }}>
             <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 4 }}>Annual value unlocked</div>

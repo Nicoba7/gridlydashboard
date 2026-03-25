@@ -55,7 +55,7 @@ function buildConstraintDigest(input: OptimizerInput): OptimizerDiagnostic[] {
 function chooseHeadline(result: CanonicalPlanBuildResult): string {
   const firstActiveDecision = result.decisions.find((decision) => decision.action !== "hold");
   if (!firstActiveDecision) {
-    return "Gridly is holding steady while it waits for a stronger opportunity.";
+    return "Aveum is holding steady while it waits for a stronger opportunity.";
   }
 
   return result.headline;

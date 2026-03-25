@@ -6,7 +6,7 @@ import { LiveAdapterDeviceCommandExecutor } from "../../application/controlLoopE
 import { runControlLoopExecutionService } from "../../application/controlLoopExecution/service";
 import type {
   ContinuousRuntimeIntegration,
-  GridlyContinuousRuntimeSource,
+  AveumContinuousRuntimeSource,
   PreparedContinuousRuntimeIntegration,
 } from "../../application/runtime/runContinuousRuntime";
 import type {
@@ -20,7 +20,7 @@ import {
   type SimulatedEnergyAdapterScenario,
 } from "./simulatedEnergyAdapter";
 
-export interface SimulatedEnergyRuntimeSource extends GridlyContinuousRuntimeSource {}
+export interface SimulatedEnergyRuntimeSource extends AveumContinuousRuntimeSource {}
 
 export interface SimulatedCycleScenario {
   cycleLabel: "A" | "B" | "C" | "D" | "E" | "F" | "G";

@@ -20,7 +20,7 @@ export type PlanSlot = {
 };
 
 export type PlanWithSessions = PlanSlot[] & {
-  sessions: GridlyPlanSession[];
+  sessions: AveumPlanSession[];
 };
 
 export type PlanSummary = {
@@ -41,17 +41,17 @@ export type PlanSummary = {
   rationale: string[];
 };
 
-export type GridlyPlanIntent =
+export type AveumPlanIntent =
   | "capture_cheap_energy"
   | "protect_deadline"
   | "use_solar"
   | "avoid_peak_import"
   | "export_at_peak";
 
-export type GridlyPlanSummary = {
+export type AveumPlanSummary = {
   planHeadline: string;
   keyOutcomes: string[];
-  intent: GridlyPlanIntent;
+  intent: AveumPlanIntent;
   customerReason: string;
   estimatedValue?: number;
   showSolarInsight: boolean;
@@ -59,10 +59,10 @@ export type GridlyPlanSummary = {
   showInsightCard: boolean;
 };
 
-export type GridlyPlanSessionType = "battery_charge" | "ev_charge" | "export" | "solar_use" | "hold";
+export type AveumPlanSessionType = "battery_charge" | "ev_charge" | "export" | "solar_use" | "hold";
 
-export type GridlyPlanSession = {
-  type: GridlyPlanSessionType;
+export type AveumPlanSession = {
+  type: AveumPlanSessionType;
   start: string;
   end: string;
   reasoning?: string[];
@@ -74,7 +74,7 @@ export type GridlyPlanSession = {
   slotCount: number;
 };
 
-export type GridlyPlanOptions = {
+export type AveumPlanOptions = {
   exportPriceRatio?: number;
   batteryCapacityKwh?: number;
   batteryStartPct?: number;
@@ -305,7 +305,7 @@ function toHHMM(slotIndex: number) {
   return `${hours}:${minutes}`;
 }
 
-function decisionToSessionType(decision: SlotDecision): GridlyPlanSessionType {
+function decisionToSessionType(decision: SlotDecision): AveumPlanSessionType {
   if (decision.decisionType === "battery_charge") return "battery_charge";
   if (decision.decisionType === "ev_charge") return "ev_charge";
   if (decision.decisionType === "export") return "export";
@@ -324,12 +324,12 @@ function decisionPrice(decision: SlotDecision): number {
   return decision.action === "EXPORT" ? decision.exportPence : decision.importPence;
 }
 
-function buildPlanSessions(decisions: SlotDecision[], mode: OptimisationMode): GridlyPlanSession[] {
+function buildPlanSessions(decisions: SlotDecision[], mode: OptimisationMode): AveumPlanSession[] {
   if (!decisions.length) return [];
 
   const grouped: Array<{
     decisions: SlotDecision[];
-    type: GridlyPlanSessionType;
+    type: AveumPlanSessionType;
     endSlotIndex: number;
   }> = [];
 
@@ -379,7 +379,7 @@ function buildPlanSessions(decisions: SlotDecision[], mode: OptimisationMode): G
   });
 }
 
-function buildGridlyCustomerSummary({
+function buildAveumCustomerSummary({
   mode,
   hasBattery,
   hasEV,
@@ -399,13 +399,13 @@ function buildGridlyCustomerSummary({
   selectedExports: Array<NormalizedSlot & { planScore: number }>;
   selectedBatteryCharges: Array<NormalizedSlot & { planScore: number }>;
   summary: PlanSummary;
-}): GridlyPlanSummary {
+}): AveumPlanSummary {
   const estimatedValue = Number((summary.projectedEarnings + summary.projectedSavings).toFixed(2));
   const noBatteryCharge = hasBattery && summary.batteryCyclesPlanned === 0;
   const hasExport = selectedExports.length > 0;
   const hasSolarPlan = hasSolar && !!selectedSolar;
 
-  let intent: GridlyPlanIntent = "avoid_peak_import";
+  let intent: AveumPlanIntent = "avoid_peak_import";
   if (mode === "GREENEST" && strongSolarExpected && noBatteryCharge) {
     intent = "use_solar";
   } else if (hasEV && summary.evSlotsPlanned > 0) {
@@ -417,7 +417,7 @@ function buildGridlyCustomerSummary({
   }
 
   let planHeadline = "Tomorrow is already sorted.";
-  let customerReason = "Gridly has found a sensible plan for tonight and tomorrow.";
+  let customerReason = "Aveum has found a sensible plan for tonight and tomorrow.";
 
   if (intent === "capture_cheap_energy") {
     planHeadline =
@@ -427,26 +427,26 @@ function buildGridlyCustomerSummary({
     customerReason =
       mode === "CHEAPEST"
         ? "Overnight prices are low enough to make charging worthwhile before the more expensive periods tomorrow."
-        : "Gridly is topping up a little overnight because it improves flexibility without overworking the battery.";
+        : "Aveum is topping up a little overnight because it improves flexibility without overworking the battery.";
   } else if (intent === "protect_deadline") {
     planHeadline = "Your EV will be ready by morning.";
     customerReason =
       mode === "GREENEST"
-        ? "Gridly is meeting your EV deadline while leaning toward cleaner charging periods."
+        ? "Aveum is meeting your EV deadline while leaning toward cleaner charging periods."
         : mode === "BALANCED"
-        ? "Gridly is spacing charging through sensible overnight windows so your EV is ready without unnecessary battery wear elsewhere."
-        : "Gridly is using the lowest practical overnight slots to hit your EV ready time.";
+        ? "Aveum is spacing charging through sensible overnight windows so your EV is ready without unnecessary battery wear elsewhere."
+        : "Aveum is using the lowest practical overnight slots to hit your EV ready time.";
   } else if (intent === "use_solar") {
     planHeadline = "Wait overnight, then let tomorrow's solar do the work.";
-    customerReason = "Strong solar is expected tomorrow, so Gridly is avoiding unnecessary overnight charging from the grid.";
+    customerReason = "Strong solar is expected tomorrow, so Aveum is avoiding unnecessary overnight charging from the grid.";
   } else if (intent === "export_at_peak") {
     planHeadline = "Save energy for the most valuable part of tomorrow.";
     customerReason =
       mode === "CHEAPEST"
-        ? "Gridly is capturing cheaper energy now so more can be used or sold back during the highest-value period."
+        ? "Aveum is capturing cheaper energy now so more can be used or sold back during the highest-value period."
         : mode === "BALANCED"
-        ? "Gridly will only export where the value is strong enough to justify it."
-        : "Gridly is exporting only when clean surplus or high-value conditions line up.";
+        ? "Aveum will only export where the value is strong enough to justify it."
+        : "Aveum is exporting only when clean surplus or high-value conditions line up.";
   } else if (noBatteryCharge) {
     planHeadline = "Hold steady overnight.";
     customerReason =
@@ -454,8 +454,8 @@ function buildGridlyCustomerSummary({
         ? "Battery reserve is already healthy, so extra charging would add little value tonight."
         : mode === "GREENEST"
         ? strongSolarExpected
-          ? "Gridly is waiting for cleaner daytime and solar energy instead of charging overnight."
-          : "Gridly is holding for cleaner periods before charging from the grid."
+          ? "Aveum is waiting for cleaner daytime and solar energy instead of charging overnight."
+          : "Aveum is holding for cleaner periods before charging from the grid."
         : "Overnight prices do not create a strong enough saving opportunity to justify charging.";
   }
 
@@ -499,13 +499,13 @@ export function calculateProjectedBatteryArbitrage(
   return Number((((peakPrice - cheapestPrice) / 100) * batterySizeKwh).toFixed(2));
 }
 
-export function buildGridlyPlan(
+export function buildAveumPlan(
   rates: AgileRate[],
   connectedDeviceIds: ConnectedDeviceId[],
   solarForecastKwh = 18.4,
   mode: OptimisationMode = "CHEAPEST",
-  options: GridlyPlanOptions = {}
-): { plan: PlanWithSessions; summary: PlanSummary; gridlySummary: GridlyPlanSummary } {
+  options: AveumPlanOptions = {}
+): { plan: PlanWithSessions; summary: PlanSummary; gridlySummary: AveumPlanSummary } {
   if (!rates.length) {
     const emptyPlan = [] as PlanWithSessions;
     emptyPlan.sessions = [];
@@ -532,7 +532,7 @@ export function buildGridlyPlan(
         planHeadline: "Waiting for pricing data.",
         keyOutcomes: [],
         intent: "avoid_peak_import",
-        customerReason: "Gridly needs pricing data before it can build a confident plan.",
+        customerReason: "Aveum needs pricing data before it can build a confident plan.",
         estimatedValue: 0,
         showSolarInsight: false,
         showPriceChart: false,
@@ -883,7 +883,7 @@ export function buildGridlyPlan(
       rationale,
     };
 
-  const gridlySummary = buildGridlyCustomerSummary({
+  const gridlySummary = buildAveumCustomerSummary({
     mode,
     hasBattery,
     hasEV,

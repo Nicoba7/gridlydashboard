@@ -127,7 +127,7 @@ describe("runTeslaSingleRunLocal", () => {
           },
           tariffSchedule: {
             tariffId: "tariff-1",
-            provider: "Gridly",
+            provider: "Aveum",
             name: "Synthetic",
             currency: "GBP",
             updatedAt: "2026-03-16T10:00:00.000Z",
@@ -227,7 +227,7 @@ describe("runTeslaSingleRunLocal", () => {
           },
           tariffSchedule: {
             tariffId: "tariff-1",
-            provider: "Gridly",
+            provider: "Aveum",
             name: "Synthetic",
             currency: "GBP",
             updatedAt: "2026-03-16T10:00:00.000Z",
@@ -315,7 +315,7 @@ describe("runTeslaSingleRunLocal", () => {
           },
           tariffSchedule: {
             tariffId: "tariff-1",
-            provider: "Gridly",
+            provider: "Aveum",
             name: "Synthetic",
             currency: "GBP",
             updatedAt: "2026-03-16T10:00:00.000Z",
@@ -479,7 +479,7 @@ describe("runTeslaSingleRunLocal", () => {
           },
           tariffSchedule: {
             tariffId: "tariff-1",
-            provider: "Gridly",
+            provider: "Aveum",
             name: "Synthetic",
             currency: "GBP",
             updatedAt: "2026-03-16T10:00:00.000Z",
@@ -574,7 +574,7 @@ describe("runTeslaSingleRunLocal", () => {
           },
           tariffSchedule: {
             tariffId: "tariff-1",
-            provider: "Gridly",
+            provider: "Aveum",
             name: "Synthetic",
             currency: "GBP",
             updatedAt: "2026-03-16T10:00:00.000Z",

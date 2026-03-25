@@ -2,7 +2,7 @@
 
 ## Overview
 
-Gridly's runtime is a staged financial decision pipeline for home energy execution.
+Aveum's runtime is a staged financial decision pipeline for home energy execution.
 The canonical unit of decision is an opportunity, not an adapter request and not a raw command reconstruction.
 
 The runtime takes optimizer output, evaluates which opportunities are safe and valid to act on, resolves economic contention, builds an execution plan, executes that plan through adapters, and projects the result into the current journal schema.

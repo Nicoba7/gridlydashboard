@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildGridlyPlan } from "../lib/gridlyPlan";
+import { buildAveumPlan } from "../lib/gridlyPlan";
 
 function makeRates() {
   return Array.from({ length: 48 }, (_, slotIndex) => {
@@ -24,10 +24,10 @@ function slotIndexFromTime(time: string) {
   return (hh * 2) + (mm >= 30 ? 1 : 0);
 }
 
-describe("buildGridlyPlan sessions", () => {
+describe("buildAveumPlan sessions", () => {
   it("produces a complete canonical session list", () => {
     const rates = makeRates();
-    const { plan } = buildGridlyPlan(
+    const { plan } = buildAveumPlan(
       rates,
       ["solar", "battery", "ev", "grid"],
       20,
@@ -51,7 +51,7 @@ describe("buildGridlyPlan sessions", () => {
 
   it("merges adjacent slots of the same session type", () => {
     const rates = makeRates();
-    const { plan } = buildGridlyPlan(
+    const { plan } = buildAveumPlan(
       rates,
       ["solar", "battery", "ev", "grid"],
       20,

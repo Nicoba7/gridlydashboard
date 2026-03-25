@@ -1,7 +1,7 @@
 /**
  * Telemetry coherence runtime harness.
  *
- * Verifies that Gridly's canonical runtime remains authoritative when device
+ * Verifies that Aveum's canonical runtime remains authoritative when device
  * telemetry is stale, delayed, or contradictory.
  *
  * Guardrails enforced by these tests:

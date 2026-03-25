@@ -65,7 +65,7 @@ describe("FileExecutionJournalStore", () => {
         timestamp: "2026-03-16T10:05:00.000Z",
         decision: "charge_battery",
         explanation: {
-          summary: "Gridly selected this opportunity for execution based on current economic and runtime signals.",
+          summary: "Aveum selected this opportunity for execution based on current economic and runtime signals.",
           drivers: [
             "Decision reason: Test",
             "Planning confidence: medium.",

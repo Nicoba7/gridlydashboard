@@ -97,7 +97,7 @@ function toCurrentPostureReason(
   if (heartbeat?.stalePlanWarning) return heartbeat.stalePlanWarning;
 
   if (heartbeat?.nextCycleExecutionCaution === "caution") {
-    return "Gridly is being more careful right now.";
+    return "Aveum is being more careful right now.";
   }
 
   if (latestExecutionOutcome?.outcomeStatus) {
@@ -111,7 +111,7 @@ function toCurrentPostureSummary(
   status: CurrentPosture["status"],
   confidence: CurrentPosture["confidence"],
 ): string {
-  if (status === "acting") return `Gridly is acting now (${confidence} confidence).`;
+  if (status === "acting") return `Aveum is acting now (${confidence} confidence).`;
   if (status === "waiting") return `Waiting for a better window (${confidence} confidence).`;
   if (status === "holding") return `Holding steady for now (${confidence} confidence).`;
   return `Keeping a close watch (${confidence} confidence).`;
@@ -186,7 +186,7 @@ export function buildMonitoringState(input: BuildMonitoringStateInput): Monitori
   const uncertainCount = input.accountabilityCounters?.evidenceUncertain ?? 0;
 
   if (latestCaution === "caution") {
-    return { summary: "Watching closely while Gridly is being more careful right now." };
+    return { summary: "Watching closely while Aveum is being more careful right now." };
   }
 
   if (failedCount > 0) {

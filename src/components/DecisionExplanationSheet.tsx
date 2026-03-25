@@ -3,7 +3,7 @@ import { BrainCircuit } from "lucide-react";
 
 export default function DecisionExplanationSheet({
   open,
-  title = "Why Gridly chose this",
+  title = "Why Aveum chose this",
   subtitle,
   reasoning,
   onClose,

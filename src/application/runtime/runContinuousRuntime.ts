@@ -6,7 +6,7 @@ import type { ExecutionJournalStore } from "../../journal/executionJournalStore"
 import type { RuntimeExecutionMode } from "../controlLoopExecution/executionPolicyTypes";
 import { resolveJournalDirectoryPath } from "../../journal/journalDirectory";
 
-export interface GridlyContinuousRuntimeSource {
+export interface AveumContinuousRuntimeSource {
   GRIDLY_SITE_ID?: string;
   GRIDLY_CONTINUOUS_INTERVAL_MS?: string;
   GRIDLY_CONTINUOUS_MAX_CONSECUTIVE_FAILURES?: string;
@@ -22,7 +22,7 @@ export interface PreparedContinuousRuntimeIntegration {
   loopConfig?: Partial<ContinuousLoopConfig>;
 }
 
-export interface ContinuousRuntimeIntegration<TSource extends GridlyContinuousRuntimeSource, TDependencies = unknown> {
+export interface ContinuousRuntimeIntegration<TSource extends AveumContinuousRuntimeSource, TDependencies = unknown> {
   prepare(input: {
     source: TSource;
     journalStore: ExecutionJournalStore;
@@ -38,7 +38,7 @@ export interface ContinuousRuntimeLauncherDependencies {
 }
 
 export interface RunContinuousRuntimeParams<
-  TSource extends GridlyContinuousRuntimeSource,
+  TSource extends AveumContinuousRuntimeSource,
   TIntegrationDependencies = unknown,
 > {
   source: TSource;
@@ -67,7 +67,7 @@ function parsePositiveInteger(raw: string | undefined): number | undefined {
   return Math.floor(parsed);
 }
 
-function resolveLoopConfig(source: GridlyContinuousRuntimeSource): ContinuousLoopConfig {
+function resolveLoopConfig(source: AveumContinuousRuntimeSource): ContinuousLoopConfig {
   return {
     siteId: source.GRIDLY_SITE_ID?.trim() || "site-1",
     intervalMs: parsePositiveInteger(source.GRIDLY_CONTINUOUS_INTERVAL_MS),
@@ -79,19 +79,19 @@ function resolveLoopConfig(source: GridlyContinuousRuntimeSource): ContinuousLoo
 }
 
 export function resolveContinuousRuntimeJournalDirectory(
-  source: GridlyContinuousRuntimeSource = process.env,
+  source: AveumContinuousRuntimeSource = process.env,
   options?: { cwd?: string },
 ): string {
   return resolveJournalDirectoryPath(source, options);
 }
 
-function buildDefaultJournalStore(source: GridlyContinuousRuntimeSource): ExecutionJournalStore {
+function buildDefaultJournalStore(source: AveumContinuousRuntimeSource): ExecutionJournalStore {
   const directoryPath = resolveContinuousRuntimeJournalDirectory(source);
   return new FileExecutionJournalStore({ directoryPath });
 }
 
 export async function runContinuousRuntime<
-  TSource extends GridlyContinuousRuntimeSource,
+  TSource extends AveumContinuousRuntimeSource,
   TIntegrationDependencies = unknown,
 >(
   params: RunContinuousRuntimeParams<TSource, TIntegrationDependencies>,

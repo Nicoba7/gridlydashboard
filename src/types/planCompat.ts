@@ -17,10 +17,10 @@ export type PlanSlot = {
   decisionType?: "battery_charge" | "ev_charge" | "export" | "solar" | "hold";
 };
 
-export type GridlyPlanSessionType = "battery_charge" | "ev_charge" | "export" | "solar_use" | "hold";
+export type AveumPlanSessionType = "battery_charge" | "ev_charge" | "export" | "solar_use" | "hold";
 
-export type GridlyPlanSession = {
-  type: GridlyPlanSessionType;
+export type AveumPlanSession = {
+  type: AveumPlanSessionType;
   start: string;
   end: string;
   reasoning?: string[];
@@ -33,7 +33,7 @@ export type GridlyPlanSession = {
 };
 
 export type PlanWithSessions = PlanSlot[] & {
-  sessions: GridlyPlanSession[];
+  sessions: AveumPlanSession[];
 };
 
 export type PlanSummary = {
@@ -54,17 +54,17 @@ export type PlanSummary = {
   rationale: string[];
 };
 
-export type GridlyPlanIntent =
+export type AveumPlanIntent =
   | "capture_cheap_energy"
   | "protect_deadline"
   | "use_solar"
   | "avoid_peak_import"
   | "export_at_peak";
 
-export type GridlyPlanSummary = {
+export type AveumPlanSummary = {
   planHeadline: string;
   keyOutcomes: string[];
-  intent: GridlyPlanIntent;
+  intent: AveumPlanIntent;
   customerReason: string;
   estimatedValue?: number;
   showSolarInsight: boolean;

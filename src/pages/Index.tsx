@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Sun, Zap, Battery, PoundSterling, TrendingUp, RefreshCw, Wifi, WifiOff, ChevronRight, AlertCircle, Settings } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import GridlySetup from "./GridlySetup";
+import AveumSetup from "./AveumSetup";
 import {
   buildIndexOptimizerInput,
   buildIndexUiViewModel,
@@ -154,7 +154,7 @@ const Index = () => {
   }, []);
 
   if (!setupComplete) {
-    return <GridlySetup onComplete={() => setSetupComplete(true)} />;
+    return <AveumSetup onComplete={() => setSetupComplete(true)} />;
   }
 
   const currentRate = getCurrentRate(rates);
@@ -185,7 +185,7 @@ const Index = () => {
 
   const opt = {
     action: actionToLabel(indexView.currentRecommendation.action),
-    reason: indexView.subheadline || "Gridly is evaluating the best time to act.",
+    reason: indexView.subheadline || "Aveum is evaluating the best time to act.",
     color: actionToColor(indexView.currentRecommendation.action),
   };  
   const savedToday = calcTodaySavings(g);
@@ -374,7 +374,7 @@ const Index = () => {
 
       {/* Footer */}
       <div style={{ textAlign: "center", marginTop: 24, fontSize: 10, color: "#374151" }}>
-        Gridly · {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : "Connecting…"}
+        Aveum · {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : "Connecting…"}
       </div>
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>

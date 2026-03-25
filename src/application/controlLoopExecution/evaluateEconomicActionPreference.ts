@@ -106,7 +106,7 @@ export function isHoldLikeEconomicAction(action?: OptimizerAction): boolean {
  * (0 or 1 candidates, or no economic data available).
  *
  * When planning confidence is low, falls back to the safest (hold-like) option
- * instead of the highest-value one, preserving Gridly's conservative-first
+ * instead of the highest-value one, preserving Aveum's conservative-first
  * dispatch behaviour under uncertain financial inputs.
  *
  * This function is hardware-agnostic. It depends only on canonical economic

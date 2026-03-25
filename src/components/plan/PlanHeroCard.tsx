@@ -52,13 +52,13 @@ export default function PlanHeroCard({ viewModel }: { viewModel: PlanHeroViewMod
         <div className="flex items-end gap-4 border-t border-[#162235] pt-3 tabular-nums">
           {viewModel.projectedSavings > 0 && (
             <div className="min-w-[96px]">
-              <div className="mb-[3px] text-[10px] font-semibold tracking-[0.45px] text-[#566279]">Saved by Gridly tomorrow</div>
+              <div className="mb-[3px] text-[10px] font-semibold tracking-[0.45px] text-[#566279]">Saved by Aveum tomorrow</div>
               <div className="text-[18px] font-extrabold tracking-[-0.4px] text-[#22C55E]">+£{viewModel.projectedSavings.toFixed(2)}</div>
             </div>
           )}
           {viewModel.projectedEarnings > 0 && (
             <div className="min-w-[108px]">
-              <div className="mb-[3px] text-[10px] font-semibold tracking-[0.45px] text-[#566279]">Earned by Gridly tomorrow</div>
+              <div className="mb-[3px] text-[10px] font-semibold tracking-[0.45px] text-[#566279]">Earned by Aveum tomorrow</div>
               <div className="text-[18px] font-extrabold tracking-[-0.4px] text-[#F59E0B]">+£{viewModel.projectedEarnings.toFixed(2)}</div>
             </div>
           )}

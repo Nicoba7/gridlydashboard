@@ -86,7 +86,7 @@ function parsePeriodMinutes(period: string | undefined): number {
 
 /**
  * Maps a raw Solcast forecasts response to an array of ForecastPoint values
- * suitable for use as `solarGenerationKwh` in the Gridly optimizer.
+ * suitable for use as `solarGenerationKwh` in the Aveum optimizer.
  *
  * Solcast uses `period_end` as the slot boundary and `pv_estimate` in kW (average
  * power over the period). This function converts to kWh by multiplying by the
@@ -121,7 +121,7 @@ export function mapSolcastForecastToForecastPoints(
 
 /**
  * Fetches a solar generation forecast from the Solcast Rooftop Sites API and
- * returns it as an array of ForecastPoint values ready for the Gridly optimizer.
+ * returns it as an array of ForecastPoint values ready for the Aveum optimizer.
  *
  * @example
  * ```ts

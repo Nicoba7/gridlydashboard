@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildGridlyPlan } from "../lib/gridlyPlan";
+import { buildAveumPlan } from "../lib/gridlyPlan";
 import {
   buildPlanTimelineViewModel,
   groupDisplaySessions,
@@ -37,7 +37,7 @@ describe("Plan timeline emphasis", () => {
     const modes = ["CHEAPEST", "BALANCED", "GREENEST"] as const;
 
     for (const mode of modes) {
-      const { plan } = buildGridlyPlan(
+      const { plan } = buildAveumPlan(
         rates,
         ["solar", "battery", "ev", "grid"],
         20,

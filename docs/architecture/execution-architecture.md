@@ -1,8 +1,8 @@
 # Execution Architecture
 
-This document locks the Gridly execution architecture before live device adapter work begins.
+This document locks the Aveum execution architecture before live device adapter work begins.
 
-Related: [Gridly Engineering Constitution](./engineering-constitution.md)
+Related: [Aveum Engineering Constitution](./engineering-constitution.md)
 
 ## Current Flow
 
@@ -19,7 +19,7 @@ Optimizer
 
 ## Execution Decision Pipeline
 
-Gridly executes canonical commands through an ordered set of separate architectural layers. Each stage has a single responsibility and produces a normalized outcome for the next stage.
+Aveum executes canonical commands through an ordered set of separate architectural layers. Each stage has a single responsibility and produces a normalized outcome for the next stage.
 
 ```text
 Canonical command request
@@ -33,7 +33,7 @@ Canonical command request
 ```
 
 - Capability validation: confirms the command is valid for the target device capability contract.
-- Reconciliation: compares desired command intent with current Gridly shadow belief and can skip already-satisfied work.
+- Reconciliation: compares desired command intent with current Aveum shadow belief and can skip already-satisfied work.
 - Execution policy: applies platform-level allow/deny rules (timing, feasibility, conflict, staleness) before dispatch.
 - Dispatch: sends only allowed canonical commands through the executor/adapter boundary.
 - Acknowledgement projection: interprets raw execution outcomes into canonical acknowledgement semantics.
@@ -56,7 +56,7 @@ The execution pipeline must preserve these architectural invariants:
 
 ### Optimizer
 
-Produces `OptimizerOutput` as the canonical planning contract. It decides what Gridly wants the site to do and exposes execution-ready decisions, windows, feasibility, warnings, and recommended commands.
+Produces `OptimizerOutput` as the canonical planning contract. It decides what Aveum wants the site to do and exposes execution-ready decisions, windows, feasibility, warnings, and recommended commands.
 
 ### Control Loop (pure)
 
@@ -68,7 +68,7 @@ Wraps the pure control loop in a thin application-layer orchestration seam. It c
 
 ### Canonical Device Command
 
-`CanonicalDeviceCommand` is the stable Gridly-native command language. It is intentionally small, vendor-neutral, and only expresses command semantics Gridly already understands: target device, command intent, effective window, and any minimal numeric or mode values required for safe translation.
+`CanonicalDeviceCommand` is the stable Aveum-native command language. It is intentionally small, vendor-neutral, and only expresses command semantics Aveum already understands: target device, command intent, effective window, and any minimal numeric or mode values required for safe translation.
 
 ### Execution Identity / Idempotency
 
@@ -85,7 +85,7 @@ Adapters are not part of the planner or control-loop boundary. Their responsibil
 ## Architectural Guardrails
 
 - `src/controlLoop/controlLoop.ts` must remain pure and deterministic.
-- `src/application/controlLoopExecution/canonicalCommand.ts` must remain vendor-neutral and define the stable Gridly command language.
+- `src/application/controlLoopExecution/canonicalCommand.ts` must remain vendor-neutral and define the stable Aveum command language.
 - `src/application/controlLoopExecution/identity.ts` must derive idempotency from canonical command semantics, not incidental source shape.
 - `src/application/controlLoopExecution/service.ts` is the only orchestration layer between control decisions and command execution.
 - Future adapters must translate from `CanonicalDeviceCommand` only.
@@ -93,4 +93,4 @@ Adapters are not part of the planner or control-loop boundary. Their responsibil
 
 ## Why This Boundary Exists
 
-This split keeps planning logic, control-loop selection, execution orchestration, and adapter translation separate. That lets Gridly preserve deterministic planning behavior while preparing for safe live execution against real devices.
+This split keeps planning logic, control-loop selection, execution orchestration, and adapter translation separate. That lets Aveum preserve deterministic planning behavior while preparing for safe live execution against real devices.

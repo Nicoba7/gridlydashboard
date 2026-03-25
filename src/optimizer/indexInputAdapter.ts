@@ -152,7 +152,7 @@ function mapRatesToTariff(now: Date, rates: IndexRate[]): TariffSchedule {
 
   return {
     tariffId: "index-rates-bridge",
-    provider: "Gridly",
+    provider: "Aveum",
     name: "Index Rates Bridge",
     currency: "GBP",
     updatedAt: now.toISOString(),

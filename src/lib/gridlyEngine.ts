@@ -1,4 +1,4 @@
-export type GridlyMode =
+export type AveumMode =
   | "CHARGE"
   | "EXPORT"
   | "HOLD"
@@ -57,7 +57,7 @@ export function getEVPriority(input: EngineInput): EVPriority {
   return "WAIT";
 }
 
-export function getGridlyMode(input: EngineInput): GridlyMode {
+export function getAveumMode(input: EngineInput): AveumMode {
   const {
     price,
     solarW,
@@ -94,7 +94,7 @@ export function getGridlyMode(input: EngineInput): GridlyMode {
 }
 
 export function getModeDescription(
-  mode: GridlyMode,
+  mode: AveumMode,
   input: EngineInput
 ): string {
   const {

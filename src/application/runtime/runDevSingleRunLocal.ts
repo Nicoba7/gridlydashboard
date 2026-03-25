@@ -139,7 +139,7 @@ function buildPlanningStyleContrastSnapshot(now: Date, vehicleId: string): {
         {
           deviceId: "gridly-dev-battery-1",
           kind: "battery",
-          brand: "Gridly",
+          brand: "Aveum",
           name: "Home Battery",
           connectionStatus: "online",
           lastUpdatedAt: startAt,
@@ -181,7 +181,7 @@ function buildPlanningStyleContrastSnapshot(now: Date, vehicleId: string): {
     forecasts,
     tariffSchedule: {
       tariffId: "gridly-style-contrast",
-      provider: "Gridly",
+      provider: "Aveum",
       name: "Deterministic planning-style contrast",
       currency: "GBP",
       updatedAt: startAt,

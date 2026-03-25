@@ -396,26 +396,26 @@ function buildHeadline(decisions: OptimizerDecision[]): string {
   const firstAction = decisions.find((decision) => decision.action !== "hold");
 
   if (!firstAction) {
-    return "Gridly is holding steady while it waits for a stronger opportunity.";
+    return "Aveum is holding steady while it waits for a stronger opportunity.";
   }
 
   if (firstAction.action === "charge_ev") {
-    return "Gridly is charging your EV in a lower-cost window.";
+    return "Aveum is charging your EV in a lower-cost window.";
   }
 
   if (firstAction.action === "charge_battery") {
-    return "Gridly is charging your battery while rates are favorable.";
+    return "Aveum is charging your battery while rates are favorable.";
   }
 
   if (firstAction.action === "export_to_grid") {
-    return "Gridly is exporting energy while export value is strong.";
+    return "Aveum is exporting energy while export value is strong.";
   }
 
   if (firstAction.action === "discharge_battery") {
-    return "Gridly is using battery energy to reduce high-cost import.";
+    return "Aveum is using battery energy to reduce high-cost import.";
   }
 
-  return "Gridly is matching live demand with available solar generation.";
+  return "Aveum is matching live demand with available solar generation.";
 }
 
 function resolveDispatchTargetDeviceIds(

@@ -8,7 +8,7 @@ import {
 } from "../integrations/simulated/simulatedEnergySiteIntegration";
 import type {
   ContinuousRuntimeIntegration,
-  GridlyContinuousRuntimeSource,
+  AveumContinuousRuntimeSource,
   PreparedContinuousRuntimeIntegration,
 } from "../application/runtime/runContinuousRuntime";
 import { InMemoryObservedDeviceStateStore } from "../observed/observedDeviceStateStore";
@@ -257,7 +257,7 @@ function buildStorageCapabilitiesProvider(devices: DeviceState[]) {
 }
 
 function createStorageStubIntegration(): ContinuousRuntimeIntegration<
-  GridlyContinuousRuntimeSource,
+  AveumContinuousRuntimeSource,
   StorageStubIntegrationDependencies
 > {
   return {
@@ -681,7 +681,7 @@ describe("integration conformance suite", () => {
       }),
     ];
 
-    const scenario: IntegrationConformanceScenario<GridlyContinuousRuntimeSource, unknown> = {
+    const scenario: IntegrationConformanceScenario<AveumContinuousRuntimeSource, unknown> = {
       suiteName: "simulated-energy-site",
       source: {
         GRIDLY_SITE_ID: "site-sim-conformance",
@@ -952,7 +952,7 @@ describe("integration conformance suite", () => {
       "2026-03-16T11:10:00.000Z",
     ];
 
-    const scenario: IntegrationConformanceScenario<GridlyContinuousRuntimeSource, unknown> = {
+    const scenario: IntegrationConformanceScenario<AveumContinuousRuntimeSource, unknown> = {
       suiteName: "tesla-runtime-integration",
       source: {
         GRIDLY_SITE_ID: "site-tesla-conformance",
@@ -1057,7 +1057,7 @@ describe("integration conformance suite", () => {
           },
           tariffSchedule: {
             tariffId: "tariff-conformance",
-            provider: "Gridly",
+            provider: "Aveum",
             name: "Conformance Tariff",
             currency: "GBP",
             updatedAt: cycleTimes[0],
@@ -1373,7 +1373,7 @@ describe("integration conformance suite", () => {
       }),
     ];
 
-    const scenario: IntegrationConformanceScenario<GridlyContinuousRuntimeSource, unknown> = {
+    const scenario: IntegrationConformanceScenario<AveumContinuousRuntimeSource, unknown> = {
       suiteName: "storage-stub-integration",
       source: {
         GRIDLY_SITE_ID: "site-storage-stub",

@@ -1,12 +1,12 @@
 /**
- * Explanation helper entry point for Gridly.
+ * Explanation helper entry point for Aveum.
  *
  * Intended purpose:
  * - translate optimization output into user-facing explanations
  * - centralize rationale text generation for consistency across features
  */
 
-import type { Diagnostic, GridlyOutput, Recommendation } from "../types";
+import type { Diagnostic, AveumOutput, Recommendation } from "../types";
 
 export type PlanExplanation = {
   summary: string;
@@ -33,13 +33,13 @@ function toConfidenceLabel(confidence: number | undefined): string | undefined {
   return "High confidence";
 }
 
-export function explainPlan(output: GridlyOutput): PlanExplanation {
+export function explainPlan(output: AveumOutput): PlanExplanation {
   const firstRecommendation: Recommendation | undefined = output.recommendations[0];
   const summary =
     output.headline ??
     (firstRecommendation
-      ? `Gridly generated ${output.recommendations.length} recommendation(s), starting with '${firstRecommendation.action}'.`
-      : "Gridly did not generate recommendations for this plan yet.");
+      ? `Aveum generated ${output.recommendations.length} recommendation(s), starting with '${firstRecommendation.action}'.`
+      : "Aveum did not generate recommendations for this plan yet.");
 
   return {
     summary,

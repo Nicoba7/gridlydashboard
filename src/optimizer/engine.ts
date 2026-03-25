@@ -59,7 +59,7 @@ function buildBlockedOutput(input: OptimizerInput): OptimizerOutput {
     generatedAt,
     planningWindow: undefined,
     status: "blocked",
-    headline: "Gridly needs tariff data before it can build a plan.",
+    headline: "Aveum needs tariff data before it can build a plan.",
     decisions: [],
     recommendedCommands: [],
     opportunities: [],

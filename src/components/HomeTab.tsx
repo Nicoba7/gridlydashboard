@@ -449,7 +449,7 @@ function SystemHealthCard({
             <div>
               <div style={{ fontSize: 12, color: "#D3DCE8", fontWeight: 700, marginBottom: 2 }}>{device.name} offline</div>
               <div style={{ fontSize: 11, color: "#8A9DB8", lineHeight: 1.4 }}>
-                Last seen {ago}. Gridly continues optimising safely with remaining systems. {followUpByDevice[device.id] ?? "No action needed unless you want immediate manual control."}
+                Last seen {ago}. Aveum continues optimising safely with remaining systems. {followUpByDevice[device.id] ?? "No action needed unless you want immediate manual control."}
               </div>
             </div>
           </div>
@@ -919,8 +919,8 @@ export default function HomeTab({
 
       <DecisionExplanationSheet
         open={Boolean(selectedTimelineItem)}
-        title="Why Gridly chose this"
-        subtitle={selectedTimelineItem ? `${selectedTimelineItem.label} · ${selectedTimelineItem.reason || "Gridly action"}` : undefined}
+        title="Why Aveum chose this"
+        subtitle={selectedTimelineItem ? `${selectedTimelineItem.label} · ${selectedTimelineItem.reason || "Aveum action"}` : undefined}
         reasoning={selectedTimelineItem?.reasoning ?? []}
         onClose={() => setSelectedTimelineItem(null)}
       />
