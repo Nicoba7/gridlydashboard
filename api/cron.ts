@@ -9,6 +9,7 @@ import { optimize } from "../src/optimizer/engine";
 import { getCanonicalSimulationSnapshot } from "../src/simulator";
 import { buildDailySavingsReport } from "../src/features/report/dailySavingsReport";
 import { sendMorningReport } from "../src/features/notifications/morningEmailReport";
+import { trackDailyResult } from "../src/features/analytics/userTracker";
 import type { OptimizationMode, TariffSchedule } from "../src/domain";
 import type { StoredUser } from "./register";
 
@@ -47,6 +48,7 @@ interface UserRunResult {
   decisionCount?: number;
   savedTodayPence?: number;
   emailSent?: boolean;
+  tracked?: boolean;
   error?: string;
 }
 
@@ -186,6 +188,21 @@ async function runForUser(config: UserConfig, now: Date): Promise<UserRunResult>
       emailSent = result.sent;
     }
 
+    // ── Track result to Notion ───────────────────────────────────────────────
+    const netCostPence =
+      optimizerOutput.summary.expectedImportCostPence -
+      optimizerOutput.summary.expectedExportRevenuePence;
+
+    const trackingOutcome = await trackDailyResult({
+      userName: config.userName,
+      notifyEmail: config.notifyEmail,
+      dateIso: now.toISOString().slice(0, 10),
+      report: dailySavingsReport,
+      netCostPence,
+      evTargetAchieved: config.devices?.includes("ev") ? true : null,
+      emailSent,
+    });
+
     return {
       octopusAccountNumber: accountRef,
       status: "ok",
@@ -193,6 +210,7 @@ async function runForUser(config: UserConfig, now: Date): Promise<UserRunResult>
       decisionCount: optimizerOutput.decisions.length,
       savedTodayPence: dailySavingsReport.savedTodayPence,
       emailSent,
+      tracked: trackingOutcome.tracked,
     };
   } catch (err: unknown) {
     return {
