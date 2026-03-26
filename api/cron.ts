@@ -12,6 +12,7 @@ import { sendMorningReport } from "../src/features/notifications/morningEmailRep
 import { trackDailyResult } from "../src/features/analytics/userTracker";
 import type { OptimizationMode, TariffSchedule } from "../src/domain";
 import type { StoredUser } from "./register";
+import type { DailyResult } from "./results";
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
@@ -202,6 +203,28 @@ async function runForUser(config: UserConfig, now: Date): Promise<UserRunResult>
       evTargetAchieved: config.devices?.includes("ev") ? true : null,
       emailSent,
     });
+
+    // ── Persist daily result for dashboard read-back ─────────────────────────
+    const dailyResult: DailyResult = {
+      date: now.toISOString().slice(0, 10),
+      savedTodayPence: dailySavingsReport.savedTodayPence,
+      earnedFromExportPence: dailySavingsReport.earnedFromExportPence,
+      netCostPence,
+      oneLiner: dailySavingsReport.oneLiner,
+      evTargetAchieved: config.devices?.includes("ev") ? true : null,
+      cheapestSlotTime: dailySavingsReport.cheapestSlotUsed?.time ?? null,
+      cheapestSlotPence: dailySavingsReport.cheapestSlotUsed?.pricePencePerKwh ?? null,
+      peakAvoidedTime: dailySavingsReport.batteryDischargedAt?.time ?? null,
+      peakAvoidedPence: dailySavingsReport.batteryDischargedAt?.pricePencePerKwh ?? null,
+    };
+    try {
+      const resultsKey = `aveum:results:${config.userId}`;
+      await redis.lpush(resultsKey, JSON.stringify(dailyResult));
+      // Keep at most 90 days of history
+      await redis.ltrim(resultsKey, 0, 89);
+    } catch {
+      // Non-blocking — result persistence failure doesn't abort the cron run
+    }
 
     return {
       octopusAccountNumber: accountRef,

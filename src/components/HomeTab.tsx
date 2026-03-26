@@ -614,6 +614,7 @@ export interface HomeTabProps {
   latestCycleHeartbeat?: CycleHeartbeatEntry;
   recentDecisionExplanations?: DecisionExplainedJournalEntry[];
   isDemo?: boolean;
+  latestResult?: { savedTodayPence: number; earnedFromExportPence: number; oneLiner: string; date: string };
 }
 
 export default function HomeTab({
@@ -622,6 +623,7 @@ export default function HomeTab({
   latestCycleHeartbeat,
   recentDecisionExplanations = [],
   isDemo = false,
+  latestResult,
 }: HomeTabProps) {
   const [freshnessNowMs, setFreshnessNowMs] = useState(() => Date.now());
 
@@ -737,12 +739,17 @@ export default function HomeTab({
     freshnessNowMs,
     "last-decision"
   );
-  const homeValueSavings = homeOptimizerView.value.savingsToday > 0
-    ? homeOptimizerView.value.savingsToday
-    : SANDBOX.savedToday;
-  const homeValueEarnings = homeOptimizerView.value.earningsToday > 0
-    ? homeOptimizerView.value.earningsToday
-    : SANDBOX.earnedToday;
+  // Real persisted results take priority over simulated figures
+  const homeValueSavings = latestResult
+    ? (latestResult.savedTodayPence / 100).toFixed(2)
+    : homeOptimizerView.value.savingsToday > 0
+      ? homeOptimizerView.value.savingsToday
+      : SANDBOX.savedToday;
+  const homeValueEarnings = latestResult
+    ? (latestResult.earnedFromExportPence / 100).toFixed(2)
+    : homeOptimizerView.value.earningsToday > 0
+      ? homeOptimizerView.value.earningsToday
+      : SANDBOX.earnedToday;
   // Pass-through of runtime planner truth. Components must not derive substitute
   // meanings for confidence/caution signals outside canonical runtime outputs.
   // Presentation-only label. Canonical meaning comes from runtime read model truth.
