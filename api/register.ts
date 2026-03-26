@@ -24,6 +24,8 @@ interface RegisterRequestBody {
   devices?: string[];
   ohmeEmail?: string;
   ohmePassword?: string;
+  departureTime?: string;
+  targetSocPercent?: number;
 }
 
 export interface StoredUser {
@@ -38,6 +40,8 @@ export interface StoredUser {
   devices: string[];
   ohmeEmail?: string;
   ohmePassword?: string;
+  departureTime?: string;
+  targetSocPercent?: number;
 }
 
 // ── Handler ────────────────────────────────────────────────────────────────────
@@ -71,6 +75,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     devices: Array.isArray(body.devices) ? body.devices : [],
     ...(body.ohmeEmail?.trim() && { ohmeEmail: body.ohmeEmail.trim() }),
     ...(body.ohmePassword?.trim() && { ohmePassword: body.ohmePassword.trim() }),
+    ...(body.departureTime?.trim() && { departureTime: body.departureTime.trim() }),
+    ...(body.targetSocPercent != null && { targetSocPercent: Number(body.targetSocPercent) }),
   };
 
   try {

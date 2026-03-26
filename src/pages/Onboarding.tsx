@@ -88,9 +88,9 @@ const EV_BRANDS = [
 ];
 
 // ── FIELD COMPONENT ───────────────────────────────────────────────────────
-function Field({ label, placeholder, hint, link, value, onChange, secret }: {
+function Field({ label, placeholder, hint, link, value, onChange, secret, type }: {
   label: string; placeholder: string; hint?: string; link?: { text: string; url: string };
-  value: string; onChange: (v: string) => void; secret?: boolean;
+  value: string; onChange: (v: string) => void; secret?: boolean; type?: string;
 }) {
   const [show, setShow] = useState(false);
   return (
@@ -98,7 +98,7 @@ function Field({ label, placeholder, hint, link, value, onChange, secret }: {
       <label style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", display: "block", marginBottom: 5, letterSpacing: 0.5 }}>{label}</label>
       <div style={{ position: "relative" }}>
         <input
-          type={secret && !show ? "password" : "text"}
+          type={secret ? (show ? "text" : "password") : (type ?? "text")}
           placeholder={placeholder} value={value} onChange={e => onChange(e.target.value)}
           style={{ width: "100%", background: "#111827", border: "1px solid #374151", borderRadius: 10, padding: "11px 14px", paddingRight: secret ? 40 : 14, color: "#F9FAFB", fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
         />
@@ -281,7 +281,11 @@ function EVForm({ creds, setCreds }: { creds: any; setCreds: any }) {
 
   const handleBrandSelect = (id: string) => {
     setBrand(id);
-    setCreds((c: any) => ({ brand: id })); // reset fields on brand change
+    setCreds((c: any) => ({
+      brand: id,
+      departureTime: c.departureTime,
+      targetSocPercent: c.targetSocPercent,
+    }));
   };
 
   return (
@@ -290,6 +294,36 @@ function EVForm({ creds, setCreds }: { creds: any; setCreds: any }) {
         <Zap size={16} color="#38BDF8" />
         <span style={{ fontSize: 13, fontWeight: 700, color: "#F9FAFB" }}>EV Charger</span>
       </div>
+
+      {/* Departure & target charge — shown for all brands */}
+      <Field
+        label="WHAT TIME DO YOU USUALLY LEAVE?"
+        placeholder=""
+        hint=""
+        secret={false}
+        type="time"
+        value={creds.departureTime ?? "08:00"}
+        onChange={v => setCreds((c: any) => ({ ...c, departureTime: v }))}
+      />
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", marginBottom: 6, letterSpacing: 0.5 }}>
+          HOW MUCH CHARGE DO YOU WANT BY THEN?
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <input
+            type="number"
+            min={20}
+            max={100}
+            value={creds.targetSocPercent ?? 80}
+            onChange={e => setCreds((c: any) => ({ ...c, targetSocPercent: Math.min(100, Math.max(20, Number(e.target.value))) }))}
+            style={{ flex: 1, background: "#111827", border: "1px solid #374151", borderRadius: 10, padding: "12px 14px", color: "#F9FAFB", fontSize: 14, fontFamily: "inherit", outline: "none" }}
+          />
+          <span style={{ fontSize: 14, fontWeight: 700, color: "#9CA3AF" }}>%</span>
+        </div>
+      </div>
+      <p style={{ fontSize: 11, color: "#4B5563", marginTop: -8, marginBottom: 18, lineHeight: 1.5 }}>
+        Aveum uses these to guarantee your car is ready when you need it.
+      </p>
 
       {/* Brand selector */}
       <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", marginBottom: 8, letterSpacing: 0.5 }}>SELECT YOUR CHARGER BRAND</div>
@@ -424,6 +458,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           devices: selected,
           ohmeEmail: evCreds.ohmeEmail ?? undefined,
           ohmePassword: evCreds.ohmePassword ?? undefined,
+          departureTime: evCreds.departureTime ?? undefined,
+          targetSocPercent: evCreds.targetSocPercent != null ? Number(evCreds.targetSocPercent) : undefined,
         }),
       });
       if (res.ok) {
