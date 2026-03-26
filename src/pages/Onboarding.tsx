@@ -40,9 +40,10 @@ const EV_BRANDS = [
     id: "ohme",
     name: "Ohme",
     description: "Home / Home Pro / ePod",
+    note: "Used to schedule charging on your behalf via the Ohme app.",
     fields: [
-      { key: "email",    label: "OHME EMAIL",    placeholder: "you@example.com", secret: false, hint: "Your Ohme account email" },
-      { key: "password", label: "OHME PASSWORD", placeholder: "••••••••",        secret: true  },
+      { key: "ohmeEmail",    label: "OHME ACCOUNT EMAIL", placeholder: "you@example.com", secret: false, hint: "Your Ohme account email" },
+      { key: "ohmePassword", label: "OHME PASSWORD",       placeholder: "••••••••",        secret: true  },
     ],
   },
   {
@@ -87,9 +88,9 @@ const EV_BRANDS = [
 ];
 
 // ── FIELD COMPONENT ───────────────────────────────────────────────────────
-function Field({ label, placeholder, hint, link, value, onChange, secret }: {
+function Field({ label, placeholder, hint, link, value, onChange, secret, type }: {
   label: string; placeholder: string; hint?: string; link?: { text: string; url: string };
-  value: string; onChange: (v: string) => void; secret?: boolean;
+  value: string; onChange: (v: string) => void; secret?: boolean; type?: string;
 }) {
   const [show, setShow] = useState(false);
   return (
@@ -97,7 +98,7 @@ function Field({ label, placeholder, hint, link, value, onChange, secret }: {
       <label style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", display: "block", marginBottom: 5, letterSpacing: 0.5 }}>{label}</label>
       <div style={{ position: "relative" }}>
         <input
-          type={secret && !show ? "password" : "text"}
+          type={secret ? (show ? "text" : "password") : (type ?? "text")}
           placeholder={placeholder} value={value} onChange={e => onChange(e.target.value)}
           style={{ width: "100%", background: "#111827", border: "1px solid #374151", borderRadius: 10, padding: "11px 14px", paddingRight: secret ? 40 : 14, color: "#F9FAFB", fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
         />
@@ -118,15 +119,60 @@ function Field({ label, placeholder, hint, link, value, onChange, secret }: {
 }
 
 // ── OCTOPUS FORM ──────────────────────────────────────────────────────────
-function OctopusForm({ creds, setCreds }: { creds: any; setCreds: any }) {
+const UK_REGIONS = [
+  { value: "A", label: "East England" },
+  { value: "B", label: "East Midlands" },
+  { value: "C", label: "London" },
+  { value: "D", label: "North West" },
+  { value: "E", label: "North East" },
+  { value: "F", label: "South East" },
+  { value: "G", label: "South West" },
+  { value: "H", label: "South Wales" },
+  { value: "J", label: "Scotland" },
+  { value: "K", label: "West Midlands" },
+  { value: "L", label: "Yorkshire" },
+];
+
+function OctopusForm({ creds, setCreds, skipped, onSkip, onUnskip }: { creds: any; setCreds: any; skipped: boolean; onSkip: () => void; onUnskip: () => void }) {
   return (
     <div style={{ marginBottom: 20 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <Grid3X3 size={16} color="#A78BFA" />
         <span style={{ fontSize: 13, fontWeight: 700, color: "#F9FAFB" }}>Octopus Energy</span>
       </div>
-      <Field label="API KEY" placeholder="sk_live_xxxxxxxxxxxx" hint="Account → Personal details → API access" link={{ text: "Open Octopus", url: "https://octopus.energy/dashboard/new/accounts/personal-details/" }} value={creds.apiKey} onChange={v => setCreds((c: any) => ({ ...c, apiKey: v }))} secret />
-      <Field label="ACCOUNT NUMBER" placeholder="A-XXXXXXXX" hint="Format: A- followed by 8 characters" value={creds.accountNumber} onChange={v => setCreds((c: any) => ({ ...c, accountNumber: v }))} />
+
+      {/* Region selector — always shown */}
+      <div style={{ marginBottom: 14 }}>
+        <label style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", display: "block", marginBottom: 5, letterSpacing: 0.5 }}>YOUR REGION</label>
+        <select
+          value={creds.region || "C"}
+          onChange={e => setCreds((c: any) => ({ ...c, region: e.target.value }))}
+          style={{ width: "100%", background: "#111827", border: "1px solid #374151", borderRadius: 10, padding: "11px 14px", color: "#F9FAFB", fontSize: 13, fontFamily: "inherit", outline: "none", appearance: "none", cursor: "pointer" }}
+        >
+          {UK_REGIONS.map(r => (
+            <option key={r.value} value={r.value}>{r.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {skipped ? (
+        <div style={{ background: "#0D1521", border: "1px solid #374151", borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
+          <p style={{ fontSize: 12, color: "#6B7280", margin: "0 0 8px", lineHeight: 1.5 }}>
+            Aveum will use public Octopus Agile rates for your region — you can add your API key later for personalised data.
+          </p>
+          <button onClick={onUnskip} style={{ background: "none", border: "none", color: "#A78BFA", fontSize: 12, cursor: "pointer", padding: 0, fontFamily: "inherit" }}>
+            Add API key instead →
+          </button>
+        </div>
+      ) : (
+        <>
+          <Field label="API KEY" placeholder="sk_live_xxxxxxxxxxxx" hint="Account → Personal details → API access" link={{ text: "Open Octopus", url: "https://octopus.energy/dashboard/new/accounts/personal-details/" }} value={creds.apiKey} onChange={v => setCreds((c: any) => ({ ...c, apiKey: v }))} secret />
+          <Field label="ACCOUNT NUMBER" placeholder="A-XXXXXXXX" hint="Format: A- followed by 8 characters" value={creds.accountNumber} onChange={v => setCreds((c: any) => ({ ...c, accountNumber: v }))} />
+          <button onClick={onSkip} style={{ background: "none", border: "none", color: "#4B5563", fontSize: 12, cursor: "pointer", padding: "2px 0 8px", fontFamily: "inherit", display: "block" }}>
+            Skip for now
+          </button>
+        </>
+      )}
     </div>
   );
 }
@@ -172,7 +218,7 @@ const INVERTER_BRANDS = [
   },
 ];
 
-function SolarBatteryForm({ creds, setCreds }: { creds: any; setCreds: any }) {
+function SolarBatteryForm({ creds, setCreds, hasSolar, hasBattery }: { creds: any; setCreds: any; hasSolar: boolean; hasBattery: boolean }) {
   const [brand, setBrand] = useState<string>(creds.brand || "");
   const selectedBrand = INVERTER_BRANDS.find(b => b.id === brand);
 
@@ -181,11 +227,13 @@ function SolarBatteryForm({ creds, setCreds }: { creds: any; setCreds: any }) {
     setCreds({ brand: id });
   };
 
+  const title = hasSolar && hasBattery ? "Solar & Battery" : hasBattery ? "Home Battery" : "Solar Inverter";
+
   return (
     <div style={{ marginBottom: 20 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
         <Sun size={16} color="#F59E0B" />
-        <span style={{ fontSize: 13, fontWeight: 700, color: "#F9FAFB" }}>Solar & Battery</span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: "#F9FAFB" }}>{title}</span>
       </div>
       <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", marginBottom: 8, letterSpacing: 0.5 }}>SELECT YOUR INVERTER BRAND</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
@@ -233,7 +281,11 @@ function EVForm({ creds, setCreds }: { creds: any; setCreds: any }) {
 
   const handleBrandSelect = (id: string) => {
     setBrand(id);
-    setCreds((c: any) => ({ brand: id })); // reset fields on brand change
+    setCreds((c: any) => ({
+      brand: id,
+      departureTime: c.departureTime,
+      targetSocPercent: c.targetSocPercent,
+    }));
   };
 
   return (
@@ -242,6 +294,36 @@ function EVForm({ creds, setCreds }: { creds: any; setCreds: any }) {
         <Zap size={16} color="#38BDF8" />
         <span style={{ fontSize: 13, fontWeight: 700, color: "#F9FAFB" }}>EV Charger</span>
       </div>
+
+      {/* Departure & target charge — shown for all brands */}
+      <Field
+        label="WHAT TIME DO YOU USUALLY LEAVE?"
+        placeholder=""
+        hint=""
+        secret={false}
+        type="time"
+        value={creds.departureTime ?? "08:00"}
+        onChange={v => setCreds((c: any) => ({ ...c, departureTime: v }))}
+      />
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", marginBottom: 6, letterSpacing: 0.5 }}>
+          HOW MUCH CHARGE DO YOU WANT BY THEN?
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <input
+            type="number"
+            min={20}
+            max={100}
+            value={creds.targetSocPercent ?? 80}
+            onChange={e => setCreds((c: any) => ({ ...c, targetSocPercent: Math.min(100, Math.max(20, Number(e.target.value))) }))}
+            style={{ flex: 1, background: "#111827", border: "1px solid #374151", borderRadius: 10, padding: "12px 14px", color: "#F9FAFB", fontSize: 14, fontFamily: "inherit", outline: "none" }}
+          />
+          <span style={{ fontSize: 14, fontWeight: 700, color: "#9CA3AF" }}>%</span>
+        </div>
+      </div>
+      <p style={{ fontSize: 11, color: "#4B5563", marginTop: -8, marginBottom: 18, lineHeight: 1.5 }}>
+        Aveum uses these to guarantee your car is ready when you need it.
+      </p>
 
       {/* Brand selector */}
       <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", marginBottom: 8, letterSpacing: 0.5 }}>SELECT YOUR CHARGER BRAND</div>
@@ -292,10 +374,36 @@ function EVForm({ creds, setCreds }: { creds: any; setCreds: any }) {
               onChange={v => setCreds((c: any) => ({ ...c, [field.key]: v }))}
             />
           ))}
+          {(selectedBrand as any).note && (
+            <p style={{ fontSize: 11, color: "#4B5563", marginTop: 6, lineHeight: 1.5 }}>{(selectedBrand as any).note}</p>
+          )}
         </div>
       )}
     </div>
   );
+}
+
+// ── COMPLETION MESSAGE ─────────────────────────────────────────────────────
+function buildCompletionMessage(selected: string[]): string {
+  const hasEV      = selected.includes("ev");
+  const hasSolar   = selected.includes("solar");
+  const hasBattery = selected.includes("battery");
+
+  if (hasEV && hasSolar && hasBattery)
+    return "Aveum will orchestrate your whole system — solar feeds the battery, your EV charges in the cheapest window, and surplus is exported at peak prices.";
+  if (hasSolar && hasBattery)
+    return "Aveum will charge your battery from solar when it's available, top it up overnight from the grid at the cheapest rate, and discharge at peak price times.";
+  if (hasEV && hasBattery)
+    return "Aveum will charge your battery and EV in the cheapest overnight windows, then discharge the battery during peak price times to cut your bills.";
+  if (hasEV && hasSolar)
+    return "Aveum will route your solar directly into your EV during the day and top it up from the grid in the cheapest overnight window.";
+  if (hasEV)
+    return "Aveum will charge your EV in the cheapest overnight window and make sure it's ready when you need it.";
+  if (hasSolar)
+    return "Aveum will track your solar generation and show you the best times to run appliances or export surplus to the grid.";
+  if (hasBattery)
+    return "Aveum will charge your battery when energy is cheapest and discharge it during peak price windows to cut your bills.";
+  return "Aveum will track Agile prices in real time and optimise your energy use to keep your bills as low as possible.";
 }
 
 // ── MAIN ──────────────────────────────────────────────────────────────────
@@ -312,7 +420,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [notifyEmail, setNotifyEmail] = useState("");
   const [emailTouched, setEmailTouched] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
-  const [octopusCreds, setOctopusCreds] = useState({ apiKey: "", accountNumber: "" });
+  const [octopusCreds, setOctopusCreds] = useState({ apiKey: "", accountNumber: "", region: "C" });
+  const [octopusSkipped, setOctopusSkipped] = useState(false);
   const [solarCreds, setSolarCreds] = useState({ apiKey: "", serial: "" });
   const [evCreds, setEvCreds] = useState<any>({ brand: "" });
 
@@ -321,9 +430,12 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   };
 
   const totalSavings = DEVICES.filter(d => selected.includes(d.id)).reduce((sum, d) => sum + parseInt(d.saves), 0);
-  const needsOctopus = selected.includes("grid");
-  const needsSolar = selected.includes("solar") || selected.includes("battery");
-  const needsEV = selected.includes("ev");
+  const hasSolar   = selected.includes("solar");
+  const hasBattery = selected.includes("battery");
+  const hasEV      = selected.includes("ev");
+  const needsOctopus = selected.length > 0; // Agile pricing is useful for all device combos
+  const needsSolar = hasSolar || hasBattery;
+  const needsEV    = hasEV;
 
   const emailValid = EMAIL_RE.test(notifyEmail.trim());
   const profileComplete = userName.trim().length > 0 && emailValid;
@@ -339,16 +451,23 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         body: JSON.stringify({
           userName,
           notifyEmail,
-          octopusApiKey: octopusCreds.apiKey,
-          octopusAccountNumber: octopusCreds.accountNumber,
-          region: "C",
+          octopusApiKey: octopusSkipped ? undefined : octopusCreds.apiKey || undefined,
+          octopusAccountNumber: octopusSkipped ? undefined : octopusCreds.accountNumber || undefined,
+          region: octopusCreds.region || "C",
           optimizationMode: "balanced",
           devices: selected,
+          ohmeEmail: evCreds.ohmeEmail ?? undefined,
+          ohmePassword: evCreds.ohmePassword ?? undefined,
+          departureTime: evCreds.departureTime ?? undefined,
+          targetSocPercent: evCreds.targetSocPercent != null ? Number(evCreds.targetSocPercent) : undefined,
         }),
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.userId) localStorage.setItem("aveum_user_id", data.userId);
+        if (data.userId) {
+          localStorage.setItem("aveum_user_id", data.userId);
+          localStorage.setItem("aveum_user_name", userName.trim());
+        }
       }
     } catch {
       // Registration failure is non-blocking — still proceed to dashboard
@@ -461,9 +580,44 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             <Lock size={13} color="#60A5FA" style={{ marginTop: 1, flexShrink: 0 }} />
             <span style={{ fontSize: 11, color: "#93C5FD", lineHeight: 1.5 }}>Your credentials are encrypted and never shared. We only read data — we never make changes without your permission.</span>
           </div>
-          {needsOctopus && <OctopusForm creds={octopusCreds} setCreds={setOctopusCreds} />}
-          {needsSolar && <SolarBatteryForm creds={solarCreds} setCreds={setSolarCreds} />}
-          {needsEV && <EVForm creds={evCreds} setCreds={setEvCreds} />}
+
+          {needsOctopus && (
+            <>
+              <p style={{ fontSize: 12, color: "#6B7280", marginBottom: 12, lineHeight: 1.6 }}>
+                {hasEV && !hasSolar && !hasBattery
+                  ? "Aveum reads your Agile half-hourly prices to find the cheapest overnight window for your EV."
+                  : hasSolar || hasBattery
+                  ? "Aveum reads your Agile prices to decide when to charge, discharge, and export for maximum savings."
+                  : "Aveum reads your Agile half-hourly prices to find the cheapest times to use and export energy."}
+              </p>
+              <OctopusForm creds={octopusCreds} setCreds={setOctopusCreds} skipped={octopusSkipped} onSkip={() => setOctopusSkipped(true)} onUnskip={() => setOctopusSkipped(false)} />
+            </>
+          )}
+
+          {needsSolar && (
+            <>
+              <p style={{ fontSize: 12, color: "#6B7280", marginBottom: 12, lineHeight: 1.6 }}>
+                {hasSolar && hasBattery
+                  ? "Aveum connects to your inverter to coordinate solar generation, battery charging, and grid export."
+                  : hasBattery
+                  ? "Aveum connects to your inverter to schedule battery charging in cheap windows and discharging at peak prices."
+                  : "Aveum tracks your solar output to show you the best times to use, store, or export your generation."}
+              </p>
+              <SolarBatteryForm creds={solarCreds} setCreds={setSolarCreds} hasSolar={hasSolar} hasBattery={hasBattery} />
+            </>
+          )}
+
+          {needsEV && (
+            <>
+              <p style={{ fontSize: 12, color: "#6B7280", marginBottom: 12, lineHeight: 1.6 }}>
+                {hasSolar || hasBattery
+                  ? "Aveum schedules your EV charging in the cheapest overnight window, coordinating with your other devices."
+                  : "Aveum controls your charger to find the cheapest overnight window and make sure your car is ready on time."}
+              </p>
+              <EVForm creds={evCreds} setCreds={setEvCreds} />
+            </>
+          )}
+
           <button onClick={() => setStep(4)} style={{ background: "none", border: "none", color: "#4B5563", fontSize: 12, cursor: "pointer", padding: "6px 0", fontFamily: "inherit", display: "block" }}>
             Skip — use demo data instead
           </button>
@@ -477,8 +631,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             <div style={{ width: 52, height: 52, background: "#22C55E", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26 }}>✓</div>
           </div>
           <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6, textAlign: "center" }}>Connected & optimising</h2>
-          <p style={{ fontSize: 13, color: "#9CA3AF", textAlign: "center", marginBottom: 24, maxWidth: 260, lineHeight: 1.6 }}>
-            Aveum is reading prices every 30 minutes and automatically optimising your system.
+          <p style={{ fontSize: 13, color: "#9CA3AF", textAlign: "center", marginBottom: 24, maxWidth: 300, lineHeight: 1.6 }}>
+            {buildCompletionMessage(selected)}
           </p>
           <div style={{ background: "#0D1F14", border: "1px solid #16A34A40", borderRadius: 12, padding: 16, width: "100%", textAlign: "center", marginBottom: 16 }}>
             <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 4 }}>Annual value unlocked</div>

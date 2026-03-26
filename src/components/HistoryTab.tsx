@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { SANDBOX, DeviceConfig } from "../pages/SimplifiedDashboard";
 import type { CycleHeartbeatEntry, ExecutionJournalEntry } from "../journal/executionJournal";
 import { ENERGY_COLORS } from "./energyColors";
+import { DemoBadge } from "./FirstRunBanner";
 import { buildLatestExecutionOutcomeDetailReadModel } from "../features/history/latestExecutionOutcomeDetailReadModel";
 import { buildLatestOutcomeExpectationComparisonReadModel } from "../features/history/latestOutcomeExpectationComparisonReadModel";
 import { buildRecentCycleHistoryReadModel } from "../features/history/recentCycleHistoryReadModel";
@@ -180,15 +181,15 @@ function DeliveredHeroCard({
         <div className="flex items-end gap-4 border-t border-[#162235] pt-3 tabular-nums">
           <div className="min-w-[98px]">
             <div className="mb-[3px] text-[10px] font-semibold tracking-[0.45px] text-[#566279]">Saved by Aveum</div>
-            <div className="text-[18px] font-extrabold tracking-[-0.4px] text-[#4ADE80]">£{weekSavings.toFixed(2)}</div>
+            <div className="text-[18px] font-extrabold tracking-[-0.4px] text-[#4ADE80] flex items-center">£{weekSavings.toFixed(2)}{isDemo && <DemoBadge />}</div>
           </div>
           <div className="min-w-[98px]">
             <div className="mb-[3px] text-[10px] font-semibold tracking-[0.45px] text-[#566279]">Earned by Aveum</div>
-            <div className="text-[18px] font-extrabold tracking-[-0.4px] text-[#F5B942]">£{weekEarnings.toFixed(2)}</div>
+            <div className="text-[18px] font-extrabold tracking-[-0.4px] text-[#F5B942] flex items-center">£{weekEarnings.toFixed(2)}{isDemo && <DemoBadge />}</div>
           </div>
           <div className="ml-auto min-w-[80px] text-right">
             <div className="mb-[3px] text-[10px] font-semibold tracking-[0.45px] text-[#566279]">Total</div>
-            <div className="text-[18px] font-extrabold tracking-[-0.4px] text-[#94A3B8]">£{weekTotal.toFixed(2)}</div>
+            <div className="text-[18px] font-extrabold tracking-[-0.4px] text-[#94A3B8] flex items-center justify-end">£{weekTotal.toFixed(2)}{isDemo && <DemoBadge />}</div>
           </div>
         </div>
 
@@ -533,6 +534,7 @@ export interface HistoryTabProps {
   latestCycleHeartbeat?: CycleHeartbeatEntry;
   recentCycleHeartbeats?: CycleHeartbeatEntry[];
   recentExecutionOutcomes?: ExecutionJournalEntry[];
+  isDemo?: boolean;
 }
 
 export default function HistoryTab({
@@ -541,6 +543,7 @@ export default function HistoryTab({
   latestCycleHeartbeat,
   recentCycleHeartbeats = [],
   recentExecutionOutcomes = [],
+  isDemo = false,
 }: HistoryTabProps) {
   const [activeDevice, setActiveDevice] = useState<"all" | HistoryDeviceKey>("all");
   const [shareStatus, setShareStatus] = useState<string | null>(null);

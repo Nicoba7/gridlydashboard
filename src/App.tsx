@@ -12,6 +12,7 @@ import Onboarding from "./pages/Onboarding";
 import Landing from "./pages/Landing";
 import SimplifiedDashboard from "./pages/SimplifiedDashboard";
 import DeviceManagement from "./pages/DeviceManagement";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +28,7 @@ const App = () => (
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/dashboard" element={<SimplifiedDashboard />} />
           <Route path="/devices" element={<DeviceManagement />} />
+          <Route path="/settings" element={<Settings />} />
           <Route path="/how-it-works" element={<HowItWorks />} />
           <Route path="/customer-value" element={<CustomerValue />} />
           <Route path="/network-growth" element={<NetworkGrowth />} />
