@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode, Component, type ErrorInfo } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { SANDBOX, DeviceConfig } from "../pages/SimplifiedDashboard";
 import type { CycleHeartbeatEntry, ExecutionJournalEntry } from "../journal/executionJournal";
@@ -85,6 +85,35 @@ function buildLiveHistorySnapshot(now: Date, history: HistoryDay[], chargeSessio
   };
 }
 
+class HistoryErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean; message: string }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, message: "" };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, message: error?.message ?? "Unknown error" };
+  }
+  componentDidCatch(_error: Error, _info: ErrorInfo) {}
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: "44px 24px 0" }}>
+          <div style={{ background: "#0B1120", border: "1px solid #1F2937", borderRadius: 14, padding: "16px 18px" }}>
+            <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 4 }}>History unavailable</div>
+            <div style={{ fontSize: 11, color: "#4B5563" }}>
+              {this.state.message || "An error occurred while loading history."}
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function CollapsibleSection({
   label,
   children,
@@ -130,6 +159,7 @@ function DeliveredHeroCard({
   allTimeEarned,
   todayValue,
   todayTopDevice,
+  isDemo = false,
 }: {
   weekTotal: number;
   weekSavings: number;
@@ -140,6 +170,7 @@ function DeliveredHeroCard({
   allTimeEarned?: number;
   todayValue?: number;
   todayTopDevice?: "solar" | "battery" | "ev" | "grid" | null;
+  isDemo?: boolean;
 }) {
   return (
     <div className="mx-4 mt-5 overflow-hidden rounded-[20px] border border-[#182235] bg-[#0A111D] shadow-[0_14px_34px_rgba(1,7,20,0.32)]">
@@ -646,6 +677,7 @@ export default function HistoryTab({
   };
 
   return (
+    <HistoryErrorBoundary>
     <div style={{ background: "#060A12", minHeight: "100vh", paddingBottom: 40 }}>
       {/* ── 1. VALUE DELIVERY (primary content) ── */}
       <DeliveredHeroCard
@@ -658,6 +690,7 @@ export default function HistoryTab({
         allTimeEarned={viewModel.allTimeEarned}
         todayValue={viewModel.values[viewModel.values.length - 1]}
         todayTopDevice={todayTopDevice}
+        isDemo={isDemo}
       />
 
       <ValueContributionSection
@@ -850,5 +883,6 @@ export default function HistoryTab({
         </div>
       </div>
     </div>
+    </HistoryErrorBoundary>
   );
 }
