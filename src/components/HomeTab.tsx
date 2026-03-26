@@ -21,6 +21,7 @@ import {
   DeviceConfig,
 } from "../pages/SimplifiedDashboard";
 import { ENERGY_COLORS } from "./energyColors";
+import { DemoBadge } from "./FirstRunBanner";
 import { FlowConnector, FlowNode } from "./flowPrimitives";
 import { TIMELINE_EMPHASIS_TOKENS, timelineDotGlow } from "./timelineEmphasisTokens";
 import DecisionExplanationSheet from "./DecisionExplanationSheet";
@@ -587,7 +588,7 @@ function EnergyFlowSVG({
   );
 }
 
-function DeviceRow({ device }: { device: DeviceConfig }) {
+function DeviceRow({ device, isDemo }: { device: DeviceConfig; isDemo?: boolean }) {
   const Icon = device.icon;
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 20px", borderBottom: "1px solid #0A1020" }}>
@@ -600,7 +601,9 @@ function DeviceRow({ device }: { device: DeviceConfig }) {
           <div style={{ fontSize: 11, color: "#4B5563", marginTop: 1 }}>{device.status}</div>
         </div>
       </div>
-      <div style={{ fontSize: 12, fontWeight: 700, color: "#22C55E" }}>+£{device.monthlyValue}/mo</div>
+      <div style={{ fontSize: 12, fontWeight: 700, color: "#22C55E", display: "flex", alignItems: "center" }}>
+        +£{device.monthlyValue}/mo{isDemo && <DemoBadge />}
+      </div>
     </div>
   );
 }
@@ -610,6 +613,7 @@ export interface HomeTabProps {
   now: Date;
   latestCycleHeartbeat?: CycleHeartbeatEntry;
   recentDecisionExplanations?: DecisionExplainedJournalEntry[];
+  isDemo?: boolean;
 }
 
 export default function HomeTab({
@@ -617,6 +621,7 @@ export default function HomeTab({
   now,
   latestCycleHeartbeat,
   recentDecisionExplanations = [],
+  isDemo = false,
 }: HomeTabProps) {
   const [freshnessNowMs, setFreshnessNowMs] = useState(() => Date.now());
 
@@ -827,12 +832,16 @@ export default function HomeTab({
         <div style={{ display: "flex", gap: 16, alignItems: "baseline" }}>
           <div>
             <div style={{ fontSize: 10, color: "#6F819B", fontWeight: 600, letterSpacing: 0.6, marginBottom: 2 }}>SAVED TODAY</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "#22C55E" }}>+£{homeValueSavings}</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "#22C55E", display: "flex", alignItems: "center" }}>
+              +£{homeValueSavings}{isDemo && <DemoBadge />}
+            </div>
           </div>
           {homeValueEarnings > 0 && (
             <div>
               <div style={{ fontSize: 10, color: "#6F819B", fontWeight: 600, letterSpacing: 0.6, marginBottom: 2 }}>EARNED TODAY</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: "#F59E0B" }}>+£{homeValueEarnings}</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "#F59E0B", display: "flex", alignItems: "center" }}>
+                +£{homeValueEarnings}{isDemo && <DemoBadge />}
+              </div>
             </div>
           )}
           <div style={{ marginLeft: "auto", textAlign: "right" }}>

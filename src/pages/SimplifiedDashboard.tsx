@@ -1,6 +1,7 @@
 import HistoryTab from "../components/HistoryTab";
 import HomeTab from "../components/HomeTab";
 import PlanTab from "../components/PlanTab";
+import { FirstRunBanner } from "../components/FirstRunBanner";
 import { SANDBOX } from "../data/sandbox";
 import { useState, useEffect, useMemo, useSyncExternalStore } from "react";
 import { Sun, Battery, Zap, Grid3X3, Home, Calendar, Clock, ChevronDown, ChevronUp } from "lucide-react";
@@ -790,6 +791,16 @@ export default function SimplifiedDashboard() {
 
   const connectedDevices = ALL_DEVICES.filter(d => selectedIds.includes(d.id));
 
+  // ── First-time user detection ──────────────────────────────────────────
+  // A registered user with no journal data yet sees the welcome banner
+  // and "Demo data" badges on simulated savings figures.
+  const isRegisteredUser = Boolean(
+    typeof window !== "undefined" && localStorage.getItem("aveum_user_id")
+  );
+  const hasRealData = Boolean(latestCycleHeartbeat);
+  const isDemo = isRegisteredUser && !hasRealData;
+  const userName = (typeof window !== "undefined" && localStorage.getItem("aveum_user_name")) ?? "";
+
   const tabs = [
     { id: "home",    label: "Home",    icon: Home },
     { id: "plan",    label: "Plan",    icon: Calendar },
@@ -800,12 +811,17 @@ export default function SimplifiedDashboard() {
     <div style={{ background: "#030712", minHeight: "100vh", color: "#F9FAFB", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto", maxWidth: 480, margin: "0 auto", paddingBottom: 80 }}>
         {/* Canonical runtime truth is hydrated from the durable journal bridge into a
           browser-side cache. UI remains a read-only consumer of persisted runtime output. */}
+
+      {/* First-run welcome banner — shown until the first optimizer cycle completes */}
+      {isDemo && <FirstRunBanner userName={userName} />}
+
       {tab === "home"    && (
         <HomeTab
           connectedDevices={connectedDevices}
           now={now}
           latestCycleHeartbeat={latestCycleHeartbeat}
           recentDecisionExplanations={recentDecisionExplanations}
+          isDemo={isDemo}
         />
       )}
       {tab === "plan"    && (
@@ -824,6 +840,7 @@ export default function SimplifiedDashboard() {
           latestCycleHeartbeat={latestCycleHeartbeat}
           recentCycleHeartbeats={recentCycleHeartbeats}
           recentExecutionOutcomes={recentExecutionOutcomes}
+          isDemo={isDemo}
         />
       )}
 

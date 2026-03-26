@@ -428,7 +428,10 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.userId) localStorage.setItem("aveum_user_id", data.userId);
+        if (data.userId) {
+          localStorage.setItem("aveum_user_id", data.userId);
+          localStorage.setItem("aveum_user_name", userName.trim());
+        }
       }
     } catch {
       // Registration failure is non-blocking — still proceed to dashboard
