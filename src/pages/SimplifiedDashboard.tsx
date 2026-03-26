@@ -12,6 +12,7 @@ import {
   startRuntimeTruthPolling,
   subscribeLatestCycleHeartbeat,
 } from "../journal/latestCycleHeartbeatSource";
+import { useUserResults } from "../hooks/useUserResults";
 
 export { SANDBOX };
 
@@ -793,13 +794,16 @@ export default function SimplifiedDashboard() {
 
   const connectedDevices = ALL_DEVICES.filter(d => selectedIds.includes(d.id));
 
+  // ── Real results from Upstash ─────────────────────────────────────────
+  const { results: userResults, hasResults } = useUserResults();
+
   // ── First-time user detection ──────────────────────────────────────────
-  // A registered user with no journal data yet sees the welcome banner
+  // A registered user with no stored results yet sees the welcome banner
   // and "Demo data" badges on simulated savings figures.
   const isRegisteredUser = Boolean(
     typeof window !== "undefined" && localStorage.getItem("aveum_user_id")
   );
-  const hasRealData = Boolean(latestCycleHeartbeat);
+  const hasRealData = hasResults || Boolean(latestCycleHeartbeat);
   const isDemo = isRegisteredUser && !hasRealData;
   const userName = (typeof window !== "undefined" && localStorage.getItem("aveum_user_name")) ?? "";
 
@@ -824,6 +828,7 @@ export default function SimplifiedDashboard() {
           latestCycleHeartbeat={latestCycleHeartbeat}
           recentDecisionExplanations={recentDecisionExplanations}
           isDemo={isDemo}
+          latestResult={userResults[0]}
         />
       )}
       {tab === "plan"    && (
@@ -843,6 +848,7 @@ export default function SimplifiedDashboard() {
           recentCycleHeartbeats={recentCycleHeartbeats}
           recentExecutionOutcomes={recentExecutionOutcomes}
           isDemo={isDemo}
+          userResults={userResults}
         />
       )}
 

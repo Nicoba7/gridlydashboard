@@ -9,6 +9,7 @@ import { buildLatestOutcomeExpectationComparisonReadModel } from "../features/hi
 import { buildRecentCycleHistoryReadModel } from "../features/history/recentCycleHistoryReadModel";
 import { buildRecentExecutionOutcomesReadModel } from "../features/history/recentExecutionOutcomesReadModel";
 import { buildRecentOutcomeCountersReadModel } from "../features/history/recentOutcomeCountersReadModel";
+import type { DailyResult } from "../hooks/useUserResults";
 import {
   buildHistoryViewModel,
   isHistoryDeviceKey,
@@ -566,6 +567,7 @@ export interface HistoryTabProps {
   recentCycleHeartbeats?: CycleHeartbeatEntry[];
   recentExecutionOutcomes?: ExecutionJournalEntry[];
   isDemo?: boolean;
+  userResults?: DailyResult[];
 }
 
 export default function HistoryTab({
@@ -575,6 +577,7 @@ export default function HistoryTab({
   recentCycleHeartbeats = [],
   recentExecutionOutcomes = [],
   isDemo = false,
+  userResults = [],
 }: HistoryTabProps) {
   const [activeDevice, setActiveDevice] = useState<"all" | HistoryDeviceKey>("all");
   const [shareStatus, setShareStatus] = useState<string | null>(null);
@@ -676,9 +679,66 @@ export default function HistoryTab({
     }
   };
 
+  // ── Real results panel (shown above simulation when data exists) ──────────
+  const realResultsPanel = userResults.length > 0 ? (
+    <div style={{ margin: "16px 16px 0" }}>
+      <div style={{ fontSize: 10, color: "#4E5E75", fontWeight: 700, letterSpacing: 1.05, marginBottom: 10 }}>
+        AVEUM RUNS · {userResults.length} {userResults.length === 1 ? "DAY" : "DAYS"} OF REAL DATA
+      </div>
+      <div style={{ display: "grid", gap: 8 }}>
+        {userResults.map((result) => {
+          const savedPounds = (result.savedTodayPence / 100).toFixed(2);
+          const earnedPounds = (result.earnedFromExportPence / 100).toFixed(2);
+          const hasEarnings = result.earnedFromExportPence > 0;
+          return (
+            <div
+              key={result.date}
+              style={{
+                background: "#0A111D",
+                border: "1px solid #152238",
+                borderRadius: 14,
+                padding: "12px 14px",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                <div style={{ fontSize: 10, color: "#4E5E75", fontWeight: 600 }}>
+                  {new Date(result.date + "T12:00:00Z").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: "#4ADE80" }}>£{savedPounds} saved</span>
+                  {hasEarnings && (
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#F5B942" }}>+£{earnedPounds} earned</span>
+                  )}
+                </div>
+              </div>
+              <div style={{ fontSize: 11.5, color: "#8EA0B8", lineHeight: 1.4, marginBottom: result.evTargetAchieved !== null ? 6 : 0 }}>
+                {result.oneLiner}
+              </div>
+              {result.evTargetAchieved !== null && (
+                <div style={{ fontSize: 10, color: result.evTargetAchieved ? "#4ADE80" : "#F59E0B", fontWeight: 600 }}>
+                  {result.evTargetAchieved ? "✓ EV ready on time" : "EV charging adjusted"}
+                </div>
+              )}
+              {result.cheapestSlotTime && result.cheapestSlotPence != null && (
+                <div style={{ fontSize: 10, color: "#4E5E75", marginTop: 3 }}>
+                  Cheapest slot: {result.cheapestSlotTime} at {result.cheapestSlotPence.toFixed(1)}p/kWh
+                  {result.peakAvoidedTime && result.peakAvoidedPence != null
+                    ? ` · Peak avoided: ${result.peakAvoidedTime} at ${result.peakAvoidedPence.toFixed(1)}p`
+                    : ""}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  ) : null;
+
   return (
     <HistoryErrorBoundary>
     <div style={{ background: "#060A12", minHeight: "100vh", paddingBottom: 40 }}>
+      {/* ── Real results (when available) ── */}
+      {realResultsPanel}
       {/* ── 1. VALUE DELIVERY (primary content) ── */}
       <DeliveredHeroCard
         weekTotal={viewModel.weekTotal}
