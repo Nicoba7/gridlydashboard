@@ -787,9 +787,15 @@ export default function SimplifiedDashboard() {
     return () => clearInterval(t);
   }, []);
 
-  const selectedIds = useMemo(() => {
+  const { selectedIds, teslaConnected } = useMemo(() => {
     const params = new URLSearchParams(window.location.search);
-    return params.get("devices")?.split(",").filter(Boolean) || ["solar", "battery"];
+    const devices = params.get("devices")?.split(",").filter(Boolean) || ["solar", "battery"];
+    const connected = params.get("tesla_connected") === "true";
+
+    return {
+      selectedIds: devices,
+      teslaConnected: connected,
+    };
   }, []);
 
   const connectedDevices = ALL_DEVICES.filter(d => selectedIds.includes(d.id));
@@ -820,6 +826,23 @@ export default function SimplifiedDashboard() {
 
       {/* First-run welcome banner — shown until the first optimizer cycle completes */}
       {isDemo && <FirstRunBanner userName={userName} />}
+
+      {teslaConnected && (
+        <div
+          style={{
+            margin: "12px 12px 0",
+            padding: "10px 12px",
+            borderRadius: 10,
+            background: "#052E1A",
+            border: "1px solid #166534",
+            color: "#86EFAC",
+            fontSize: 12,
+            fontWeight: 600,
+          }}
+        >
+          Tesla account connected successfully.
+        </div>
+      )}
 
       {tab === "home"    && (
         <HomeTab
