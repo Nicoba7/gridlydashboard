@@ -104,6 +104,11 @@ function slotToTime(slot: number): string {
   return `${h}:${m}`;
 }
 
+function isActionable(action?: string): boolean {
+  const normalized = action?.toLowerCase().trim();
+  return normalized !== undefined && normalized !== "" && normalized !== "hold";
+}
+
 function actionColor(action?: string): string {
   const normalized = action?.toLowerCase().trim();
   if (normalized === "charge" || normalized === "charging") return ENERGY_COLORS.battery;
@@ -765,8 +770,126 @@ export default function HomeTab({
     ? `Caution: ${homeRuntimeReadModel.nextCycleExecutionCaution}`
     : undefined;
 
+  const hasStoredUserId = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return Boolean(window.localStorage.getItem("userId")?.trim());
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const hasRealPlanData = hasStoredUserId && Boolean(latestResult);
+
+  const topActionWindow = useMemo(() => {
+    const timelineRows = homeOptimizerView.timeline;
+    if (!timelineRows.length) return null;
+
+    for (let offset = 0; offset < 48; offset += 1) {
+      const idx = (slotIndex + offset) % 48;
+      const row = timelineRows[idx];
+      if (!isActionable(row?.action)) continue;
+
+      const action = String(row.action).toLowerCase().trim();
+      let length = 1;
+      while (length < 48) {
+        const next = timelineRows[(idx + length) % 48];
+        if (!next || String(next.action).toLowerCase().trim() !== action) break;
+        length += 1;
+      }
+
+      const startSlot = Number(row.slot ?? idx);
+      const endSlot = (startSlot + length) % 48;
+      const averageRate =
+        Array.from({ length }, (_, i) => i).reduce<number>((sum, i) => {
+          const rateSlot = (startSlot + i) % 48;
+          return sum + AGILE_RATES[rateSlot].pence;
+        }, 0) / length;
+
+      const hours = length / 2;
+      const estimatedKwh = hasEV ? 7 * hours : 5 * hours;
+      const estimatedCost = (estimatedKwh * averageRate) / 100;
+      const savingsPct = currentPence > 0
+        ? Math.max(0, Math.round(((currentPence - averageRate) / currentPence) * 100))
+        : 0;
+
+      const actionLabel = action === "charge"
+        ? (hasEV ? "Charge EV" : "Charge battery")
+        : action === "export"
+          ? "Export to grid"
+          : action === "discharge"
+            ? "Use battery"
+            : "Run automatically";
+
+      return {
+        line: `${slotToTime(startSlot)} - ${slotToTime(endSlot)} · ${actionLabel} · ~£${estimatedCost.toFixed(2)} · saves ${savingsPct}%`,
+      };
+    }
+
+    return null;
+  }, [homeOptimizerView.timeline, slotIndex, hasEV, currentPence]);
+
   return (
     <div style={{ background: "#060A12", minHeight: "100vh", paddingBottom: 30 }}>
+      <div style={{ background: "#0A111D", border: "1px solid #152238", borderRadius: 14, padding: 16, margin: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div style={{ fontSize: 10, color: "#6B7280", fontWeight: 700, letterSpacing: 0.9 }}>TONIGHT'S PLAN</div>
+          <div style={{ fontSize: 10, color: "#052E16", fontWeight: 700, background: "#22C55E", borderRadius: 999, padding: "2px 8px" }}>AUTO</div>
+        </div>
+
+        {!hasRealPlanData ? (
+          <div style={{ fontSize: 13, lineHeight: 1.45, color: "#6B7280", marginBottom: 12 }}>
+            Aveum calculates tonight's plan using live Agile prices. Check back after 10pm.
+          </div>
+        ) : topActionWindow ? (
+          <>
+            <div style={{ fontSize: 14, color: "#E5EDF9", fontWeight: 600, marginBottom: 6 }}>{topActionWindow.line}</div>
+            <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 12 }}>
+              Why: Cheapest window before your 07:00 departure.
+            </div>
+          </>
+        ) : (
+          <div style={{ fontSize: 13, lineHeight: 1.45, color: "#6B7280", marginBottom: 12 }}>
+            No charging needed tonight · Battery will cover usage · Saving ~£0.60 vs grid.
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => console.log("Skip tonight clicked")}
+            style={{
+              border: "1px solid #233149",
+              background: "#111827",
+              color: "#9CA3AF",
+              borderRadius: 8,
+              padding: "7px 10px",
+              fontSize: 12,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            Skip tonight
+          </button>
+          <button
+            type="button"
+            onClick={() => console.log("Edit plan clicked")}
+            style={{
+              border: "1px solid #233149",
+              background: "#111827",
+              color: "#9CA3AF",
+              borderRadius: 8,
+              padding: "7px 10px",
+              fontSize: 12,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            Edit
+          </button>
+        </div>
+      </div>
+
       <div style={{ margin: "14px 14px 0", background: "#0A111D", borderRadius: 20, border: "1px solid #182235", overflow: "hidden", boxShadow: "0 16px 30px rgba(1, 7, 20, 0.3)" }}>
         <div style={{ height: 2, background: `linear-gradient(90deg, ${heroColor}, ${heroColor}30)` }} />
         <div style={{ padding: "12px 18px 10px" }}>
@@ -843,7 +966,7 @@ export default function HomeTab({
               +£{homeValueSavings}{isDemo && <DemoBadge />}
             </div>
           </div>
-          {homeValueEarnings > 0 && (
+          {Number(homeValueEarnings) > 0 && (
             <div>
               <div style={{ fontSize: 10, color: "#6F819B", fontWeight: 600, letterSpacing: 0.6, marginBottom: 2 }}>EARNED TODAY</div>
               <div style={{ fontSize: 15, fontWeight: 700, color: "#F59E0B", display: "flex", alignItems: "center" }}>
