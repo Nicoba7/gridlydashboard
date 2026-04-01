@@ -10,6 +10,7 @@ import NetworkGrowth from "./pages/NetworkGrowth";
 import MarketOpportunity from "./pages/MarketOpportunity";
 import Onboarding from "./pages/Onboarding";
 import Landing from "./pages/Landing";
+import LandingPage from "./pages/LandingPage";
 import SimplifiedDashboard from "./pages/SimplifiedDashboard";
 import DeviceManagement from "./pages/DeviceManagement";
 import Settings from "./pages/Settings";
@@ -24,7 +25,8 @@ const App = () => (
       <Sonner />
       <BrowserRouter basename={import.meta.env.BASE_URL}>
         <Routes>
-          <Route path="/" element={<Landing />} />
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/home" element={<Landing />} />
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/dashboard" element={<SimplifiedDashboard />} />
           <Route path="/devices" element={<DeviceManagement />} />
