@@ -95,8 +95,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!email || typeof email !== "string" || !email.includes("@")) {
       return res.status(400).json({ error: "A valid email is required." });
     }
-    await redis.lpush("aveum:waitlist", (email as string).trim().toLowerCase());
-    return res.status(200).json({ success: true });
+    const normalizedEmail = email.trim().toLowerCase();
+
+    try {
+      await redis.lpush("aveum:waitlist", normalizedEmail);
+      return res.status(200).json({ success: true });
+    } catch (err: unknown) {
+      console.error("Failed to write waitlist email to Redis", {
+        email: normalizedEmail,
+        error: err,
+      });
+      return res.status(500).json({ error: "Failed to save waitlist email" });
+    }
   }
 
   // ── POST /api/users  (register) ────────────────────────────────────────────
