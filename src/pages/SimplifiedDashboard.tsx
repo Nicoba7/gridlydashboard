@@ -119,7 +119,7 @@ export const MODE_CONFIG = {
   },
   HOLD: {
     icon: "⏸",
-    label: "HOLDING",
+    label: "WAITING FOR BEST PRICE",
     color: "#9CA3AF",
     bg: "#0D1117",
     border: "#1F2937",
@@ -340,12 +340,12 @@ export function SolarForecastCard() {
       <div style={{ fontSize: 10, color: "#8B9BB2", fontWeight: 700, letterSpacing: 0.8, marginBottom: 8 }}>TOMORROW</div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
         <div>
-          <div style={{ fontSize: 21, fontWeight: 900, color: "#F9FAFB", letterSpacing: -0.4 }}>{f.icon} {f.kwh} kWh</div>
+          <div style={{ fontSize: 21, fontWeight: 900, color: "#F9FAFB", letterSpacing: -0.4 }}>{f.icon} {f.kwh} kWh (roughly {(f.kwh * 3).toFixed(0)} miles of EV range)</div>
           <div style={{ fontSize: 11, color: "#7B8798", marginTop: 2 }}>{f.condition}</div>
         </div>
         <div style={{ textAlign: "right" }}>
           <div style={{ fontSize: 10, color: "#5F6E83", marginBottom: 4 }}>vs today</div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#22C55E" }}>+{f.deltaKwh} kWh ↑</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#22C55E" }}>+{f.deltaKwh} kWh ↑ (extra solar energy)</div>
         </div>
       </div>
       <div style={{ fontSize: 12, color: "#A9B4C4", lineHeight: 1.45 }}>
@@ -373,7 +373,7 @@ export function CrossDeviceCoordination({ connectedDevices, currentPence }: { co
       <div style={{ fontSize: 11, color: decision.color, fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>JOINT OPTIMISATION</div>
       <div style={{ fontSize: 15, fontWeight: 800, color: "#F9FAFB", marginBottom: 4 }}>{decision.icon} {decision.title}</div>
       <div style={{ fontSize: 12, color: "#9CA3AF", lineHeight: 1.5 }}>{decision.reason}</div>
-      {isCheap && <div style={{ marginTop: 8, fontSize: 11, color: decision.color, fontWeight: 600 }}>Now is a good slot — {currentPence}p/kWh</div>}
+      {isCheap && <div style={{ marginTop: 8, fontSize: 11, color: decision.color, fontWeight: 600 }}>Now is a good slot — {currentPence}p/kWh (price per unit)</div>}
     </div>
   );
 }
@@ -535,7 +535,7 @@ export function CarbonTracker({ connectedDevices }: { connectedDevices: DeviceCo
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
         <div>
           <div style={{ fontSize: 22, fontWeight: 900, color: "#F9FAFB", letterSpacing: -0.5 }}>
-            <span style={{ color }}>{current}</span> <span style={{ fontSize: 13, fontWeight: 500, color: "#6B7280" }}>gCO₂/kWh</span>
+            <span style={{ color }}>{current}</span> <span style={{ fontSize: 13, fontWeight: 500, color: "#6B7280" }}>gCO₂/kWh (grid carbon per unit)</span>
           </div>
           <div style={{ fontSize: 11, color: "#6B7280", marginTop: 2 }}>{label}</div>
         </div>
@@ -624,11 +624,11 @@ function ChargeSessionHistory() {
       <div style={{ padding: "14px 16px", borderBottom: "1px solid #1F2937", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <div style={{ fontSize: 11, color: "#38BDF8", fontWeight: 700, letterSpacing: 1, marginBottom: 3 }}>CHARGE SESSIONS</div>
-          <div style={{ fontSize: 13, color: "#9CA3AF" }}>{totalKwh} kWh · £{totalCost} last 10 sessions</div>
+          <div style={{ fontSize: 13, color: "#9CA3AF" }}>{totalKwh} kWh (total energy charged) · £{totalCost} last 10 sessions</div>
         </div>
         <button onClick={() => {
           const csv = [
-            "Date,Start,End,kWh,Cost (£),Avg (p/kWh),Carbon (gCO2)",
+            "Date,Start,End,Energy (kWh),Cost (£),Avg Price (p/kWh),Carbon (gCO2)",
             ...sessions.map(s =>
               `${s.date},${s.startTime},${s.endTime},${s.kwh},${s.cost},${s.avgPence},${s.carbonG}`
             )
@@ -646,7 +646,7 @@ function ChargeSessionHistory() {
           <div key={i} style={{ padding: "10px 16px", borderBottom: i < shown.length - 1 ? "1px solid #111827" : "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, color: "#F9FAFB", marginBottom: 2 }}>{s.date} · {s.startTime}–{s.endTime}</div>
-              <div style={{ fontSize: 10, color: "#4B5563" }}>{s.kwh} kWh · avg {s.avgPence}p · {(s.carbonG/1000).toFixed(1)} kg CO₂</div>
+              <div style={{ fontSize: 10, color: "#4B5563" }}>{s.kwh} kWh (session energy) · avg {s.avgPence}p (unit price) · {(s.carbonG/1000).toFixed(1)} kg CO₂</div>
             </div>
             <div style={{ fontSize: 14, fontWeight: 800, color: "#38BDF8" }}>£{s.cost}</div>
           </div>
@@ -673,7 +673,7 @@ export function BoostButton({ connectedDevices, currentPence }: { connectedDevic
       {boosting ? (
         <div style={{ background: "#0D1521", border: "1px solid #38BDF840", borderRadius: 14, padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "#38BDF8", marginBottom: 2 }}>🚗 Boost charging — {currentPence}p/kWh</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#38BDF8", marginBottom: 2 }}>🚗 Boost charging — {currentPence}p/kWh (price per unit)</div>
             <div style={{ fontSize: 11, color: "#6B7280" }}>Charging at full speed regardless of price</div>
           </div>
           <button onClick={() => setBoosting(false)} style={{ background: "#374151", border: "none", borderRadius: 8, padding: "5px 10px", color: "#9CA3AF", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Stop</button>

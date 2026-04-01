@@ -141,9 +141,9 @@ function homeActionLabel({
     case "hold":
     default:
       if (normalizedReason.includes("strong solar is expected soon")) {
-        return "Holding until solar arrives";
+        return "Waiting for best price until solar arrives";
       }
-      return "Holding steady";
+      return "Waiting for best price";
   }
 }
 
@@ -193,7 +193,7 @@ function mapActionHeadline(params: {
     return "Running home on solar";
   }
   if (canonicalAction === "import") return "Importing from grid";
-  if (decisionType.startsWith("rejected_") || canonicalAction === "hold") return "System is idle";
+  if (decisionType.startsWith("rejected_") || canonicalAction === "hold") return "Aveum is running";
 
   return undefined;
 }
@@ -210,7 +210,7 @@ function chooseHeadlineText(params: {
   return mapActionHeadline({
     decisionType: params.decisionType,
     canonicalAction: params.canonicalAction,
-  }) ?? "System is idle";
+  }) ?? "Aveum is running";
 }
 
 type TimelineItem = {
@@ -526,7 +526,7 @@ function EnergyFlowSVG({
 
       <circle cx={HOME.x} cy={HOME.y} r={homeRadius + 10} fill="none" stroke="#1A253514" strokeWidth="14" />
       <circle cx={HOME.x} cy={HOME.y} r={homeRadius} fill="#0C1422" stroke="#1A2535" strokeWidth="1.5" />
-      <text x={HOME.x} y={HOME.y - 4} textAnchor="middle" fontSize="12" fontWeight="800" fill={ENERGY_COLORS.home} fontFamily="system-ui, -apple-system, sans-serif">{(homeW / 1000).toFixed(1)}kW</text>
+      <text x={HOME.x} y={HOME.y - 4} textAnchor="middle" fontSize="12" fontWeight="800" fill={ENERGY_COLORS.home} fontFamily="system-ui, -apple-system, sans-serif">{`${(homeW / 1000).toFixed(1)}kW now (home demand)`}</text>
       <text x={HOME.x} y={HOME.y + 10} textAnchor="middle" fontSize="8" fill="#4E5E75" fontFamily="system-ui, -apple-system, sans-serif" letterSpacing="0.4">Home</text>
 
       {hasSolar && (
@@ -536,7 +536,7 @@ function EnergyFlowSVG({
           radius={nodeRadius}
           active={solarOn}
           color={ENERGY_COLORS.solar}
-          value={`${(solarW / 1000).toFixed(1)}kW`}
+          value={`${(solarW / 1000).toFixed(1)}kW now (solar output)`}
           label="Solar"
         />
       )}
@@ -578,7 +578,7 @@ function EnergyFlowSVG({
             radius={nodeRadius}
             active={true}
             color={ENERGY_COLORS.grid}
-            value={`${Math.abs(gridW / 1000).toFixed(1)}kW`}
+            value={`${Math.abs(gridW / 1000).toFixed(1)}kW now (grid flow)`}
             valueFontSize={9}
             valueActiveColor={ENERGY_COLORS.grid}
             valueInactiveColor={ENERGY_COLORS.grid}
