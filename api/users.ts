@@ -12,6 +12,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { Redis } from "@upstash/redis";
 import * as crypto from "node:crypto";
+import nodemailer from "nodemailer";
 
 const KV_KEY = "aveum:users";
 
@@ -55,6 +56,16 @@ interface UpdateableFields {
 
 interface UpdateRequestBody extends UpdateableFields {
   userId: string;
+}
+
+interface OctopusRateResult {
+  valid_from: string;
+  valid_to: string;
+  value_inc_vat: number;
+}
+
+interface OctopusRatesResponse {
+  results?: OctopusRateResult[];
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -121,6 +132,203 @@ async function writeAllUsers(redis: Redis, users: StoredUser[]): Promise<void> {
     pipeline.lpush(KV_KEY, JSON.stringify(user));
   }
   await pipeline.exec();
+}
+
+function getLondonDateTimeParts(date: Date): { date: string; hour: number } {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+
+  const year = parts.find((p) => p.type === "year")?.value ?? "1970";
+  const month = parts.find((p) => p.type === "month")?.value ?? "01";
+  const day = parts.find((p) => p.type === "day")?.value ?? "01";
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  return {
+    date: `${year}-${month}-${day}`,
+    hour,
+  };
+}
+
+function previousDateString(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+function isOvernightHour(hour: number): boolean {
+  return hour === 23 || (hour >= 0 && hour <= 6);
+}
+
+function formatLondonTime(dateIso: string): string {
+  return new Date(dateIso).toLocaleTimeString("en-GB", {
+    timeZone: "Europe/London",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function buildAgileRatesUrl(region: string): string {
+  const normalizedRegion = (region || "C").trim().toUpperCase() || "C";
+  return `https://api.octopus.energy/v1/products/AGILE-24-10-01/electricity-tariffs/E-1R-AGILE-24-10-01-${normalizedRegion}/standard-unit-rates/?page_size=1500`;
+}
+
+function pickCheapestOvernightWindow(rates: OctopusRateResult[]): {
+  startAt: string;
+  endAt: string;
+  averageRatePencePerKwh: number;
+} | null {
+  const parsed = rates
+    .map((rate) => ({
+      startAt: rate.valid_from,
+      endAt: rate.valid_to,
+      valueIncVat: Number(rate.value_inc_vat),
+      startMs: new Date(rate.valid_from).getTime(),
+      endMs: new Date(rate.valid_to).getTime(),
+    }))
+    .filter((rate) => Number.isFinite(rate.valueIncVat) && Number.isFinite(rate.startMs) && Number.isFinite(rate.endMs))
+    .sort((a, b) => a.startMs - b.startMs);
+
+  if (parsed.length < 6) return null;
+
+  const groupedByNight = new Map<string, typeof parsed>();
+  for (const slot of parsed) {
+    const london = getLondonDateTimeParts(new Date(slot.startAt));
+    if (!isOvernightHour(london.hour)) continue;
+
+    const nightKey = london.hour === 23 ? london.date : previousDateString(london.date);
+    const existing = groupedByNight.get(nightKey);
+    if (existing) existing.push(slot);
+    else groupedByNight.set(nightKey, [slot]);
+  }
+
+  let bestWindow: { startAt: string; endAt: string; averageRatePencePerKwh: number } | null = null;
+
+  for (const slots of groupedByNight.values()) {
+    slots.sort((a, b) => a.startMs - b.startMs);
+
+    for (let i = 0; i <= slots.length - 6; i += 1) {
+      const windowSlots = slots.slice(i, i + 6);
+      let consecutive = true;
+
+      for (let j = 1; j < windowSlots.length; j += 1) {
+        if (windowSlots[j - 1].endMs !== windowSlots[j].startMs) {
+          consecutive = false;
+          break;
+        }
+      }
+
+      if (!consecutive) continue;
+
+      const averageRatePencePerKwh =
+        windowSlots.reduce((sum, slot) => sum + slot.valueIncVat, 0) / windowSlots.length;
+
+      if (!bestWindow || averageRatePencePerKwh < bestWindow.averageRatePencePerKwh) {
+        bestWindow = {
+          startAt: windowSlots[0].startAt,
+          endAt: windowSlots[windowSlots.length - 1].endAt,
+          averageRatePencePerKwh,
+        };
+      }
+    }
+  }
+
+  return bestWindow;
+}
+
+function findCurrentRatePencePerKwh(rates: OctopusRateResult[]): number | null {
+  const nowMs = Date.now();
+  const active = rates.find((rate) => {
+    const start = new Date(rate.valid_from).getTime();
+    const end = new Date(rate.valid_to).getTime();
+    return nowMs >= start && nowMs < end;
+  });
+
+  if (active && Number.isFinite(Number(active.value_inc_vat))) {
+    return Number(active.value_inc_vat);
+  }
+
+  const next = rates
+    .map((rate) => ({
+      value: Number(rate.value_inc_vat),
+      startMs: new Date(rate.valid_from).getTime(),
+    }))
+    .filter((rate) => Number.isFinite(rate.value) && Number.isFinite(rate.startMs) && rate.startMs >= nowMs)
+    .sort((a, b) => a.startMs - b.startMs)[0];
+
+  return next ? next.value : null;
+}
+
+async function sendWelcomeEmail(user: StoredUser): Promise<void> {
+  const smtpHost = process.env.AVEUM_SMTP_HOST?.trim() ?? "";
+  const smtpUser = process.env.AVEUM_SMTP_USER?.trim() ?? "";
+  const smtpPass = process.env.AVEUM_SMTP_PASS?.trim() ?? "";
+  const smtpPort = parseInt(process.env.AVEUM_SMTP_PORT ?? "587", 10);
+  const fromEmail = process.env.AVEUM_FROM_EMAIL?.trim() || smtpUser;
+
+  if (!smtpHost || !smtpUser || !smtpPass) {
+    console.warn("[Aveum] Welcome email skipped: missing SMTP configuration");
+    return;
+  }
+
+  const agileUrl = buildAgileRatesUrl(user.region);
+  const ratesResponse = await fetch(agileUrl);
+  if (!ratesResponse.ok) {
+    throw new Error(`Octopus rates fetch failed (${ratesResponse.status})`);
+  }
+
+  const data = (await ratesResponse.json()) as OctopusRatesResponse;
+  const rates = data.results ?? [];
+  const bestWindow = pickCheapestOvernightWindow(rates);
+  if (!bestWindow) {
+    throw new Error("Unable to determine a 3-hour overnight window from Octopus rates");
+  }
+
+  const currentRate = findCurrentRatePencePerKwh(rates);
+  const savingPercent =
+    currentRate && currentRate > 0
+      ? Math.max(0, ((currentRate - bestWindow.averageRatePencePerKwh) / currentRate) * 100)
+      : 0;
+
+  const startTime = formatLondonTime(bestWindow.startAt);
+  const endTime = formatLondonTime(bestWindow.endAt);
+  const lowestRate = bestWindow.averageRatePencePerKwh.toFixed(1);
+  const saving = Math.round(savingPercent);
+
+  const sentence = `Welcome to Aveum, ${user.userName}. Tonight's plan: charge between ${startTime} and ${endTime} when rates drop to ${lowestRate}p/kWh. That's approximately ${saving}% cheaper than the current rate. Aveum runs automatically every night at 1am — nothing to do tonight except plug in.`;
+
+  const transporter = nodemailer.createTransport({
+    host: smtpHost,
+    port: Number.isFinite(smtpPort) ? smtpPort : 587,
+    secure: smtpPort === 465,
+    auth: {
+      user: smtpUser,
+      pass: smtpPass,
+    },
+  });
+
+  await transporter.sendMail({
+    from: `"Aveum" <${fromEmail}>`,
+    to: user.notifyEmail,
+    subject: "Welcome to Aveum — tonight's plan",
+    text: sentence,
+    html: `<p>${escapeHtml(sentence)}</p>`,
+  });
 }
 
 // ── Handler ────────────────────────────────────────────────────────────────────
@@ -193,6 +401,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         error: `Failed to save user: ${err instanceof Error ? err.message : String(err)}`,
       });
     }
+
+    void sendWelcomeEmail(newUser).catch((err: unknown) => {
+      console.error("Welcome email failed", {
+        userId: newUser.userId,
+        notifyEmail: newUser.notifyEmail,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+
     return res.status(201).json({ success: true, userId });
   }
 
