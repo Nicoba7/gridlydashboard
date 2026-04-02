@@ -15,6 +15,7 @@ import SimplifiedDashboard from "./pages/SimplifiedDashboard";
 import DeviceManagement from "./pages/DeviceManagement";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import Privacy from "./pages/Privacy";
 
 const queryClient = new QueryClient();
 
@@ -35,6 +36,7 @@ const App = () => (
           <Route path="/customer-value" element={<CustomerValue />} />
           <Route path="/network-growth" element={<NetworkGrowth />} />
           <Route path="/market-opportunity" element={<MarketOpportunity />} />
+          <Route path="/privacy" element={<Privacy />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

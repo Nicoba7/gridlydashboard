@@ -293,7 +293,8 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer style={S.footer}>
-        getaveum.com · © 2026 Aveum · Built in London
+        getaveum.com · © 2026 Aveum · Built in London ·{" "}
+        <a href="/privacy" style={{ color: "#4B5563", textDecoration: "none" }}>Privacy</a>
       </footer>
     </div>
   );
