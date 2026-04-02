@@ -14,7 +14,7 @@ import {
   type FoxESSRealTimeData,
 } from "./FoxESSApiClient";
 
-export type FoxESSCapability = "read_soc" | "read_power" | "schedule_window";
+export type FoxESSCapability = "read_soc" | "read_power" | "schedule_window" | "divert_solar";
 
 export interface FoxESSAdapterConfig {
   deviceId: string;
@@ -30,7 +30,7 @@ export class FoxESSAdapter extends BaseRealDeviceAdapter<
 > {
   readonly adapterId = "foxess-adapter.v1";
 
-  readonly capabilities: FoxESSCapability[] = ["read_soc", "read_power", "schedule_window"];
+  readonly capabilities: FoxESSCapability[] = ["read_soc", "read_power", "schedule_window", "divert_solar"];
 
   private readonly deviceId: string;
   private readonly apiKey: string;

@@ -15,7 +15,7 @@ import {
   type HuaweiStationRealKpi,
 } from "./HuaweiApiClient";
 
-export type HuaweiCapability = "read_soc" | "read_power" | "schedule_window";
+export type HuaweiCapability = "read_soc" | "read_power" | "schedule_window" | "divert_solar";
 
 export interface HuaweiAdapterConfig {
   deviceId: string;
@@ -39,7 +39,7 @@ export class HuaweiAdapter extends BaseRealDeviceAdapter<
 > {
   readonly adapterId = "huawei-adapter.v1";
 
-  readonly capabilities: HuaweiCapability[] = ["read_soc", "read_power", "schedule_window"];
+  readonly capabilities: HuaweiCapability[] = ["read_soc", "read_power", "schedule_window", "divert_solar"];
 
   private readonly deviceId: string;
   private readonly userName: string;

@@ -16,7 +16,7 @@ import {
   type SolarEdgeSiteOverview,
 } from "./SolarEdgeApiClient";
 
-export type SolarEdgeCapability = "read_soc" | "read_power" | "schedule_window";
+export type SolarEdgeCapability = "read_soc" | "read_power" | "schedule_window" | "divert_solar";
 
 export interface SolarEdgeAdapterConfig {
   deviceId: string;
@@ -37,7 +37,7 @@ export class SolarEdgeAdapter extends BaseRealDeviceAdapter<
 > {
   readonly adapterId = "solaredge-adapter.v1";
 
-  readonly capabilities: SolarEdgeCapability[] = ["read_soc", "read_power", "schedule_window"];
+  readonly capabilities: SolarEdgeCapability[] = ["read_soc", "read_power", "schedule_window", "divert_solar"];
 
   private readonly deviceId: string;
   private readonly siteId: string;

@@ -28,6 +28,8 @@ import { validateRuntimeJournalProjectionPayloadIntegrity } from "../validateRun
 const VALUE_SEEKING_ACTIONS = new Set([
   "charge_battery",
   "discharge_battery",
+  "divert_solar_to_ev",
+  "divert_solar_to_battery",
   "charge_ev",
   "export_to_grid",
 ]);

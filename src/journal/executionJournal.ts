@@ -68,7 +68,8 @@ export interface CycleEconomicSnapshot {
   conservativeAdjustmentApplied?: boolean;
   /**
    * True when the active plan contains at least one value-seeking decision
-  * (charge_battery / discharge_battery / discharge_ev_to_home / charge_ev / export_to_grid).
+  * (charge_battery / discharge_battery / discharge_ev_to_home / divert_solar_to_ev /
+  *  divert_solar_to_battery / charge_ev / export_to_grid).
    * False when the plan is purely protective (hold only) or empty.
    */
   hasValueSeekingDecisions: boolean;

@@ -188,6 +188,8 @@ function mapActionHeadline(params: {
   const decisionType = params.decisionType?.toLowerCase().trim() ?? "";
   const canonicalAction = params.canonicalAction?.toLowerCase().trim() ?? "";
 
+  if (decisionType.includes("divert_solar_to_ev")) return "Diverting solar to EV";
+  if (decisionType.includes("divert_solar_to_battery")) return "Diverting solar to battery";
   if (decisionType.includes("charge") || canonicalAction === "charge") return "Charging battery";
   if (decisionType.includes("discharge_ev_to_home")) return "EV powering your home";
   if (decisionType.includes("discharge") || canonicalAction === "discharge") return "Powering home from battery";

@@ -414,7 +414,7 @@ function requiredCapabilitiesForTarget(
   action: OptimizerDecision["action"],
   kind: OptimizerDecisionTarget["kind"],
 ): DeviceCapability[] {
-  if (action === "charge_ev") {
+  if (action === "charge_ev" || action === "divert_solar_to_ev") {
     return kind === "ev_charger" ? ["schedule_window"] : [];
   }
 
@@ -422,7 +422,7 @@ function requiredCapabilitiesForTarget(
     return kind === "ev_charger" ? ["vehicle_to_home"] : [];
   }
 
-  if (action === "charge_battery" || action === "discharge_battery") {
+  if (action === "charge_battery" || action === "discharge_battery" || action === "divert_solar_to_battery") {
     return kind === "battery" ? ["set_mode"] : [];
   }
 
@@ -472,6 +472,14 @@ function buildHeadline(decisions: OptimizerDecision[]): string {
     return "Aveum is using EV energy to reduce peak household import.";
   }
 
+  if (firstAction.action === "divert_solar_to_ev") {
+    return "Aveum is diverting surplus solar to charge your EV.";
+  }
+
+  if (firstAction.action === "divert_solar_to_battery") {
+    return "Aveum is diverting surplus solar to charge your battery.";
+  }
+
   if (firstAction.action === "export_to_grid") {
     return "Aveum is exporting energy while export value is strong.";
   }
@@ -493,7 +501,11 @@ function resolveDispatchTargetDeviceIds(
     const device = deviceById.get(deviceId);
     const kind = device?.kind;
 
-    if (decision.action === "charge_battery" || decision.action === "discharge_battery") {
+    if (
+      decision.action === "charge_battery"
+      || decision.action === "discharge_battery"
+      || decision.action === "divert_solar_to_battery"
+    ) {
       return kind === "battery" && Boolean(device?.capabilities.includes("set_mode"));
     }
 
@@ -501,7 +513,7 @@ function resolveDispatchTargetDeviceIds(
       return kind === "ev_charger" && Boolean(device?.capabilities.includes("vehicle_to_home"));
     }
 
-    if (decision.action === "charge_ev") {
+    if (decision.action === "charge_ev" || decision.action === "divert_solar_to_ev") {
       return kind === "ev_charger" && Boolean(device?.capabilities.includes("schedule_window"));
     }
 
@@ -570,6 +582,18 @@ function buildCommands(
         };
         commands.push(command);
         pushOpportunity(decision, targetDeviceId, command, targetIndex);
+      } else if (decision.action === "divert_solar_to_battery") {
+        const command: DeviceCommand = {
+          commandId: `${planId}-divert-battery-${index}-${targetIndex}`,
+          deviceId: targetDeviceId,
+          issuedAt: generatedAt,
+          type: "set_mode",
+          mode: "charge",
+          effectiveWindow: { startAt: decision.startAt, endAt: decision.endAt },
+          reason: decision.reason,
+        };
+        commands.push(command);
+        pushOpportunity(decision, targetDeviceId, command, targetIndex);
       } else if (decision.action === "discharge_battery") {
         const command: DeviceCommand = {
           commandId: `${planId}-discharge-${index}-${targetIndex}`,
@@ -594,7 +618,7 @@ function buildCommands(
         };
         commands.push(command);
         pushOpportunity(decision, targetDeviceId, command, targetIndex);
-      } else if (decision.action === "charge_ev") {
+      } else if (decision.action === "charge_ev" || decision.action === "divert_solar_to_ev") {
         const command: DeviceCommand = {
           commandId: `${planId}-ev-${index}-${targetIndex}`,
           deviceId: targetDeviceId,
@@ -747,6 +771,7 @@ export function buildCanonicalRuntimeResult(input: OptimizerInput): CanonicalRun
     Boolean(input.systemState.evConnected)
     && v2hContext.chargerDeviceIds.length > 0
     && input.systemState.evSocPercent !== undefined;
+  const solarDivertEnabled = input.constraints.solarDivertEnabled ?? true;
 
   const importRates = input.tariffSchedule.importRates;
   const exportRates = input.tariffSchedule.exportRates ?? [];
@@ -978,6 +1003,19 @@ export function buildCanonicalRuntimeResult(input: OptimizerInput): CanonicalRun
       evSoc < (input.constraints.evTargetSocPercent ?? 85) &&
       importRate <= currentEvThreshold;
 
+    const evSolarDivertRoomKwh = hasEv && evSoc !== undefined
+      ? Math.max(0, ((input.constraints.evTargetSocPercent ?? 85) - evSoc) / 100 * evCapacityKwh)
+      : 0;
+    const batterySolarDivertRoomKwh = hasBattery
+      ? Math.max(0, ((96 - batterySoc) / 100) * batteryCapacityKwh)
+      : 0;
+    const solarDivertToEvKwh = Math.min(2.0 * slotHours, solarSurplusKwh, evSolarDivertRoomKwh);
+    const solarDivertToBatteryKwh = Math.min(5.0 * slotHours, solarSurplusKwh, batterySolarDivertRoomKwh);
+    const canDivertSolarToEv = solarDivertToEvKwh > 0.01;
+    const canDivertSolarToBattery = solarDivertToBatteryKwh > 0.01;
+    const divertValueEvPence = solarDivertToEvKwh * importRate;
+    const divertValueBatteryPence = solarDivertToBatteryKwh * importRate;
+
     const exportAttractivenessRatio = modePolicy.exportAttractivenessRatio + conservatismPolicy.exportAttractivenessPremiumRatio;
     const valuePoint = marginalStoredValue.points[index];
     const selfConsumptionPreferenceWeight = clampWeight(input.constraints.selfConsumptionPreferenceWeight, 1);
@@ -1066,6 +1104,33 @@ export function buildCanonicalRuntimeResult(input: OptimizerInput): CanonicalRun
           targetDeviceIds = [...batteryDeviceIds, ...evChargerDeviceIds];
           evSoc = clamp(evSoc + (evChargeKwh / evCapacityKwh) * 100, 0, 100);
         }
+      }
+    } else if (
+      solarDivertEnabled
+      && solarSurplusKwh > 0.05
+      && exportRate < importRate
+      && (canDivertSolarToEv || canDivertSolarToBattery)
+    ) {
+      if (canDivertSolarToEv && (!canDivertSolarToBattery || divertValueEvPence >= divertValueBatteryPence)) {
+        action = "divert_solar_to_ev";
+        reason = "Diverting surplus solar into EV charging is more valuable than low-rate export.";
+        expectedImportKwh = 0;
+        expectedExportKwh = Math.max(0, solarSurplusKwh - solarDivertToEvKwh);
+        expectedEnergyTransferredKwh = Number(solarDivertToEvKwh.toFixed(3));
+        expectedValuePence = Number(divertValueEvPence.toFixed(2));
+        targetDeviceIds = [...evChargerDeviceIds];
+        if (evSoc !== undefined) {
+          evSoc = clamp(evSoc + (solarDivertToEvKwh / evCapacityKwh) * 100, 0, 100);
+        }
+      } else {
+        action = "divert_solar_to_battery";
+        reason = "Diverting surplus solar into battery charging is more valuable than low-rate export.";
+        expectedImportKwh = 0;
+        expectedExportKwh = Math.max(0, solarSurplusKwh - solarDivertToBatteryKwh);
+        expectedEnergyTransferredKwh = Number(solarDivertToBatteryKwh.toFixed(3));
+        expectedValuePence = Number(divertValueBatteryPence.toFixed(2));
+        targetDeviceIds = [...batteryDeviceIds];
+        batterySoc = clamp(batterySoc + (solarDivertToBatteryKwh / batteryCapacityKwh) * 100, 0, 100);
       }
     } else if (hasBattery && solarSurplusKwh > 0.05 && input.constraints.allowBatteryExport && exportAttractiveEnough) {
       action = "export_to_grid";
@@ -1215,7 +1280,10 @@ export function buildCanonicalRuntimeResult(input: OptimizerInput): CanonicalRun
     expectedImportCostPence += expectedImportKwh * importRate;
     expectedExportRevenuePence += expectedExportKwh * exportRate;
     expectedSolarSelfConsumptionKwh += Math.min(loadKwh, solarKwh);
-    chargingBatteryInPreviousSlot = action === "charge_battery";
+    if (action === "divert_solar_to_ev" || action === "divert_solar_to_battery") {
+      expectedSolarSelfConsumptionKwh += expectedEnergyTransferredKwh ?? 0;
+    }
+    chargingBatteryInPreviousSlot = action === "charge_battery" || action === "divert_solar_to_battery";
 
     const confidence = Number(
       clamp(
@@ -1285,6 +1353,10 @@ export function buildCanonicalRuntimeResult(input: OptimizerInput): CanonicalRun
     "Planning style adjusts reserve floor, cycling limit, value weighting, and EV urgency thresholds.",
     "Stored-energy marginal value uses a canonical round-trip efficiency assumption of 90%.",
   ];
+
+  if (solarDivertEnabled) {
+    assumptions.push("Solar divert is enabled: surplus solar may be routed to EV or battery when export value is weaker than import avoidance.");
+  }
 
   if (!input.tariffSchedule.exportRates?.length) {
     assumptions.push("Export pricing uses a conservative fallback ratio when export slots are unavailable.");

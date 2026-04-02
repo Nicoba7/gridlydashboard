@@ -39,7 +39,12 @@ export interface StateDriftEvaluation {
 function actionToExpectedChargingState(
   action: OptimizerAction,
 ): "charging" | "discharging" | "idle" | undefined {
-  if (action === "charge_battery" || action === "charge_ev") return "charging";
+  if (
+    action === "charge_battery"
+    || action === "charge_ev"
+    || action === "divert_solar_to_ev"
+    || action === "divert_solar_to_battery"
+  ) return "charging";
   if (action === "discharge_battery" || action === "export_to_grid") return "discharging";
   if (action === "hold" || action === "consume_solar") return "idle";
   return undefined;

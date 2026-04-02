@@ -19,7 +19,8 @@ export type GivEnergyCapability =
   | "read_energy"
   | "read_soc"
   | "set_mode"
-  | "set_reserve_soc";
+  | "set_reserve_soc"
+  | "divert_solar";
 
 export interface GivEnergyAdapterConfig {
   /** Inverter serial number — used as both the cloud API path parameter and the canonical device ID. */
@@ -53,6 +54,7 @@ export class GivEnergyAdapter extends BaseRealDeviceAdapter<
     "read_soc",
     "set_mode",
     "set_reserve_soc",
+    "divert_solar",
   ];
 
   private readonly inverterSerial: string;

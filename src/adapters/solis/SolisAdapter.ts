@@ -14,7 +14,7 @@ import {
   type SolisInverterDetail,
 } from "./SolisApiClient";
 
-export type SolisCapability = "read_soc" | "read_power" | "schedule_window";
+export type SolisCapability = "read_soc" | "read_power" | "schedule_window" | "divert_solar";
 
 export interface SolisAdapterConfig {
   deviceId: string;
@@ -31,7 +31,7 @@ export class SolisAdapter extends BaseRealDeviceAdapter<
 > {
   readonly adapterId = "solis-adapter.v1";
 
-  readonly capabilities: SolisCapability[] = ["read_soc", "read_power", "schedule_window"];
+  readonly capabilities: SolisCapability[] = ["read_soc", "read_power", "schedule_window", "divert_solar"];
 
   private readonly deviceId: string;
   private readonly keyId: string;

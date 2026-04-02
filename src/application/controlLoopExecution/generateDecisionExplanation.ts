@@ -53,6 +53,10 @@ function buildActionSummary(decisionType: string, decisionReason?: string): stri
     case "charge_ev":
     case "start_charging":
       return "Charging EV";
+    case "divert_solar_to_ev":
+      return "Diverting solar to EV";
+    case "divert_solar_to_battery":
+      return "Diverting solar to battery";
     case "stop_charging":
       return "Stopping EV charging";
     case "export_to_grid":

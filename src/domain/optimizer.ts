@@ -11,6 +11,8 @@ export type OptimizerAction =
   | "charge_battery"
   | "discharge_battery"
   | "discharge_ev_to_home"
+  | "divert_solar_to_ev"
+  | "divert_solar_to_battery"
   | "charge_ev"
   | "export_to_grid"
   | "consume_solar"
@@ -38,6 +40,8 @@ export interface Constraints {
   allowBatteryExport: boolean;
   /** Whether Aveum may schedule EV charging automatically. */
   allowAutomaticEvCharging: boolean;
+  /** Whether Aveum may divert surplus solar into flexible loads instead of exporting. */
+  solarDivertEnabled?: boolean;
   /** Latest acceptable EV ready time for deadline-aware charging. */
   evReadyBy?: string;
   /** EV charge target to achieve before the ready-by time. */
