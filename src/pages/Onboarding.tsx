@@ -133,12 +133,42 @@ const UK_REGIONS = [
   { value: "L", label: "Yorkshire" },
 ];
 
+const TARIFF_OPTIONS = [
+  { value: "octopus_agile", label: "Octopus Agile", description: "recommended — half-hourly dynamic prices" },
+  { value: "octopus_go", label: "Octopus Go", description: "cheap overnight 11:30pm–5:30am at fixed rate" },
+  { value: "octopus_intelligent_go", label: "Octopus Intelligent Go", description: "Octopus controls EV directly" },
+  { value: "eon_drive", label: "E.ON Drive", description: "cheap overnight 12am–7am" },
+  { value: "edf_goelectric", label: "EDF GoElectric", description: "cheap overnight 12am–7am" },
+  { value: "british_gas_electric_driver", label: "British Gas Electric Driver", description: "cheap overnight 12am–8am" },
+  { value: "other_smart", label: "Other smart tariff", description: "I'll enter my cheap window manually" },
+  { value: "standard_fixed", label: "Standard fixed tariff", description: "no smart tariff" },
+] as const;
+
 function OctopusForm({ creds, setCreds, skipped, onSkip, onUnskip }: { creds: any; setCreds: any; skipped: boolean; onSkip: () => void; onUnskip: () => void }) {
+  const tariffType = creds.tariffType || "octopus_agile";
+  const isOctopusTariff = tariffType === "octopus_agile" || tariffType === "octopus_go" || tariffType === "octopus_intelligent_go";
+  const isOtherSmartTariff = tariffType === "other_smart";
+  const isStandardFixedTariff = tariffType === "standard_fixed";
+
   return (
     <div style={{ marginBottom: 20 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <Grid3X3 size={16} color="#A78BFA" />
         <span style={{ fontSize: 13, fontWeight: 700, color: "#F9FAFB" }}>Octopus Energy</span>
+      </div>
+
+      {/* Tariff selector */}
+      <div style={{ marginBottom: 14 }}>
+        <label style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", display: "block", marginBottom: 5, letterSpacing: 0.5 }}>YOUR TARIFF</label>
+        <select
+          value={tariffType}
+          onChange={e => setCreds((c: any) => ({ ...c, tariffType: e.target.value }))}
+          style={{ width: "100%", background: "#111827", border: "1px solid #374151", borderRadius: 10, padding: "11px 14px", color: "#F9FAFB", fontSize: 13, fontFamily: "inherit", outline: "none", appearance: "none", cursor: "pointer" }}
+        >
+          {TARIFF_OPTIONS.map(option => (
+            <option key={option.value} value={option.value}>{option.label} ({option.description})</option>
+          ))}
+        </select>
       </div>
 
       {/* Region selector — always shown */}
@@ -155,23 +185,58 @@ function OctopusForm({ creds, setCreds, skipped, onSkip, onUnskip }: { creds: an
         </select>
       </div>
 
-      {skipped ? (
+      {!isOctopusTariff ? (
         <div style={{ background: "#0D1521", border: "1px solid #374151", borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
-          <p style={{ fontSize: 12, color: "#6B7280", margin: "0 0 8px", lineHeight: 1.5 }}>
-            Aveum will use public Octopus Agile rates for your region — you can add your API key later for personalised data.
+          <p style={{ fontSize: 12, color: "#6B7280", margin: 0, lineHeight: 1.5 }}>
+            Aveum will use the standard cheap window for your tariff automatically.
           </p>
-          <button onClick={onUnskip} style={{ background: "none", border: "none", color: "#A78BFA", fontSize: 12, cursor: "pointer", padding: 0, fontFamily: "inherit" }}>
-            Add API key instead →
-          </button>
+          {isOtherSmartTariff && (
+            <div style={{ marginTop: 12 }}>
+              <Field
+                label="CHEAP RATE STARTS"
+                placeholder=""
+                hint="Enter your off-peak start time"
+                secret={false}
+                type="time"
+                value={creds.cheapRateStart ?? "00:00"}
+                onChange={v => setCreds((c: any) => ({ ...c, cheapRateStart: v }))}
+              />
+              <Field
+                label="CHEAP RATE ENDS"
+                placeholder=""
+                hint="Enter your off-peak end time"
+                secret={false}
+                type="time"
+                value={creds.cheapRateEnd ?? "07:00"}
+                onChange={v => setCreds((c: any) => ({ ...c, cheapRateEnd: v }))}
+              />
+            </div>
+          )}
+          {isStandardFixedTariff && (
+            <p style={{ fontSize: 12, color: "#9CA3AF", margin: "10px 0 0", lineHeight: 1.5 }}>
+              Aveum works best with a smart tariff. Your devices will still be optimised but savings will be smaller.
+            </p>
+          )}
         </div>
       ) : (
-        <>
-          <Field label="API KEY" placeholder="sk_live_xxxxxxxxxxxx" hint="Account → Personal details → API access" link={{ text: "Open Octopus", url: "https://octopus.energy/dashboard/new/accounts/personal-details/" }} value={creds.apiKey} onChange={v => setCreds((c: any) => ({ ...c, apiKey: v }))} secret />
-          <Field label="ACCOUNT NUMBER" placeholder="A-XXXXXXXX" hint="Format: A- followed by 8 characters" value={creds.accountNumber} onChange={v => setCreds((c: any) => ({ ...c, accountNumber: v }))} />
-          <button onClick={onSkip} style={{ background: "none", border: "none", color: "#4B5563", fontSize: 12, cursor: "pointer", padding: "2px 0 8px", fontFamily: "inherit", display: "block" }}>
-            Skip for now
-          </button>
-        </>
+        skipped ? (
+          <div style={{ background: "#0D1521", border: "1px solid #374151", borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
+            <p style={{ fontSize: 12, color: "#6B7280", margin: "0 0 8px", lineHeight: 1.5 }}>
+              Aveum will use public Octopus Agile rates for your region — you can add your API key later for personalised data.
+            </p>
+            <button onClick={onUnskip} style={{ background: "none", border: "none", color: "#A78BFA", fontSize: 12, cursor: "pointer", padding: 0, fontFamily: "inherit" }}>
+              Add API key instead →
+            </button>
+          </div>
+        ) : (
+          <>
+            <Field label="API KEY" placeholder="sk_live_xxxxxxxxxxxx" hint="Account → Personal details → API access" link={{ text: "Open Octopus", url: "https://octopus.energy/dashboard/new/accounts/personal-details/" }} value={creds.apiKey} onChange={v => setCreds((c: any) => ({ ...c, apiKey: v }))} secret />
+            <Field label="ACCOUNT NUMBER" placeholder="A-XXXXXXXX" hint="Format: A- followed by 8 characters" value={creds.accountNumber} onChange={v => setCreds((c: any) => ({ ...c, accountNumber: v }))} />
+            <button onClick={onSkip} style={{ background: "none", border: "none", color: "#4B5563", fontSize: 12, cursor: "pointer", padding: "2px 0 8px", fontFamily: "inherit", display: "block" }}>
+              Skip for now
+            </button>
+          </>
+        )
       )}
     </div>
   );
@@ -420,7 +485,14 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [notifyEmail, setNotifyEmail] = useState("");
   const [emailTouched, setEmailTouched] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
-  const [octopusCreds, setOctopusCreds] = useState({ apiKey: "", accountNumber: "", region: "C" });
+  const [octopusCreds, setOctopusCreds] = useState({
+    apiKey: "",
+    accountNumber: "",
+    region: "C",
+    tariffType: "octopus_agile",
+    cheapRateStart: "",
+    cheapRateEnd: "",
+  });
   const [octopusSkipped, setOctopusSkipped] = useState(false);
   const [solarCreds, setSolarCreds] = useState({ apiKey: "", serial: "" });
   const [evCreds, setEvCreds] = useState<any>({ brand: "" });
@@ -454,6 +526,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           octopusApiKey: octopusSkipped ? undefined : octopusCreds.apiKey || undefined,
           octopusAccountNumber: octopusSkipped ? undefined : octopusCreds.accountNumber || undefined,
           region: octopusCreds.region || "C",
+          tariffType: octopusCreds.tariffType || "octopus_agile",
+          cheapRateStart: octopusCreds.cheapRateStart || undefined,
+          cheapRateEnd: octopusCreds.cheapRateEnd || undefined,
           optimizationMode: "balanced",
           devices: selected,
           ohmeEmail: evCreds.ohmeEmail ?? undefined,
