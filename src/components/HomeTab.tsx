@@ -781,6 +781,58 @@ export default function HomeTab({
 
   const hasRealPlanData = hasStoredUserId && Boolean(latestResult);
 
+  // ── Tonight's Plan — skip state ──────────────────────────────────────────
+  const todayKey = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+
+  const [skippedDate, setSkippedDate] = useState<string | null>(() => {
+    try { return window.localStorage.getItem("aveum_skip_tonight"); } catch { return null; }
+  });
+  const isSkipped = skippedDate === todayKey;
+
+  function skipTonight() {
+    try { window.localStorage.setItem("aveum_skip_tonight", todayKey); } catch { /* noop */ }
+    setSkippedDate(todayKey);
+  }
+
+  function resumeTonight() {
+    try { window.localStorage.removeItem("aveum_skip_tonight"); } catch { /* noop */ }
+    setSkippedDate(null);
+  }
+
+  // ── Tonight's Plan — edit overrides ─────────────────────────────────────
+  const [editOpen, setEditOpen] = useState(false);
+  const [departureDraft, setDepartureDraft] = useState<string>(() => {
+    try { return window.localStorage.getItem("aveum_tonight_departure") ?? "07:00"; } catch { return "07:00"; }
+  });
+  const [targetSocDraft, setTargetSocDraft] = useState<string>(() => {
+    try { return window.localStorage.getItem("aveum_tonight_target_soc") ?? "80"; } catch { return "80"; }
+  });
+
+  // Committed (saved) values shown in the card label
+  const [savedDeparture, setSavedDeparture] = useState<string>(() => {
+    try { return window.localStorage.getItem("aveum_tonight_departure") ?? ""; } catch { return ""; }
+  });
+  const [savedTargetSoc, setSavedTargetSoc] = useState<string>(() => {
+    try { return window.localStorage.getItem("aveum_tonight_target_soc") ?? ""; } catch { return ""; }
+  });
+
+  function saveEditOverrides() {
+    try {
+      window.localStorage.setItem("aveum_tonight_departure", departureDraft);
+      window.localStorage.setItem("aveum_tonight_target_soc", targetSocDraft);
+    } catch { /* noop */ }
+    setSavedDeparture(departureDraft);
+    setSavedTargetSoc(targetSocDraft);
+    setEditOpen(false);
+  }
+
+  function cancelEdit() {
+    // Reset drafts back to last saved values
+    setDepartureDraft(savedDeparture || "07:00");
+    setTargetSocDraft(savedTargetSoc || "80");
+    setEditOpen(false);
+  }
+
   const topActionWindow = useMemo(() => {
     const timelineRows = homeOptimizerView.timeline;
     if (!timelineRows.length) return null;
@@ -837,57 +889,174 @@ export default function HomeTab({
           <div style={{ fontSize: 10, color: "#052E16", fontWeight: 700, background: "#22C55E", borderRadius: 999, padding: "2px 8px" }}>AUTO</div>
         </div>
 
-        {!hasRealPlanData ? (
-          <div style={{ fontSize: 13, lineHeight: 1.45, color: "#6B7280", marginBottom: 12 }}>
-            Aveum calculates tonight's plan using live Agile prices. Check back after 10pm.
-          </div>
-        ) : topActionWindow ? (
+        {isSkipped ? (
+          /* ── Paused state ── */
           <>
-            <div style={{ fontSize: 14, color: "#E5EDF9", fontWeight: 600, marginBottom: 6 }}>{topActionWindow.line}</div>
-            <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 12 }}>
-              Why: Cheapest window before your 07:00 departure.
+            <div style={{ fontSize: 13, lineHeight: 1.5, color: "#9CA3AF", marginBottom: 12 }}>
+              Tonight's optimisation is paused. Aveum will resume tomorrow.
             </div>
+            <button
+              type="button"
+              onClick={resumeTonight}
+              style={{
+                border: "1px solid #22C55E",
+                background: "transparent",
+                color: "#22C55E",
+                borderRadius: 8,
+                padding: "7px 12px",
+                fontSize: 12,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                fontWeight: 600,
+              }}
+            >
+              Resume
+            </button>
           </>
         ) : (
-          <div style={{ fontSize: 13, lineHeight: 1.45, color: "#6B7280", marginBottom: 12 }}>
-            No charging needed tonight · Battery will cover usage · Saving ~£0.60 vs grid.
-          </div>
-        )}
+          /* ── Normal / edit states ── */
+          <>
+            {!hasRealPlanData ? (
+              <div style={{ fontSize: 13, lineHeight: 1.45, color: "#6B7280", marginBottom: 12 }}>
+                Aveum calculates tonight's plan using live Agile prices. Check back after 10pm.
+              </div>
+            ) : topActionWindow ? (
+              <>
+                <div style={{ fontSize: 14, color: "#E5EDF9", fontWeight: 600, marginBottom: 6 }}>{topActionWindow.line}</div>
+                <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 12 }}>
+                  Why: Cheapest window before your {savedDeparture || "07:00"} departure
+                  {savedTargetSoc ? ` · target ${savedTargetSoc}%` : ""}.
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize: 13, lineHeight: 1.45, color: "#6B7280", marginBottom: 12 }}>
+                No charging needed tonight · Battery will cover usage · Saving ~£0.60 vs grid.
+              </div>
+            )}
 
-        <div style={{ display: "flex", gap: 8 }}>
-          <button
-            type="button"
-            onClick={() => console.log("Skip tonight clicked")}
-            style={{
-              border: "1px solid #233149",
-              background: "#111827",
-              color: "#9CA3AF",
-              borderRadius: 8,
-              padding: "7px 10px",
-              fontSize: 12,
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            Skip tonight
-          </button>
-          <button
-            type="button"
-            onClick={() => console.log("Edit plan clicked")}
-            style={{
-              border: "1px solid #233149",
-              background: "#111827",
-              color: "#9CA3AF",
-              borderRadius: 8,
-              padding: "7px 10px",
-              fontSize: 12,
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            Edit
-          </button>
-        </div>
+            {/* ── Inline edit form ── */}
+            {editOpen && (
+              <div
+                style={{
+                  background: "#0B1120",
+                  border: "1px solid #1F2937",
+                  borderRadius: 10,
+                  padding: "14px 14px 10px",
+                  marginBottom: 12,
+                }}
+              >
+                <div style={{ fontSize: 11, color: "#4B5563", fontWeight: 700, letterSpacing: 0.8, marginBottom: 12 }}>TONIGHT'S OVERRIDES</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <label style={{ fontSize: 12, color: "#9CA3AF", display: "flex", flexDirection: "column", gap: 4 }}>
+                    Departure time
+                    <input
+                      type="time"
+                      value={departureDraft}
+                      onChange={(e) => setDepartureDraft(e.target.value)}
+                      style={{
+                        background: "#111827",
+                        border: "1px solid #374151",
+                        borderRadius: 8,
+                        padding: "8px 10px",
+                        color: "#F9FAFB",
+                        fontSize: 13,
+                        fontFamily: "inherit",
+                        outline: "none",
+                        width: "100%",
+                        boxSizing: "border-box" as const,
+                      }}
+                    />
+                  </label>
+                  <label style={{ fontSize: 12, color: "#9CA3AF", display: "flex", flexDirection: "column", gap: 4 }}>
+                    Target charge %
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <input
+                        type="range"
+                        min={20}
+                        max={100}
+                        step={5}
+                        value={Number(targetSocDraft)}
+                        onChange={(e) => setTargetSocDraft(e.target.value)}
+                        style={{ flex: 1, accentColor: "#22C55E" }}
+                      />
+                      <span style={{ fontSize: 13, color: "#F9FAFB", minWidth: 32, textAlign: "right" as const }}>{targetSocDraft}%</span>
+                    </div>
+                  </label>
+                </div>
+                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                  <button
+                    type="button"
+                    onClick={saveEditOverrides}
+                    style={{
+                      background: "#22C55E",
+                      color: "#030712",
+                      border: "none",
+                      borderRadius: 8,
+                      padding: "7px 14px",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelEdit}
+                    style={{
+                      border: "1px solid #233149",
+                      background: "transparent",
+                      color: "#9CA3AF",
+                      borderRadius: 8,
+                      padding: "7px 10px",
+                      fontSize: 12,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                type="button"
+                onClick={skipTonight}
+                style={{
+                  border: "1px solid #233149",
+                  background: "#111827",
+                  color: "#9CA3AF",
+                  borderRadius: 8,
+                  padding: "7px 10px",
+                  fontSize: 12,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                Skip tonight
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditOpen((o) => !o)}
+                style={{
+                  border: editOpen ? "1px solid #374151" : "1px solid #233149",
+                  background: editOpen ? "#1F2937" : "#111827",
+                  color: "#9CA3AF",
+                  borderRadius: 8,
+                  padding: "7px 10px",
+                  fontSize: 12,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                {editOpen ? "Close" : "Edit"}
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       <div style={{ margin: "14px 14px 0", background: "#0A111D", borderRadius: 20, border: "1px solid #182235", overflow: "hidden", boxShadow: "0 16px 30px rgba(1, 7, 20, 0.3)" }}>
