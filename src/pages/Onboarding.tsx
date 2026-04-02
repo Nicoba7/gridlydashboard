@@ -20,16 +20,22 @@ const DEVICES: Device[] = [
 
 const EV_BRANDS = [
   {
-    id: "tesla",
-    name: "Tesla",
-    description: "Any Tesla vehicle",
-    fields: [],
-    oauth: true,
+    id: "ohme",
+    name: "Ohme",
+    status: "supported",
+    badgeLabel: "✓ Supported",
+    badgeColor: "#22C55E",
+    fields: [
+      { key: "ohmeEmail",    label: "OHME ACCOUNT EMAIL", placeholder: "you@example.com", secret: false, hint: "Your Ohme account email" },
+      { key: "ohmePassword", label: "OHME PASSWORD",       placeholder: "••••••••",        secret: true  },
+    ],
   },
   {
     id: "zappi",
     name: "Zappi",
-    description: "by myenergi",
+    status: "supported",
+    badgeLabel: "✓ Supported",
+    badgeColor: "#22C55E",
     fields: [
       { key: "email",    label: "MYENERGI EMAIL",    placeholder: "you@example.com",  secret: false, hint: "Your myenergi account email" },
       { key: "password", label: "MYENERGI PASSWORD", placeholder: "••••••••",         secret: true  },
@@ -37,19 +43,32 @@ const EV_BRANDS = [
     ],
   },
   {
-    id: "ohme",
-    name: "Ohme",
-    description: "Home / Home Pro / ePod",
-    note: "Used to schedule charging on your behalf via the Ohme app.",
+    id: "tesla",
+    name: "Tesla",
+    status: "supported",
+    badgeLabel: "✓ Supported",
+    badgeColor: "#22C55E",
+    fields: [],
+    oauth: true,
+  },
+  {
+    id: "easee",
+    name: "Easee",
+    status: "supported",
+    badgeLabel: "✓ Supported",
+    badgeColor: "#22C55E",
     fields: [
-      { key: "ohmeEmail",    label: "OHME ACCOUNT EMAIL", placeholder: "you@example.com", secret: false, hint: "Your Ohme account email" },
-      { key: "ohmePassword", label: "OHME PASSWORD",       placeholder: "••••••••",        secret: true  },
+      { key: "email",     label: "EASEE EMAIL",     placeholder: "you@example.com", secret: false, hint: "Your Easee account email or phone number" },
+      { key: "password",  label: "EASEE PASSWORD",  placeholder: "••••••••",        secret: true  },
+      { key: "chargerId", label: "CHARGER ID",      placeholder: "EH123456",        secret: false, hint: "Easee app → Charger → Settings → Charger ID" },
     ],
   },
   {
     id: "hypervolt",
     name: "Hypervolt",
-    description: "Home 3 / Plus",
+    status: "beta",
+    badgeLabel: "⚡ Beta",
+    badgeColor: "#F59E0B",
     fields: [
       { key: "apiKey",     label: "API KEY",     placeholder: "hv_xxxxxxxxxxxx",  secret: true,  hint: "Hypervolt app → Settings → API access" },
       { key: "chargerId",  label: "CHARGER ID",  placeholder: "XXXXXXXXXXXX",     secret: false, hint: "Found in the Hypervolt app under your charger" },
@@ -58,7 +77,9 @@ const EV_BRANDS = [
   {
     id: "wallbox",
     name: "Wallbox",
-    description: "Pulsar / Commander / Copper",
+    status: "beta",
+    badgeLabel: "⚡ Beta",
+    badgeColor: "#F59E0B",
     fields: [
       { key: "email",     label: "WALLBOX EMAIL",     placeholder: "you@example.com", secret: false, hint: "Your myWallbox account email" },
       { key: "password",  label: "WALLBOX PASSWORD",  placeholder: "••••••••",        secret: true  },
@@ -66,23 +87,27 @@ const EV_BRANDS = [
     ],
   },
   {
-    id: "easee",
-    name: "Easee",
-    description: "Home / Charge",
-    fields: [
-      { key: "email",     label: "EASEE EMAIL",     placeholder: "you@example.com", secret: false, hint: "Your Easee account email or phone number" },
-      { key: "password",  label: "EASEE PASSWORD",  placeholder: "••••••••",        secret: true  },
-      { key: "chargerId", label: "CHARGER ID",      placeholder: "EH123456",        secret: false, hint: "Easee app → Charger → Settings → Charger ID" },
-    ],
-  },
-  {
     id: "podpoint",
     name: "Pod Point",
-    description: "Solo / Solo 3",
+    status: "beta",
+    badgeLabel: "⚡ Beta",
+    badgeColor: "#F59E0B",
     fields: [
       { key: "email",  label: "POD POINT EMAIL",    placeholder: "you@example.com", secret: false, hint: "Your Pod Point account email" },
       { key: "password", label: "POD POINT PASSWORD", placeholder: "••••••••",      secret: true  },
       { key: "unitId", label: "UNIT ID",            placeholder: "XXXXXXXX",        secret: false, hint: "Pod Point app → Home Charger → Unit ID" },
+    ],
+  },
+  {
+    id: "indra",
+    name: "Indra",
+    status: "beta",
+    badgeLabel: "⚡ Beta",
+    badgeColor: "#F59E0B",
+    fields: [
+      { key: "email",    label: "INDRA EMAIL",     placeholder: "you@example.com", secret: false, hint: "Your Indra account email" },
+      { key: "password", label: "INDRA PASSWORD",  placeholder: "••••••••",        secret: true },
+      { key: "deviceId", label: "DEVICE ID",       placeholder: "indra-001",       secret: false, hint: "From the Indra app or installer portal" },
     ],
   },
 ];
@@ -133,12 +158,42 @@ const UK_REGIONS = [
   { value: "L", label: "Yorkshire" },
 ];
 
+const TARIFF_OPTIONS = [
+  { value: "octopus_agile", label: "Octopus Agile", description: "recommended — half-hourly dynamic prices" },
+  { value: "octopus_go", label: "Octopus Go", description: "cheap overnight 11:30pm–5:30am at fixed rate" },
+  { value: "octopus_intelligent_go", label: "Octopus Intelligent Go", description: "Octopus controls EV directly" },
+  { value: "eon_drive", label: "E.ON Drive", description: "cheap overnight 12am–7am" },
+  { value: "edf_goelectric", label: "EDF GoElectric", description: "cheap overnight 12am–7am" },
+  { value: "british_gas_electric_driver", label: "British Gas Electric Driver", description: "cheap overnight 12am–8am" },
+  { value: "other_smart", label: "Other smart tariff", description: "I'll enter my cheap window manually" },
+  { value: "standard_fixed", label: "Standard fixed tariff", description: "no smart tariff" },
+] as const;
+
 function OctopusForm({ creds, setCreds, skipped, onSkip, onUnskip }: { creds: any; setCreds: any; skipped: boolean; onSkip: () => void; onUnskip: () => void }) {
+  const tariffType = creds.tariffType || "octopus_agile";
+  const isOctopusTariff = tariffType === "octopus_agile" || tariffType === "octopus_go" || tariffType === "octopus_intelligent_go";
+  const isOtherSmartTariff = tariffType === "other_smart";
+  const isStandardFixedTariff = tariffType === "standard_fixed";
+
   return (
     <div style={{ marginBottom: 20 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <Grid3X3 size={16} color="#A78BFA" />
         <span style={{ fontSize: 13, fontWeight: 700, color: "#F9FAFB" }}>Octopus Energy</span>
+      </div>
+
+      {/* Tariff selector */}
+      <div style={{ marginBottom: 14 }}>
+        <label style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", display: "block", marginBottom: 5, letterSpacing: 0.5 }}>YOUR TARIFF</label>
+        <select
+          value={tariffType}
+          onChange={e => setCreds((c: any) => ({ ...c, tariffType: e.target.value }))}
+          style={{ width: "100%", background: "#111827", border: "1px solid #374151", borderRadius: 10, padding: "11px 14px", color: "#F9FAFB", fontSize: 13, fontFamily: "inherit", outline: "none", appearance: "none", cursor: "pointer" }}
+        >
+          {TARIFF_OPTIONS.map(option => (
+            <option key={option.value} value={option.value}>{option.label} ({option.description})</option>
+          ))}
+        </select>
       </div>
 
       {/* Region selector — always shown */}
@@ -155,23 +210,58 @@ function OctopusForm({ creds, setCreds, skipped, onSkip, onUnskip }: { creds: an
         </select>
       </div>
 
-      {skipped ? (
+      {!isOctopusTariff ? (
         <div style={{ background: "#0D1521", border: "1px solid #374151", borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
-          <p style={{ fontSize: 12, color: "#6B7280", margin: "0 0 8px", lineHeight: 1.5 }}>
-            Aveum will use public Octopus Agile rates for your region — you can add your API key later for personalised data.
+          <p style={{ fontSize: 12, color: "#6B7280", margin: 0, lineHeight: 1.5 }}>
+            Aveum will use the standard cheap window for your tariff automatically.
           </p>
-          <button onClick={onUnskip} style={{ background: "none", border: "none", color: "#A78BFA", fontSize: 12, cursor: "pointer", padding: 0, fontFamily: "inherit" }}>
-            Add API key instead →
-          </button>
+          {isOtherSmartTariff && (
+            <div style={{ marginTop: 12 }}>
+              <Field
+                label="CHEAP RATE STARTS"
+                placeholder=""
+                hint="Enter your off-peak start time"
+                secret={false}
+                type="time"
+                value={creds.cheapRateStart ?? "00:00"}
+                onChange={v => setCreds((c: any) => ({ ...c, cheapRateStart: v }))}
+              />
+              <Field
+                label="CHEAP RATE ENDS"
+                placeholder=""
+                hint="Enter your off-peak end time"
+                secret={false}
+                type="time"
+                value={creds.cheapRateEnd ?? "07:00"}
+                onChange={v => setCreds((c: any) => ({ ...c, cheapRateEnd: v }))}
+              />
+            </div>
+          )}
+          {isStandardFixedTariff && (
+            <p style={{ fontSize: 12, color: "#9CA3AF", margin: "10px 0 0", lineHeight: 1.5 }}>
+              Aveum works best with a smart tariff. Your devices will still be optimised but savings will be smaller.
+            </p>
+          )}
         </div>
       ) : (
-        <>
-          <Field label="API KEY" placeholder="sk_live_xxxxxxxxxxxx" hint="Account → Personal details → API access" link={{ text: "Open Octopus", url: "https://octopus.energy/dashboard/new/accounts/personal-details/" }} value={creds.apiKey} onChange={v => setCreds((c: any) => ({ ...c, apiKey: v }))} secret />
-          <Field label="ACCOUNT NUMBER" placeholder="A-XXXXXXXX" hint="Format: A- followed by 8 characters" value={creds.accountNumber} onChange={v => setCreds((c: any) => ({ ...c, accountNumber: v }))} />
-          <button onClick={onSkip} style={{ background: "none", border: "none", color: "#4B5563", fontSize: 12, cursor: "pointer", padding: "2px 0 8px", fontFamily: "inherit", display: "block" }}>
-            Skip for now
-          </button>
-        </>
+        skipped ? (
+          <div style={{ background: "#0D1521", border: "1px solid #374151", borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
+            <p style={{ fontSize: 12, color: "#6B7280", margin: "0 0 8px", lineHeight: 1.5 }}>
+              Aveum will use public Octopus Agile rates for your region — you can add your API key later for personalised data.
+            </p>
+            <button onClick={onUnskip} style={{ background: "none", border: "none", color: "#A78BFA", fontSize: 12, cursor: "pointer", padding: 0, fontFamily: "inherit" }}>
+              Add API key instead →
+            </button>
+          </div>
+        ) : (
+          <>
+            <Field label="ACCESS KEY" placeholder="octopus_access_xxxxxxxxx" hint="Account → Personal details → API access" link={{ text: "Open Octopus", url: "https://octopus.energy/dashboard/new/accounts/personal-details/" }} value={creds.apiKey} onChange={v => setCreds((c: any) => ({ ...c, apiKey: v }))} secret /> {/* // gitleaks:allow */}
+            <Field label="ACCOUNT NUMBER" placeholder="A-XXXXXXXX" hint="Format: A- followed by 8 characters" value={creds.accountNumber} onChange={v => setCreds((c: any) => ({ ...c, accountNumber: v }))} />
+            <button onClick={onSkip} style={{ background: "none", border: "none", color: "#4B5563", fontSize: 12, cursor: "pointer", padding: "2px 0 8px", fontFamily: "inherit", display: "block" }}>
+              Skip for now
+            </button>
+          </>
+        )
       )}
     </div>
   );
@@ -182,7 +272,9 @@ const INVERTER_BRANDS = [
   {
     id: "givenergy",
     name: "GivEnergy",
-    description: "All models",
+    status: "supported",
+    badgeLabel: "✓ Supported",
+    badgeColor: "#22C55E",
     fields: [
       { key: "apiKey", label: "API KEY", placeholder: "your-givenergy-api-key", secret: true, hint: "givenergy.cloud → Account Details → Generate API Key", link: { text: "Open GivEnergy", url: "https://givenergy.cloud" } },
       { key: "serial", label: "INVERTER SERIAL NUMBER", placeholder: "SA2XXXXXXXXXX", secret: false, hint: "On the sticker on your inverter or in the app" },
@@ -191,7 +283,9 @@ const INVERTER_BRANDS = [
   {
     id: "solax",
     name: "Solax",
-    description: "X1 / X3 / Hybrid",
+    status: "supported",
+    badgeLabel: "✓ Supported",
+    badgeColor: "#22C55E",
     fields: [
       { key: "tokenId", label: "TOKEN ID", placeholder: "20240XXXXXXXXXXX", secret: true, hint: "solaxcloud.com → Support → Third-party Ecology" },
       { key: "wifiSn", label: "WIFI DONGLE SERIAL", placeholder: "SUT****VB1", secret: false, hint: "Registration number shown in Solax Cloud under your inverter" },
@@ -200,7 +294,9 @@ const INVERTER_BRANDS = [
   {
     id: "solarEdge",
     name: "SolarEdge",
-    description: "With battery",
+    status: "supported",
+    badgeLabel: "✓ Supported",
+    badgeColor: "#22C55E",
     fields: [
       { key: "apiKey", label: "API KEY", placeholder: "your-solaredge-api-key", secret: true, hint: "monitoring.solaredge.com → Admin → Site Access → API Access" },
       { key: "siteId", label: "SITE ID", placeholder: "XXXXXXX", secret: false, hint: "Shown in the URL of your SolarEdge monitoring portal" },
@@ -209,18 +305,100 @@ const INVERTER_BRANDS = [
   {
     id: "solis",
     name: "Solis",
-    description: "S5 / S6",
+    status: "supported",
+    badgeLabel: "✓ Supported",
+    badgeColor: "#22C55E",
     fields: [
       { key: "apiKey", label: "API KEY", placeholder: "your-solis-api-key", secret: true },
       { key: "apiSecret", label: "API SECRET", placeholder: "your-solis-api-secret", secret: true, hint: "Solis Cloud → Account → API Management" },
       { key: "stationId", label: "STATION ID", placeholder: "XXXXXXXXXX", secret: false },
     ],
   },
+  {
+    id: "foxess",
+    name: "Fox ESS",
+    status: "supported",
+    badgeLabel: "✓ Supported",
+    badgeColor: "#22C55E",
+    fields: [
+      { key: "apiKey", label: "FOX ESS API KEY", placeholder: "your-foxess-api-key", secret: true },
+      { key: "deviceSn", label: "DEVICE SERIAL", placeholder: "SNXXXXXXXX", secret: false },
+    ],
+  },
+  {
+    id: "huawei",
+    name: "Huawei FusionSolar",
+    status: "supported",
+    badgeLabel: "✓ Supported",
+    badgeColor: "#22C55E",
+    fields: [
+      { key: "username", label: "FUSIONSOLAR USERNAME", placeholder: "your_fusionsolar_username", secret: false },
+      { key: "systemCode", label: "SYSTEM CODE", placeholder: "your_system_code", secret: true, hint: "Provided in Huawei FusionSolar account settings" },
+    ],
+  },
+  {
+    id: "ecoflow",
+    name: "EcoFlow",
+    status: "supported",
+    badgeLabel: "✓ Supported",
+    badgeColor: "#22C55E",
+    fields: [
+      { key: "accessKey", label: "ACCESS KEY", placeholder: "your-ecoflow-access-key", secret: true },
+      { key: "secretKey", label: "SECRET KEY", placeholder: "your-ecoflow-secret-key", secret: true },
+      { key: "deviceSn", label: "DEVICE SERIAL", placeholder: "R33**********", secret: false },
+    ],
+  },
+  {
+    id: "libbi",
+    name: "myenergi Libbi",
+    status: "supported",
+    badgeLabel: "✓ Supported",
+    badgeColor: "#22C55E",
+    fields: [
+      { key: "email", label: "MYENERGI EMAIL", placeholder: "you@example.com", secret: false },
+      { key: "password", label: "MYENERGI PASSWORD", placeholder: "••••••••", secret: true },
+      { key: "serial", label: "LIBBI SERIAL", placeholder: "LXXXXXXXXX", secret: false },
+    ],
+  },
+  {
+    id: "sigenergy",
+    name: "Sigenergy",
+    status: "beta",
+    badgeLabel: "⚡ Beta",
+    badgeColor: "#F59E0B",
+    fields: [],
+  },
+  {
+    id: "growatt",
+    name: "Growatt",
+    status: "coming_soon",
+    badgeLabel: "Coming soon",
+    badgeColor: "#6B7280",
+    fields: [],
+  },
+  {
+    id: "sunsynk",
+    name: "Sunsynk",
+    status: "coming_soon",
+    badgeLabel: "Coming soon",
+    badgeColor: "#6B7280",
+    fields: [],
+  },
+  {
+    id: "sofar",
+    name: "Sofar Solar",
+    status: "coming_soon",
+    badgeLabel: "Coming soon",
+    badgeColor: "#6B7280",
+    fields: [],
+  },
 ];
 
 function SolarBatteryForm({ creds, setCreds, hasSolar, hasBattery }: { creds: any; setCreds: any; hasSolar: boolean; hasBattery: boolean }) {
   const [brand, setBrand] = useState<string>(creds.brand || "");
   const selectedBrand = INVERTER_BRANDS.find(b => b.id === brand);
+  const showComingSoon = selectedBrand?.status === "coming_soon";
+  const showBeta = selectedBrand?.status === "beta";
 
   const handleBrandSelect = (id: string) => {
     setBrand(id);
@@ -249,11 +427,27 @@ function SolarBatteryForm({ creds, setCreds, hasSolar, hasBattery }: { creds: an
             }}
           >
             <div style={{ fontSize: 13, fontWeight: 700, color: brand === b.id ? "#F59E0B" : "#F9FAFB", marginBottom: 2 }}>{b.name}</div>
-            <div style={{ fontSize: 10, color: "#6B7280" }}>{b.description}</div>
+            <div style={{ display: "inline-flex", alignItems: "center", fontSize: 10, fontWeight: 700, color: b.badgeColor, background: `${b.badgeColor}20`, border: `1px solid ${b.badgeColor}33`, borderRadius: 999, padding: "2px 6px" }}>
+              {b.badgeLabel}
+            </div>
           </button>
         ))}
       </div>
-      {selectedBrand && (
+      {showComingSoon && selectedBrand && (
+        <div style={{ background: "#0D1521", border: "1px solid #374151", borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
+          <p style={{ fontSize: 12, color: "#9CA3AF", margin: 0, lineHeight: 1.5 }}>
+            We&apos;re building {selectedBrand.name} support — sign up and we&apos;ll notify you when it&apos;s ready.
+          </p>
+        </div>
+      )}
+      {showBeta && (
+        <div style={{ background: "#221A0D", border: "1px solid #92400E", borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
+          <p style={{ fontSize: 12, color: "#F59E0B", margin: 0, lineHeight: 1.5 }}>
+            Beta integration — functional but less tested. We&apos;d love your feedback.
+          </p>
+        </div>
+      )}
+      {selectedBrand && !showComingSoon && (
         <div>
           {selectedBrand.fields.map(field => (
             <Field
@@ -276,8 +470,9 @@ function SolarBatteryForm({ creds, setCreds, hasSolar, hasBattery }: { creds: an
 // ── EV FORM — brand selector + dynamic fields ─────────────────────────────
 function EVForm({ creds, setCreds }: { creds: any; setCreds: any }) {
   const [brand, setBrand] = useState<string>(creds.brand || "");
-
-  const selectedBrand = EV_BRANDS.find(b => b.id === brand);
+  const selectedBrand = EV_BRANDS.find((b) => b.id === brand);
+  const showComingSoon = selectedBrand?.status === "coming_soon";
+  const showBeta = selectedBrand?.status === "beta";
 
   const handleBrandSelect = (id: string) => {
     setBrand(id);
@@ -295,7 +490,6 @@ function EVForm({ creds, setCreds }: { creds: any; setCreds: any }) {
         <span style={{ fontSize: 13, fontWeight: 700, color: "#F9FAFB" }}>EV Charger</span>
       </div>
 
-      {/* Departure & target charge — shown for all brands */}
       <Field
         label="WHAT TIME DO YOU USUALLY LEAVE?"
         placeholder=""
@@ -303,8 +497,9 @@ function EVForm({ creds, setCreds }: { creds: any; setCreds: any }) {
         secret={false}
         type="time"
         value={creds.departureTime ?? "08:00"}
-        onChange={v => setCreds((c: any) => ({ ...c, departureTime: v }))}
+        onChange={(v) => setCreds((c: any) => ({ ...c, departureTime: v }))}
       />
+
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", marginBottom: 6, letterSpacing: 0.5 }}>
           HOW MUCH CHARGE DO YOU WANT BY THEN?
@@ -315,44 +510,65 @@ function EVForm({ creds, setCreds }: { creds: any; setCreds: any }) {
             min={20}
             max={100}
             value={creds.targetSocPercent ?? 80}
-            onChange={e => setCreds((c: any) => ({ ...c, targetSocPercent: Math.min(100, Math.max(20, Number(e.target.value))) }))}
+            onChange={(e) => setCreds((c: any) => ({ ...c, targetSocPercent: Math.min(100, Math.max(20, Number(e.target.value))) }))}
             style={{ flex: 1, background: "#111827", border: "1px solid #374151", borderRadius: 10, padding: "12px 14px", color: "#F9FAFB", fontSize: 14, fontFamily: "inherit", outline: "none" }}
           />
           <span style={{ fontSize: 14, fontWeight: 700, color: "#9CA3AF" }}>%</span>
         </div>
       </div>
+
       <p style={{ fontSize: 11, color: "#4B5563", marginTop: -8, marginBottom: 18, lineHeight: 1.5 }}>
         Aveum uses these to guarantee your car is ready when you need it.
       </p>
 
-      {/* Brand selector */}
       <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", marginBottom: 8, letterSpacing: 0.5 }}>SELECT YOUR CHARGER BRAND</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
-        {EV_BRANDS.map(b => (
+        {EV_BRANDS.map((b) => (
           <button
             key={b.id}
             onClick={() => handleBrandSelect(b.id)}
             style={{
               background: brand === b.id ? "#38BDF820" : "#111827",
               border: `2px solid ${brand === b.id ? "#38BDF8" : "#374151"}`,
-              borderRadius: 10, padding: "10px 12px", cursor: "pointer",
-              textAlign: "left", fontFamily: "inherit", transition: "all 0.15s ease",
+              borderRadius: 10,
+              padding: "10px 12px",
+              cursor: "pointer",
+              textAlign: "left",
+              fontFamily: "inherit",
+              transition: "all 0.15s ease",
             }}
           >
-            <div style={{ fontSize: 13, fontWeight: 700, color: brand === b.id ? "#38BDF8" : "#F9FAFB", marginBottom: 2 }}>{b.name}</div>
-            <div style={{ fontSize: 10, color: "#6B7280" }}>{b.description}</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: brand === b.id ? "#38BDF8" : "#F9FAFB", marginBottom: 4 }}>{b.name}</div>
+            <div style={{ display: "inline-flex", alignItems: "center", fontSize: 10, fontWeight: 700, color: b.badgeColor, background: `${b.badgeColor}20`, border: `1px solid ${b.badgeColor}33`, borderRadius: 999, padding: "2px 6px" }}>
+              {b.badgeLabel}
+            </div>
           </button>
         ))}
       </div>
 
-      {/* Tesla — OAuth flow, no fields needed */}
-      {brand === "tesla" && (
+      {showComingSoon && selectedBrand && (
+        <div style={{ background: "#0D1521", border: "1px solid #374151", borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
+          <p style={{ fontSize: 12, color: "#9CA3AF", margin: 0, lineHeight: 1.5 }}>
+            We&apos;re building {selectedBrand.name} support — sign up and we&apos;ll notify you when it&apos;s ready.
+          </p>
+        </div>
+      )}
+
+      {showBeta && (
+        <div style={{ background: "#221A0D", border: "1px solid #92400E", borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
+          <p style={{ fontSize: 12, color: "#F59E0B", margin: 0, lineHeight: 1.5 }}>
+            Beta integration — functional but less tested. We&apos;d love your feedback.
+          </p>
+        </div>
+      )}
+
+      {brand === "tesla" && !showComingSoon && (
         <div style={{ background: "#0D1521", border: "1px solid #38BDF830", borderRadius: 12, padding: "16px", marginBottom: 16 }}>
           <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 12, lineHeight: 1.5 }}>
-            Tap below to log in with your Tesla account. You'll be redirected back automatically.
+            Tap below to log in with your Tesla account. You&apos;ll be redirected back automatically.
           </div>
           <button
-            onClick={() => window.location.href = "/api/tesla?action=auth"}
+            onClick={() => (window.location.href = "/api/tesla?action=auth")}
             style={{ width: "100%", background: "#38BDF8", border: "none", borderRadius: 10, padding: "12px 16px", color: "#030712", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
           >
             Connect Tesla Account
@@ -360,10 +576,9 @@ function EVForm({ creds, setCreds }: { creds: any; setCreds: any }) {
         </div>
       )}
 
-      {/* Dynamic fields for selected brand */}
-      {selectedBrand && !(selectedBrand as any).oauth && (
+      {selectedBrand && !selectedBrand.oauth && !showComingSoon && (
         <div>
-          {selectedBrand.fields.map(field => (
+          {selectedBrand.fields.map((field) => (
             <Field
               key={field.key}
               label={field.label}
@@ -371,11 +586,11 @@ function EVForm({ creds, setCreds }: { creds: any; setCreds: any }) {
               hint={field.hint}
               secret={field.secret}
               value={creds[field.key] || ""}
-              onChange={v => setCreds((c: any) => ({ ...c, [field.key]: v }))}
+              onChange={(v) => setCreds((c: any) => ({ ...c, [field.key]: v }))}
             />
           ))}
-          {(selectedBrand as any).note && (
-            <p style={{ fontSize: 11, color: "#4B5563", marginTop: 6, lineHeight: 1.5 }}>{(selectedBrand as any).note}</p>
+          {selectedBrand.note && (
+            <p style={{ fontSize: 11, color: "#4B5563", marginTop: 6, lineHeight: 1.5 }}>{selectedBrand.note}</p>
           )}
         </div>
       )}
@@ -420,7 +635,14 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [notifyEmail, setNotifyEmail] = useState("");
   const [emailTouched, setEmailTouched] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
-  const [octopusCreds, setOctopusCreds] = useState({ apiKey: "", accountNumber: "", region: "C" });
+  const [octopusCreds, setOctopusCreds] = useState({
+    apiKey: "",
+    accountNumber: "",
+    region: "C",
+    tariffType: "octopus_agile",
+    cheapRateStart: "",
+    cheapRateEnd: "",
+  });
   const [octopusSkipped, setOctopusSkipped] = useState(false);
   const [solarCreds, setSolarCreds] = useState({ apiKey: "", serial: "" });
   const [evCreds, setEvCreds] = useState<any>({ brand: "" });
@@ -454,6 +676,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           octopusApiKey: octopusSkipped ? undefined : octopusCreds.apiKey || undefined,
           octopusAccountNumber: octopusSkipped ? undefined : octopusCreds.accountNumber || undefined,
           region: octopusCreds.region || "C",
+          tariffType: octopusCreds.tariffType || "octopus_agile",
+          cheapRateStart: octopusCreds.cheapRateStart || undefined,
+          cheapRateEnd: octopusCreds.cheapRateEnd || undefined,
           optimizationMode: "balanced",
           devices: selected,
           ohmeEmail: evCreds.ohmeEmail ?? undefined,

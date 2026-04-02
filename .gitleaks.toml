@@ -1,0 +1,5 @@
+[allowlist]
+description = "Allow known false positive in onboarding placeholder text"
+fingerprints = [
+  "48accf3cba433675201221e521925002332c1bba:src/pages/Onboarding.tsx:stripe-access-token:233",
+]
