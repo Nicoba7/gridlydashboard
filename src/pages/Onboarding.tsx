@@ -470,8 +470,7 @@ function SolarBatteryForm({ creds, setCreds, hasSolar, hasBattery }: { creds: an
 // ── EV FORM — brand selector + dynamic fields ─────────────────────────────
 function EVForm({ creds, setCreds }: { creds: any; setCreds: any }) {
   const [brand, setBrand] = useState<string>(creds.brand || "");
-
-  const selectedBrand = EV_BRANDS.find(b => b.id === brand);
+  const selectedBrand = EV_BRANDS.find((b) => b.id === brand);
   const showComingSoon = selectedBrand?.status === "coming_soon";
   const showBeta = selectedBrand?.status === "beta";
 
@@ -491,7 +490,6 @@ function EVForm({ creds, setCreds }: { creds: any; setCreds: any }) {
         <span style={{ fontSize: 13, fontWeight: 700, color: "#F9FAFB" }}>EV Charger</span>
       </div>
 
-      {/* Departure & target charge — shown for all brands */}
       <Field
         label="WHAT TIME DO YOU USUALLY LEAVE?"
         placeholder=""
@@ -499,8 +497,9 @@ function EVForm({ creds, setCreds }: { creds: any; setCreds: any }) {
         secret={false}
         type="time"
         value={creds.departureTime ?? "08:00"}
-        onChange={v => setCreds((c: any) => ({ ...c, departureTime: v }))}
+        onChange={(v) => setCreds((c: any) => ({ ...c, departureTime: v }))}
       />
+
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", marginBottom: 6, letterSpacing: 0.5 }}>
           HOW MUCH CHARGE DO YOU WANT BY THEN?
@@ -511,23 +510,41 @@ function EVForm({ creds, setCreds }: { creds: any; setCreds: any }) {
             min={20}
             max={100}
             value={creds.targetSocPercent ?? 80}
-            onChange={e => setCreds((c: any) => ({ ...c, targetSocPercent: Math.min(100, Math.max(20, Number(e.target.value))) }))}
+            onChange={(e) => setCreds((c: any) => ({ ...c, targetSocPercent: Math.min(100, Math.max(20, Number(e.target.value))) }))}
             style={{ flex: 1, background: "#111827", border: "1px solid #374151", borderRadius: 10, padding: "12px 14px", color: "#F9FAFB", fontSize: 14, fontFamily: "inherit", outline: "none" }}
           />
           <span style={{ fontSize: 14, fontWeight: 700, color: "#9CA3AF" }}>%</span>
         </div>
       </div>
+
       <p style={{ fontSize: 11, color: "#4B5563", marginTop: -8, marginBottom: 18, lineHeight: 1.5 }}>
         Aveum uses these to guarantee your car is ready when you need it.
       </p>
 
-      {/* Brand selector */}
+      <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", marginBottom: 8, letterSpacing: 0.5 }}>SELECT YOUR CHARGER BRAND</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
+        {EV_BRANDS.map((b) => (
+          <button
+            key={b.id}
+            onClick={() => handleBrandSelect(b.id)}
+            style={{
+              background: brand === b.id ? "#38BDF820" : "#111827",
+              border: `2px solid ${brand === b.id ? "#38BDF8" : "#374151"}`,
+              borderRadius: 10,
+              padding: "10px 12px",
+              cursor: "pointer",
+              textAlign: "left",
+              fontFamily: "inherit",
+              transition: "all 0.15s ease",
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 700, color: brand === b.id ? "#38BDF8" : "#F9FAFB", marginBottom: 4 }}>{b.name}</div>
             <div style={{ display: "inline-flex", alignItems: "center", fontSize: 10, fontWeight: 700, color: b.badgeColor, background: `${b.badgeColor}20`, border: `1px solid ${b.badgeColor}33`, borderRadius: 999, padding: "2px 6px" }}>
               {b.badgeLabel}
             </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
-        {EV_BRANDS.map(b => (
-          <button
+          </button>
+        ))}
+      </div>
 
       {showComingSoon && selectedBrand && (
         <div style={{ background: "#0D1521", border: "1px solid #374151", borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
@@ -536,6 +553,7 @@ function EVForm({ creds, setCreds }: { creds: any; setCreds: any }) {
           </p>
         </div>
       )}
+
       {showBeta && (
         <div style={{ background: "#221A0D", border: "1px solid #92400E", borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
           <p style={{ fontSize: 12, color: "#F59E0B", margin: 0, lineHeight: 1.5 }}>
@@ -543,29 +561,14 @@ function EVForm({ creds, setCreds }: { creds: any; setCreds: any }) {
           </p>
         </div>
       )}
-            key={b.id}
-            onClick={() => handleBrandSelect(b.id)}
-      {brand === "tesla" && !showComingSoon && (
-              background: brand === b.id ? "#38BDF820" : "#111827",
-              border: `2px solid ${brand === b.id ? "#38BDF8" : "#374151"}`,
-              borderRadius: 10, padding: "10px 12px", cursor: "pointer",
-              textAlign: "left", fontFamily: "inherit", transition: "all 0.15s ease",
-            }}
-          >
-            <div style={{ fontSize: 13, fontWeight: 700, color: brand === b.id ? "#38BDF8" : "#F9FAFB", marginBottom: 2 }}>{b.name}</div>
-            <div style={{ fontSize: 10, color: "#6B7280" }}>{b.description}</div>
-          </button>
-        ))}
-      </div>
 
-      {/* Tesla — OAuth flow, no fields needed */}
-      {brand === "tesla" && (
+      {brand === "tesla" && !showComingSoon && (
         <div style={{ background: "#0D1521", border: "1px solid #38BDF830", borderRadius: 12, padding: "16px", marginBottom: 16 }}>
           <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 12, lineHeight: 1.5 }}>
-            Tap below to log in with your Tesla account. You'll be redirected back automatically.
+            Tap below to log in with your Tesla account. You&apos;ll be redirected back automatically.
           </div>
           <button
-            onClick={() => window.location.href = "/api/tesla?action=auth"}
+            onClick={() => (window.location.href = "/api/tesla?action=auth")}
             style={{ width: "100%", background: "#38BDF8", border: "none", borderRadius: 10, padding: "12px 16px", color: "#030712", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
           >
             Connect Tesla Account
@@ -573,10 +576,9 @@ function EVForm({ creds, setCreds }: { creds: any; setCreds: any }) {
         </div>
       )}
 
-      {/* Dynamic fields for selected brand */}
       {selectedBrand && !selectedBrand.oauth && !showComingSoon && (
         <div>
-          {selectedBrand.fields.map(field => (
+          {selectedBrand.fields.map((field) => (
             <Field
               key={field.key}
               label={field.label}
@@ -584,7 +586,7 @@ function EVForm({ creds, setCreds }: { creds: any; setCreds: any }) {
               hint={field.hint}
               secret={field.secret}
               value={creds[field.key] || ""}
-              onChange={v => setCreds((c: any) => ({ ...c, [field.key]: v }))}
+              onChange={(v) => setCreds((c: any) => ({ ...c, [field.key]: v }))}
             />
           ))}
           {selectedBrand.note && (
