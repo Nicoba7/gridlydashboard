@@ -227,7 +227,7 @@ export default function LandingPage() {
           Aveum runs your home at the cheapest times — automatically.
         </p>
         <p style={S.subheadline}>
-          Works with Octopus Agile. EV, battery, or just one device. No solar required.
+          Works with Octopus Agile, Go, E.ON Drive, EDF GoElectric, British Gas and more. Any EV charger, battery, or solar inverter.
         </p>
         <a href="/onboarding" style={S.ctaButton}>Join the beta — it's free</a>
         <p style={S.proofText}>No setup. No technical knowledge. You stay in control.</p>
@@ -260,7 +260,7 @@ export default function LandingPage() {
       {/* Works with */}
       <section style={S.section}>
         <p style={S.worksWith}>
-          Works with Octopus Agile · Tesla · GivEnergy · Solax · Ohme · Zappi · EcoFlow · SolarEdge · Huawei · myenergi
+          Works with Octopus · E.ON · EDF · British Gas · Tesla · GivEnergy · Solax · Ohme · Zappi · EcoFlow · SolarEdge · Huawei · Solis · Fox ESS · myenergi
         </p>
         <p style={S.worksWith}>
           🔒 Your credentials are encrypted and stored in a London-region database. We never sell your data.
