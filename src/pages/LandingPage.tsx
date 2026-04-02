@@ -260,7 +260,7 @@ export default function LandingPage() {
       {/* Works with */}
       <section style={S.section}>
         <p style={S.worksWith}>
-          Works with Octopus Agile · Tesla · GivEnergy · Solax · Ohme
+          Works with Octopus Agile · Tesla · GivEnergy · Solax · Ohme · Zappi · EcoFlow · SolarEdge · Huawei · myenergi
         </p>
         <p style={S.worksWith}>
           🔒 Your credentials are encrypted and stored in a London-region database. We never sell your data.
