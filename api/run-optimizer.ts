@@ -4,14 +4,14 @@
 // Body: { octopusApiKey, octopusAccountNumber, region?, optimizationMode?, notifyEmail? }
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { optimize } from "../src/optimizer/engine";
-import { getCanonicalSimulationSnapshot } from "../src/simulator";
-import { buildDailySavingsReport } from "../src/features/report/dailySavingsReport";
+import { optimize } from "../src/optimizer/engine.js";
+import { getCanonicalSimulationSnapshot } from "../src/simulator/index.js";
+import { buildDailySavingsReport } from "../src/features/report/dailySavingsReport.js";
 import {
   buildMorningEmailContent,
   sendMorningReport,
-} from "../src/features/notifications/morningEmailReport";
-import type { OptimizationMode, TariffSchedule } from "../src/domain";
+} from "../src/features/notifications/morningEmailReport.js";
+import type { OptimizationMode, TariffSchedule } from "../src/domain/index.js";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
