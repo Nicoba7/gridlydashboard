@@ -767,6 +767,18 @@ export default function HomeTab({
     : homeOptimizerView.value.earningsToday > 0
       ? homeOptimizerView.value.earningsToday
       : SANDBOX.earnedToday;
+  const hasRealSavingsData = Boolean(latestResult);
+  const savingsAmount = hasRealSavingsData
+    ? latestResult!.savedTodayPence / 100
+    : Number(SANDBOX.savedToday);
+  const earningsAmount = hasRealSavingsData
+    ? latestResult!.earnedFromExportPence / 100
+    : Number(SANDBOX.earnedToday);
+  const totalDeliveredAmount = savingsAmount + earningsAmount;
+  const allTimeDeliveredAmount = hasRealSavingsData ? totalDeliveredAmount : Number(SANDBOX.allTime);
+  const allTimeSinceLabel = hasRealSavingsData
+    ? new Date(`${latestResult!.date}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+    : SANDBOX.allTimeSince;
   // Pass-through of runtime planner truth. Components must not derive substitute
   // meanings for confidence/caution signals outside canonical runtime outputs.
   // Presentation-only label. Canonical meaning comes from runtime read model truth.
@@ -1075,6 +1087,56 @@ export default function HomeTab({
             </div>
           </>
         )}
+      </div>
+
+      <div
+        style={{
+          margin: "0 16px 10px",
+          background: "#0A111D",
+          border: "1px solid #182235",
+          borderRadius: 16,
+          padding: "12px 14px",
+          boxShadow: "0 12px 26px rgba(1, 7, 20, 0.24)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div style={{ fontSize: 10, color: "#6F819B", fontWeight: 700, letterSpacing: 0.8 }}>VALUE DELIVERED</div>
+          {!hasRealSavingsData && (
+            <span
+              style={{
+                fontSize: 9,
+                color: "#B8C7DA",
+                border: "1px solid #2A3A52",
+                background: "#111A2A",
+                borderRadius: 999,
+                padding: "2px 7px",
+                fontWeight: 700,
+                letterSpacing: 0.35,
+              }}
+            >
+              Demo
+            </span>
+          )}
+        </div>
+
+        <div style={{ display: "flex", gap: 16, alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
+          <div>
+            <div style={{ fontSize: 10, color: "#6F819B", fontWeight: 600, letterSpacing: 0.55, marginBottom: 2 }}>Saved by Aveum</div>
+            <div style={{ fontSize: 16, fontWeight: 760, color: "#22C55E" }}>£{savingsAmount.toFixed(2)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, color: "#6F819B", fontWeight: 600, letterSpacing: 0.55, marginBottom: 2 }}>Earned by Aveum</div>
+            <div style={{ fontSize: 16, fontWeight: 760, color: "#F5B942" }}>£{earningsAmount.toFixed(2)}</div>
+          </div>
+          <div style={{ marginLeft: "auto", textAlign: "right" }}>
+            <div style={{ fontSize: 10, color: "#6F819B", fontWeight: 600, letterSpacing: 0.55, marginBottom: 2 }}>Total</div>
+            <div style={{ fontSize: 17, fontWeight: 820, color: "#F3F7FF" }}>£{totalDeliveredAmount.toFixed(2)}</div>
+          </div>
+        </div>
+
+        <div style={{ borderTop: "1px solid #162235", paddingTop: 8, fontSize: 10.5, color: "#667A93" }}>
+          Tracking since {allTimeSinceLabel} · £{allTimeDeliveredAmount.toFixed(2)} all-time delivered
+        </div>
       </div>
 
       <div style={{ margin: "14px 14px 0", background: "#0A111D", borderRadius: 20, border: "1px solid #182235", overflow: "hidden", boxShadow: "0 16px 30px rgba(1, 7, 20, 0.3)" }}>
