@@ -827,6 +827,26 @@ export default function SimplifiedDashboard() {
       {/* First-run welcome banner — shown until the first optimizer cycle completes */}
       {isDemo && <FirstRunBanner userName={userName} />}
 
+      {!isRegisteredUser && (
+        <div
+          style={{
+            margin: "12px 12px 0",
+            padding: "10px 12px",
+            borderRadius: 10,
+            background: "#0D1521",
+            border: "1px solid #1E3A5F",
+            color: "#BFDBFE",
+            fontSize: 12,
+            fontWeight: 600,
+          }}
+        >
+          You haven&apos;t set up Aveum yet. {" "}
+          <a href="/onboarding" style={{ color: "#93C5FD", textDecoration: "none", fontWeight: 800 }}>
+            Get started →
+          </a>
+        </div>
+      )}
+
       {teslaConnected && (
         <div
           style={{
