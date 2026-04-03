@@ -48,51 +48,63 @@ export default function PriceWindowsCard({
         </div>
       )}
 
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 44 }}>
-        {rates.map((r, i) => (
-          <div
-            key={i}
-            onMouseEnter={() => setHovered(i)}
-            onMouseLeave={() => setHovered(null)}
-            style={{ flex: 1, height: "100%", display: "flex", alignItems: "flex-end", cursor: "pointer" }}
-          >
-            <div
-              style={{
-                width: "100%",
-                height: Math.max(2, (r.pence / maxPence) * 44),
-                boxShadow: plannedWindowSlots.has(i) ? "0 0 0 1px rgba(148, 163, 184, 0.24) inset" : "none",
-                background:
-                  r.pence === minPence
-                    ? "#22C55E"
-                    : i === currentSlot
-                    ? "#A0B4CC"
-                    : getBarColor(r.pence),
-                opacity:
-                  hovered === i
-                    ? 0.95
-                    : hovered !== null
-                    ? plannedWindowSlots.has(i)
-                      ? 0.42
-                      : 0.12
-                    : i === currentSlot
-                    ? 0.72
-                    : plannedWindowSlots.has(i)
-                    ? 0.46
-                    : 0.16,
-                borderRadius: "2px 2px 0 0",
-                transition: "opacity 0.12s",
-              }}
-            />
+      <div
+        className="price-chart-scroll"
+        style={{
+          overflowX: "auto",
+          WebkitOverflowScrolling: "touch",
+          scrollbarWidth: "none",
+          msOverflowStyle: "none",
+        }}
+      >
+        <div style={{ minWidth: 600 }}>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 44 }}>
+            {rates.map((r, i) => (
+              <div
+                key={i}
+                onMouseEnter={() => setHovered(i)}
+                onMouseLeave={() => setHovered(null)}
+                style={{ flex: 1, height: "100%", display: "flex", alignItems: "flex-end", cursor: "pointer" }}
+              >
+                <div
+                  style={{
+                    width: "100%",
+                    height: Math.max(2, (r.pence / maxPence) * 44),
+                    boxShadow: plannedWindowSlots.has(i) ? "0 0 0 1px rgba(148, 163, 184, 0.24) inset" : "none",
+                    background:
+                      r.pence === minPence
+                        ? "#22C55E"
+                        : i === currentSlot
+                        ? "#A0B4CC"
+                        : getBarColor(r.pence),
+                    opacity:
+                      hovered === i
+                        ? 0.95
+                        : hovered !== null
+                        ? plannedWindowSlots.has(i)
+                          ? 0.42
+                          : 0.12
+                        : i === currentSlot
+                        ? 0.72
+                        : plannedWindowSlots.has(i)
+                        ? 0.46
+                        : 0.16,
+                    borderRadius: "2px 2px 0 0",
+                    transition: "opacity 0.12s",
+                  }}
+                />
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      <div style={{ display: "flex", marginTop: 4 }}>
-        {rates.map((r, i) => (
-          <div key={i} style={{ flex: 1, fontSize: 8, textAlign: "center", color: i === currentSlot ? "#7C8BA0" : "#2B3648" }}>
-            {i % 4 === 0 ? r.time.split(":")[0] : ""}
+          <div style={{ display: "flex", marginTop: 4 }}>
+            {rates.map((r, i) => (
+              <div key={i} style={{ flex: 1, fontSize: 8, textAlign: "center", color: i === currentSlot ? "#7C8BA0" : "#2B3648" }}>
+                {i % 4 === 0 ? r.time.split(":")[0] : ""}
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10, fontSize: 10, color: "#56667B", fontVariantNumeric: "tabular-nums" }}>

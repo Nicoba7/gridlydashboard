@@ -116,4 +116,8 @@
   .solar-glow {
     box-shadow: 0 0 20px -5px hsl(var(--solar) / 0.35);
   }
+
+  .price-chart-scroll::-webkit-scrollbar {
+    display: none;
+  }
 }
