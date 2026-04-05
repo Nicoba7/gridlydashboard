@@ -112,11 +112,11 @@ describe("MELCloudAdapter", () => {
     expect(client.getDevices).toHaveBeenCalledWith(CONTEXT_KEY);
   });
 
-  it("maps tankTemperatureCelsius / targetTankTemperatureCelsius to batterySocPercent", async () => {
-    // 48 / 55 * 100 = 87.27... → rounds to 87
+  it("derives batterySocPercent from indoor temperature (16°C=0%, 22°C=100%)", async () => {
+    // currentTemperatureCelsius: 20.5 → ((20.5 - 16) / 6) * 100 = 75
     const telemetry = await makeAdapter().readTelemetry();
     expect(telemetry).toHaveLength(1);
-    expect(telemetry[0].batterySocPercent).toBe(87);
+    expect(telemetry[0].batterySocPercent).toBe(75);
     expect(telemetry[0].schemaVersion).toBe("telemetry.v1");
     expect(telemetry[0].deviceId).toBe(DEVICE_ID);
   });
@@ -126,21 +126,20 @@ describe("MELCloudAdapter", () => {
     expect(telemetry[0].evChargingPowerW).toBe(1500);
   });
 
-  it("caps batterySocPercent at 100 when tank exceeds target", () => {
+  it("caps batterySocPercent at 100 when indoor temperature is above 22°C", () => {
     const adapter = makeAdapter();
     const [event] = adapter.mapVendorTelemetryToCanonicalTelemetry({
       ...devicePayload,
-      tankTemperatureCelsius: 60,
-      targetTankTemperatureCelsius: 55,
+      currentTemperatureCelsius: 25,
     });
     expect(event.batterySocPercent).toBe(100);
   });
 
-  it("returns 0 batterySocPercent when targetTankTemperatureCelsius is zero", () => {
+  it("returns 0 batterySocPercent when indoor temperature is at or below 16°C", () => {
     const adapter = makeAdapter();
     const [event] = adapter.mapVendorTelemetryToCanonicalTelemetry({
       ...devicePayload,
-      targetTankTemperatureCelsius: 0,
+      currentTemperatureCelsius: 14,
     });
     expect(event.batterySocPercent).toBe(0);
   });

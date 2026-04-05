@@ -129,6 +129,16 @@ function buildBullets(report: DailySavingsReport): string[] {
     );
   }
 
+  if (report.heatPumpPreHeatEvent) {
+    const event = report.heatPumpPreHeatEvent;
+    const hwNote = event.hotWaterSavingsPounds != null && event.hotWaterSavingsPounds > 0
+      ? ` · ${formatPounds(event.hotWaterSavingsPounds * 100)} hot water saving`
+      : "";
+    bullets.push(
+      `Pre-heated home ${event.timeRangeLabel} at ${formatPenceRate(event.effectiveHeatCostPencePerKwh)} effective heat cost — saved ${formatPounds(event.savedPence)} vs peak rate${hwNote}`,
+    );
+  }
+
   if (report.earnedFromExportPence > 1) {
     bullets.push(`Earned ${formatPounds(report.earnedFromExportPence)} exporting solar surplus to the grid`);
   }

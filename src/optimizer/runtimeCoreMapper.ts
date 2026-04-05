@@ -640,7 +640,7 @@ function buildCommands(
 
 function findDeviceIdsByKind(
   input: OptimizerInput,
-  kind: "battery" | "ev_charger" | "solar_inverter" | "smart_meter",
+  kind: "battery" | "ev_charger" | "solar_inverter" | "smart_meter" | "heat_pump",
 ): string[] {
   return input.systemState.devices
     .filter(

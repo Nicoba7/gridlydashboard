@@ -1,5 +1,7 @@
-import type { OptimizerOutput } from "../../domain/optimizer";
+import type { HeatPumpPreHeatEvent, OptimizerOutput } from "../../domain/optimizer";
 import type { TariffSchedule } from "../../domain/tariff";
+
+export type { HeatPumpPreHeatEvent };
 
 // ── Input ──────────────────────────────────────────────────────────────────────
 
@@ -83,6 +85,11 @@ export interface DailySavingsReport {
    * Optional overnight Saving Session participation summary injected by the cron pipeline.
    */
   savingSessionOvernightSummary?: SavingSessionOvernightSummary | null;
+  /**
+   * Heat pump pre-heat event scheduled during a cheap electricity window, if any.
+   * Populated when a heat pump device is present and a pre-heat window was found.
+   */
+  heatPumpPreHeatEvent?: HeatPumpPreHeatEvent | null;
   /**
    * A single-sentence plain-English summary of what Aveum achieved today.
    * Example: "Aveum charged your battery at 2.3p and discharged at 34p, saving you £1.23 today."
@@ -300,6 +307,7 @@ export function buildDailySavingsReport(input: DailySavingsReportInput): DailySa
     chargeCount: chargeDecisions.length,
     dischargeCount: dischargeDecisions.length,
     evSlotCount: evDecisions.length,
+    heatPumpPreHeatEvent: optimizerOutput.heatPumpPreHeatEvent ?? null,
   });
 
   return {
@@ -312,6 +320,7 @@ export function buildDailySavingsReport(input: DailySavingsReportInput): DailySa
     solarDivertEvent,
     powerUpOvernightSummary: null,
     savingSessionOvernightSummary: null,
+    heatPumpPreHeatEvent: optimizerOutput.heatPumpPreHeatEvent ?? null,
     oneLiner,
     nightlyNarrative,
   };
@@ -379,6 +388,7 @@ interface NarrativeInput {
   chargeCount: number;
   dischargeCount: number;
   evSlotCount: number;
+  heatPumpPreHeatEvent?: HeatPumpPreHeatEvent | null;
 }
 
 function buildNightlyNarrative(input: NarrativeInput): string {
@@ -393,6 +403,7 @@ function buildNightlyNarrative(input: NarrativeInput): string {
     chargeCount,
     dischargeCount,
     evSlotCount,
+    heatPumpPreHeatEvent,
   } = input;
 
   const sentences: string[] = [];
@@ -433,6 +444,16 @@ function buildNightlyNarrative(input: NarrativeInput): string {
     const slots = evSlotCount === 1 ? "1 slot" : `${evSlotCount} slots`;
     sentences.push(
       `Your EV was charged across ${slots} starting around ${evChargedAt.time} at an average of ${formatPenceRate(evChargedAt.pricePencePerKwh)}, timed to the cheapest available window before departure.`,
+    );
+  }
+
+  // Heat pump pre-heat sentence
+  if (heatPumpPreHeatEvent) {
+    const hwNote = heatPumpPreHeatEvent.hotWaterSavingsPounds != null && heatPumpPreHeatEvent.hotWaterSavingsPounds > 0
+      ? ` (including ~${formatPounds(heatPumpPreHeatEvent.hotWaterSavingsPounds * 100)} on the hot water cylinder)`
+      : "";
+    sentences.push(
+      `Aveum pre-heated your home ${heatPumpPreHeatEvent.timeRangeLabel} at an effective heat cost of ${formatPenceRate(heatPumpPreHeatEvent.effectiveHeatCostPencePerKwh)} per kWh, saving around ${formatPounds(heatPumpPreHeatEvent.savedPence)}${hwNote} compared to heating at the peak rate.`,
     );
   }
 

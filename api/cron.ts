@@ -397,6 +397,7 @@ async function runForUser(config: UserConfig, now: Date): Promise<UserRunResult>
       config.octopusApiKey,
       config.octopusAccountNumber,
     );
+    const hasHeatPump = snapshot.systemState.devices.some((d) => d.kind === "heat_pump");
     const optimizerOutput = optimize({
       systemState: snapshot.systemState,
       forecasts: snapshot.forecasts,
@@ -411,6 +412,7 @@ async function runForUser(config: UserConfig, now: Date): Promise<UserRunResult>
         ...(config.targetSocPercent != null ? { evTargetSocPercent: config.targetSocPercent } : {}),
       },
       typicalLoadKwhPerSlot,
+      ...(hasHeatPump ? { heatPumpCop: 3.5, thermalCoastHours: 3, hotWaterPreHeatBudgetKwh: 2.0 } : {}),
     });
 
     const dailySavingsReport = buildDailySavingsReport({

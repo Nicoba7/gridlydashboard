@@ -84,6 +84,21 @@ export interface OptimizerInput {
    * When provided, this overrides the simulated household load in forecasts.
    */
   typicalLoadKwhPerSlot?: number[];
+  /**
+   * Hours after a heat pump pre-heat window where the house coasts on stored thermal
+   * mass — no second window is scheduled within this period. Default: 3.
+   */
+  thermalCoastHours?: number;
+  /**
+   * Heat pump coefficient of performance — divides electricity price to get the
+   * effective cost of heat delivered. Default: 3.5.
+   */
+  heatPumpCop?: number;
+  /**
+   * kWh budget allocated to hot water cylinder pre-heating in the cheapest
+   * overnight window. Default: 2.0.
+   */
+  hotWaterPreHeatBudgetKwh?: number;
 }
 
 /**
@@ -250,6 +265,21 @@ export interface OptimizerFeasibility {
 /**
  * Canonical output from the single Aveum optimizer engine.
  */
+/**
+ * Describes a heat-pump pre-heat window scheduled during cheap electricity.
+ * Emitted by the optimizer when a heat pump device is present.
+ */
+export interface HeatPumpPreHeatEvent {
+  /** Human-readable time range, e.g. "1:30am–3:30am". */
+  timeRangeLabel: string;
+  /** Effective heat cost in pence/kWh = electricity rate ÷ COP. */
+  effectiveHeatCostPencePerKwh: number;
+  /** Estimated saving in pence vs heating at the average peak rate. */
+  savedPence: number;
+  /** Estimated hot water cylinder saving in pounds, when applicable. */
+  hotWaterSavingsPounds?: number;
+}
+
 export interface OptimizerOutput {
   /** Contract schema version for persisted-plan compatibility checks. */
   schemaVersion?: string;
@@ -291,4 +321,6 @@ export interface OptimizerOutput {
   warnings?: string[];
   /** Coarse plan confidence from 0 to 1. */
   confidence: number;
+  /** Heat pump pre-heat event scheduled during a cheap electricity window, if any. */
+  heatPumpPreHeatEvent?: HeatPumpPreHeatEvent | null;
 }

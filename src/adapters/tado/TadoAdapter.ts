@@ -87,8 +87,8 @@ export class TadoAdapter extends BaseRealDeviceAdapter<
       };
     }
 
-    const startMs = new Date(command.effectiveWindow.start).getTime();
-    const endMs = new Date(command.effectiveWindow.end).getTime();
+    const startMs = new Date(command.effectiveWindow.startAt).getTime();
+    const endMs = new Date(command.effectiveWindow.endAt).getTime();
     const durationMinutes = Math.max(1, Math.round((endMs - startMs) / 60_000));
 
     await this.scheduleAction(startMs, async () => {
@@ -103,7 +103,7 @@ export class TadoAdapter extends BaseRealDeviceAdapter<
 
     return {
       success: true,
-      message: `Scheduled Tado pre-heat to ${PREHEAT_TEMPERATURE_CELSIUS}°C at ${command.effectiveWindow.start} and auto-mode restore at ${command.effectiveWindow.end}.`,
+      message: `Scheduled Tado pre-heat to ${PREHEAT_TEMPERATURE_CELSIUS}°C at ${command.effectiveWindow.startAt} and auto-mode restore at ${command.effectiveWindow.endAt}.`,
     };
   }
 
@@ -142,10 +142,16 @@ export class TadoAdapter extends BaseRealDeviceAdapter<
     // to give a plausible continuous-kWh-scale signal comparable to evChargingPowerW.
     const heatingPowerW = Math.round((state.heatingPowerPercent / 100) * 15_000);
 
+    // Derive a thermal "state of charge" from the indoor temperature.
+    // 16°C maps to 0%, 22°C maps to 100% — representing how warm the thermal mass already is.
+    // A high value (>80%) signals the house is already warm and pre-heat can be skipped.
+    const batterySocPercent = Math.min(100, Math.max(0, Math.round(((state.currentTemperatureCelsius - 16) / (22 - 16)) * 100)));
+
     return [
       {
         deviceId: this.deviceId,
         timestamp: new Date().toISOString(),
+        batterySocPercent,
         evChargingPowerW: heatingPowerW,
         schemaVersion: "telemetry.v1",
       },

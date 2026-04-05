@@ -78,8 +78,8 @@ export class SamsungAdapter extends BaseRealDeviceAdapter<
       };
     }
 
-    const startMs = new Date(command.effectiveWindow.start).getTime();
-    const endMs = new Date(command.effectiveWindow.end).getTime();
+    const startMs = new Date(command.effectiveWindow.startAt).getTime();
+    const endMs = new Date(command.effectiveWindow.endAt).getTime();
 
     // Capture the current setpoint before overriding so it can be restored at window end.
     const currentStatus = await this.client.getDeviceStatus(this.smartthingsToken, this.smartthingsDeviceId);
@@ -95,7 +95,7 @@ export class SamsungAdapter extends BaseRealDeviceAdapter<
 
     return {
       success: true,
-      message: `Scheduled Samsung EHS pre-heat to ${PREHEAT_TEMPERATURE_CELSIUS}°C at ${command.effectiveWindow.start} and setpoint restore to ${prevSetpoint}°C at ${command.effectiveWindow.end}.`,
+      message: `Scheduled Samsung EHS pre-heat to ${PREHEAT_TEMPERATURE_CELSIUS}°C at ${command.effectiveWindow.startAt} and setpoint restore to ${prevSetpoint}°C at ${command.effectiveWindow.endAt}.`,
     };
   }
 
@@ -132,10 +132,15 @@ export class SamsungAdapter extends BaseRealDeviceAdapter<
     // Express heating state as a nominal wattage — heat mode ≈ 5 kW electrical input.
     const heatingPowerW = status.thermostatMode === "heat" ? 5000 : 0;
 
+    // Derive a thermal "state of charge" from the indoor temperature.
+    // 16°C → 0%, 22°C → 100% — signals how warm the thermal mass is to the optimizer.
+    const batterySocPercent = Math.min(100, Math.max(0, Math.round(((status.currentTemperatureCelsius - 16) / (22 - 16)) * 100)));
+
     return [
       {
         deviceId: this.deviceId,
         timestamp: new Date().toISOString(),
+        batterySocPercent,
         evChargingPowerW: heatingPowerW,
         schemaVersion: "telemetry.v1",
       },

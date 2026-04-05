@@ -156,12 +156,10 @@ export class MELCloudAdapter extends BaseRealDeviceAdapter<
   }
 
   mapVendorTelemetryToCanonicalTelemetry(device: MELCloudDevice): CanonicalDeviceTelemetry[] {
-    // Express tank fill level as a percentage of target tank temperature.
-    // e.g. tank=48°C, target=55°C → 87%
-    const batterySocPercent =
-      device.targetTankTemperatureCelsius > 0
-        ? Math.min(100, Math.round((device.tankTemperatureCelsius / device.targetTankTemperatureCelsius) * 100))
-        : 0;
+    // Use indoor temperature as the primary thermal SoC proxy so the optimizer can
+    // decide whether the house is already warm enough to skip pre-heat scheduling.
+    // 16°C → 0%, 22°C → 100%.
+    const batterySocPercent = Math.min(100, Math.max(0, Math.round(((device.currentTemperatureCelsius - 16) / (22 - 16)) * 100)));
 
     return [
       {

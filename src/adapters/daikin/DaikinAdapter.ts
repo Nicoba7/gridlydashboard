@@ -96,8 +96,8 @@ export class DaikinAdapter extends BaseRealDeviceAdapter<
       };
     }
 
-    const startMs = new Date(command.effectiveWindow.start).getTime();
-    const endMs = new Date(command.effectiveWindow.end).getTime();
+    const startMs = new Date(command.effectiveWindow.startAt).getTime();
+    const endMs = new Date(command.effectiveWindow.endAt).getTime();
 
     await this.scheduleAction(startMs, async () => {
       const token = await this.ensureAuth();
@@ -112,7 +112,7 @@ export class DaikinAdapter extends BaseRealDeviceAdapter<
 
     return {
       success: true,
-      message: `Scheduled Daikin pre-heat to ${PREHEAT_TEMPERATURE_CELSIUS}°C at ${command.effectiveWindow.start} and mode restore to "off" at ${command.effectiveWindow.end}.`,
+      message: `Scheduled Daikin pre-heat to ${PREHEAT_TEMPERATURE_CELSIUS}°C at ${command.effectiveWindow.startAt} and mode restore to "off" at ${command.effectiveWindow.endAt}.`,
     };
   }
 
@@ -149,10 +149,15 @@ export class DaikinAdapter extends BaseRealDeviceAdapter<
     // Express heating state as a nominal wattage — heating mode ≈ 5 kW electrical input.
     const heatingPowerW = device.operationMode === "heating" ? 5000 : 0;
 
+    // Derive a thermal "state of charge" from the indoor temperature.
+    // 16°C → 0%, 22°C → 100% — signals how warm the thermal mass is to the optimizer.
+    const batterySocPercent = Math.min(100, Math.max(0, Math.round(((device.indoorTemperatureCelsius - 16) / (22 - 16)) * 100)));
+
     return [
       {
         deviceId: this.deviceId,
         timestamp: new Date().toISOString(),
+        batterySocPercent,
         evChargingPowerW: heatingPowerW,
         schemaVersion: "telemetry.v1",
       },

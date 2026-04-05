@@ -24,8 +24,8 @@ const scheduleCommand = {
   kind: "schedule_window" as const,
   targetDeviceId: DEVICE_ID,
   effectiveWindow: {
-    start: "2026-04-02T00:30:00.000Z",
-    end: "2026-04-02T02:30:00.000Z",
+    startAt: "2026-04-02T00:30:00.000Z",
+    endAt: "2026-04-02T02:30:00.000Z",
   },
 };
 
@@ -472,7 +472,7 @@ describe("SamsungHttpApiClient", () => {
     });
 
     const client = new SamsungHttpApiClient({ fetchFn: fetchFn as unknown as typeof fetch });
-    const err = await client.setHeatingSetpoint(PAT, SMARTTHINGS_DEVICE_ID, 21).catch((e) => e as SamsungTransportError);
+    const err = await client.setHeatingSetpoint(PAT, SMARTTHINGS_DEVICE_ID, 21).catch((e) => e) as SamsungTransportError;
     expect(err.code).toBe("TEMPORARY_UNAVAILABLE");
     expect(err.retryable).toBe(true);
   });

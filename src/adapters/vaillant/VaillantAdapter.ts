@@ -84,8 +84,8 @@ export class VaillantAdapter extends BaseRealDeviceAdapter<
       };
     }
 
-    const startMs = new Date(command.effectiveWindow.start).getTime();
-    const endMs = new Date(command.effectiveWindow.end).getTime();
+    const startMs = new Date(command.effectiveWindow.startAt).getTime();
+    const endMs = new Date(command.effectiveWindow.endAt).getTime();
     const durationMinutes = Math.max(1, Math.round((endMs - startMs) / 60_000));
 
     await this.scheduleAction(startMs, async () => {
@@ -100,7 +100,7 @@ export class VaillantAdapter extends BaseRealDeviceAdapter<
 
     return {
       success: true,
-      message: `Scheduled Vaillant QUICK_VETO pre-heat to ${PREHEAT_TEMPERATURE_CELSIUS}°C at ${command.effectiveWindow.start} and schedule restore at ${command.effectiveWindow.end}.`,
+      message: `Scheduled Vaillant QUICK_VETO pre-heat to ${PREHEAT_TEMPERATURE_CELSIUS}°C at ${command.effectiveWindow.startAt} and schedule restore at ${command.effectiveWindow.endAt}.`,
     };
   }
 
@@ -137,10 +137,15 @@ export class VaillantAdapter extends BaseRealDeviceAdapter<
     // Express heating state as a nominal wattage — active heat pump ≈ 5 kW electrical input.
     const heatingPowerW = status.heatingActive ? HEAT_PUMP_ACTIVE_POWER_W : 0;
 
+    // Derive a thermal "state of charge" from the indoor temperature.
+    // 16°C → 0%, 22°C → 100% — reflects how warm the house thermal mass already is.
+    const batterySocPercent = Math.min(100, Math.max(0, Math.round(((status.currentTemperatureCelsius - 16) / (22 - 16)) * 100)));
+
     return [
       {
         deviceId: this.deviceId,
         timestamp: new Date().toISOString(),
+        batterySocPercent,
         evChargingPowerW: heatingPowerW,
         schemaVersion: "telemetry.v1",
       },

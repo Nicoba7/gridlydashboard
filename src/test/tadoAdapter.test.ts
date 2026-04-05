@@ -28,8 +28,8 @@ const scheduleCommand = {
   kind: "schedule_window" as const,
   targetDeviceId: DEVICE_ID,
   effectiveWindow: {
-    start: "2026-04-02T00:30:00.000Z",
-    end: "2026-04-02T02:30:00.000Z",
+    startAt: "2026-04-02T00:30:00.000Z",
+    endAt: "2026-04-02T02:30:00.000Z",
   },
 };
 

@@ -10,7 +10,8 @@ export type DeviceKind =
   | "battery"
   | "ev_charger"
   | "smart_meter"
-  | "gateway";
+  | "gateway"
+  | "heat_pump";
 
 export type DeviceConnectionStatus =
   | "online"
