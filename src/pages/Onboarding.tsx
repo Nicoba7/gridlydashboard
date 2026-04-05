@@ -721,6 +721,23 @@ function EVForm({ creds, setCreds }: { creds: any; setCreds: any }) {
   );
 }
 
+// ── SAVINGS ESTIMATE ─────────────────────────────────────────────────────
+function computeSavingsEstimate(selected: string[]): { low: number; high: number } | null {
+  const hasSolar   = selected.includes("solar");
+  const hasBattery = selected.includes("battery");
+  const hasEV      = selected.includes("ev");
+
+  if (!hasSolar && !hasBattery && !hasEV) return null;
+  if (hasSolar && hasBattery && hasEV)   return { low: 1200, high: 1900 };
+  if (hasSolar && hasBattery)            return { low: 900,  high: 1200 };
+  if (hasSolar && hasEV)                 return { low: 700,  high: 1100 };
+  if (hasBattery && hasEV)               return { low: 900,  high: 1400 };
+  if (hasSolar)                          return { low: 300,  high: 500  };
+  if (hasBattery)                        return { low: 500,  high: 800  };
+  if (hasEV)                             return { low: 400,  high: 600  };
+  return null;
+}
+
 // ── COMPLETION MESSAGE ─────────────────────────────────────────────────────
 function buildCompletionMessage(selected: string[]): string {
   const hasEV      = selected.includes("ev");
@@ -778,6 +795,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const hasSolar   = selected.includes("solar");
   const hasBattery = selected.includes("battery");
   const hasEV      = selected.includes("ev");
+  const savingsEstimate = computeSavingsEstimate(selected);
   const needsOctopus = selected.length > 0; // Agile pricing is useful for all device combos
   const needsSolar = hasSolar || hasBattery;
   const needsEV    = hasEV;
@@ -930,12 +948,22 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               );
             })}
           </div>
-          {selected.length > 0 && (
-            <div style={{ background: "#0D1F14", border: "1px solid #16A34A40", borderRadius: 10, padding: "10px 14px", marginTop: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 12, color: "#6B7280" }}>Annual value selected</span>
-              <span style={{ fontSize: 18, fontWeight: 800, color: "#22C55E" }}>£{totalSavings}/yr</span>
-            </div>
-          )}
+          <div style={{ background: "#0D1F14", border: "1px solid #16A34A40", borderRadius: 12, padding: "14px 16px", marginTop: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", letterSpacing: 0.5, marginBottom: 8, textTransform: "uppercase" as const }}>Estimated annual value with Aveum</div>
+            {savingsEstimate ? (
+              <>
+                <div style={{ fontSize: 28, fontWeight: 800, color: "#22C55E", letterSpacing: -0.5, lineHeight: 1, marginBottom: 8 }}>
+                  £{savingsEstimate.low.toLocaleString()}–£{savingsEstimate.high.toLocaleString()}
+                  <span style={{ fontSize: 14, fontWeight: 600, color: "#16A34A", marginLeft: 2 }}>/yr</span>
+                </div>
+                <div style={{ fontSize: 11, color: "#4B5563", lineHeight: 1.5 }}>
+                  Based on typical UK household on Octopus Agile. Your actual savings may be higher.
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize: 13, color: "#4B5563", lineHeight: 1.5 }}>Select your devices to see your savings potential.</div>
+            )}
+          </div>
         </div>
       )}
 

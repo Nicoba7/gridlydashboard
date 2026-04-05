@@ -14,6 +14,7 @@ import type { OptimizationMode, TariffSchedule } from "../src/domain";
 import type { StoredUser } from "./users";
 import type { DailyResult } from "./results";
 import nodemailer from "nodemailer";
+import { getDailyConsumptionProfile } from "../src/integrations/octopus/consumptionService";
 import {
   detectOctopusPowerUpEvents,
   formatPowerUpAlertMessage,
@@ -392,6 +393,11 @@ async function runForUser(config: UserConfig, now: Date): Promise<UserRunResult>
     };
 
     const snapshot = applyUserEvConfiguration(getCanonicalSimulationSnapshot(now), config);
+    const typicalLoadKwhPerSlot = await getDailyConsumptionProfile(
+      config.octopusApiKey,
+      config.octopusAccountNumber,
+    );
+    const hasHeatPump = snapshot.systemState.devices.some((d) => d.kind === "heat_pump");
     const optimizerOutput = optimize({
       systemState: snapshot.systemState,
       forecasts: snapshot.forecasts,
@@ -405,6 +411,8 @@ async function runForUser(config: UserConfig, now: Date): Promise<UserRunResult>
         ...(config.departureTime ? { evReadyBy: config.departureTime } : {}),
         ...(config.targetSocPercent != null ? { evTargetSocPercent: config.targetSocPercent } : {}),
       },
+      typicalLoadKwhPerSlot,
+      ...(hasHeatPump ? { heatPumpCop: 3.5, thermalCoastHours: 3, hotWaterPreHeatBudgetKwh: 2.0 } : {}),
     });
 
     const dailySavingsReport = buildDailySavingsReport({

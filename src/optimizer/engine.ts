@@ -1,9 +1,116 @@
-import type { OptimizerInput, OptimizerOutput } from "../domain";
+import type { HeatPumpPreHeatEvent, OptimizerInput, OptimizerOutput } from "../domain";
+import type { ScheduleWindowCommand } from "../domain/device";
 import { buildOptimizerExplanation } from "./explain";
 import { buildCanonicalRuntimeResult } from "./runtimeCoreMapper";
 
-function isFiniteTimestamp(timestamp: string | undefined): boolean {
-  if (!timestamp) {
+// ── Heat pump scheduling ───────────────────────────────────────────────────────
+
+function formatCompactHour(isoString: string): string {
+  const d = new Date(isoString);
+  const h = d.getUTCHours();
+  const m = d.getUTCMinutes();
+  const period = h >= 12 ? "pm" : "am";
+  const twelve = h % 12 === 0 ? 12 : h % 12;
+  return m === 0 ? `${twelve}${period}` : `${twelve}:${String(m).padStart(2, "0")}${period}`;
+}
+
+interface HeatPumpScheduleResult {
+  commands: ScheduleWindowCommand[];
+  event: HeatPumpPreHeatEvent;
+}
+
+function buildHeatPumpPreHeatSchedule(
+  input: OptimizerInput,
+  planId: string,
+  generatedAt: string,
+): HeatPumpScheduleResult | null {
+  // Find heat pump devices that support schedule_window and are reachable.
+  const heatPumpDevices = input.systemState.devices.filter(
+    (d) =>
+      d.kind === "heat_pump" &&
+      (d.connectionStatus === "online" || d.connectionStatus === "degraded") &&
+      d.capabilities.includes("schedule_window"),
+  );
+
+  if (!heatPumpDevices.length) return null;
+
+  const cop = input.heatPumpCop ?? 3.5;
+  const thermalCoastHours = input.thermalCoastHours ?? 3;
+  const hotWaterBudgetKwh = input.hotWaterPreHeatBudgetKwh ?? 2.0;
+
+  // If the house is already warm (thermal SoC > 80%), skip pre-heat — it would coast anyway.
+  const maxThermalSoc = Math.max(...heatPumpDevices.map((d) => d.stateOfChargePercent ?? 0));
+  if (maxThermalSoc > 80) return null;
+
+  const importRates = input.tariffSchedule.importRates;
+  if (!importRates.length) return null;
+
+  const avgRate =
+    importRates.reduce((sum, r) => sum + r.unitRatePencePerKwh, 0) / importRates.length;
+  const avgEffectiveHeatCost = avgRate / cop;
+
+  // Collect slots where effective heat cost is below the daily average, sorted cheapest first.
+  const cheapSlots = importRates
+    .map((rate, i) => ({
+      index: i,
+      effectiveCost: rate.unitRatePencePerKwh / cop,
+      startAt: rate.startAt,
+      endAt: rate.endAt,
+    }))
+    .filter((s) => s.effectiveCost < avgEffectiveHeatCost)
+    .sort((a, b) => a.effectiveCost - b.effectiveCost);
+
+  if (!cheapSlots.length) return null;
+
+  // Take the best slots up to thermalCoastHours window length (half-hourly slots).
+  const maxWindowSlots = thermalCoastHours * 2;
+  const windowSlots = cheapSlots
+    .slice(0, maxWindowSlots)
+    .sort((a, b) => a.index - b.index); // restore chronological order
+
+  const firstSlot = windowSlots[0];
+  const lastSlot = windowSlots[windowSlots.length - 1];
+  const avgWindowCost = windowSlots.reduce((s, sl) => s + sl.effectiveCost, 0) / windowSlots.length;
+
+  // Estimate savings: effective cost difference × typical heating demand for the window.
+  const windowHours = windowSlots.length * 0.5;
+  const heatPumpKw = 5.0; // nominal 5 kW input power
+  const windowKwh = heatPumpKw * windowHours;
+  const savedPence = Math.max(0, (avgEffectiveHeatCost - avgWindowCost) * windowKwh);
+
+  const hotWaterSavingsPounds =
+    hotWaterBudgetKwh > 0 && avgEffectiveHeatCost > avgWindowCost
+      ? Number(((hotWaterBudgetKwh * (avgEffectiveHeatCost - avgWindowCost)) / 100).toFixed(2))
+      : undefined;
+
+  const timeRangeLabel = `${formatCompactHour(firstSlot.startAt)}–${formatCompactHour(lastSlot.endAt)}`;
+  const reason =
+    `Pre-heat during cheapest window — effective heat cost ${avgWindowCost.toFixed(1)}p/kWh ` +
+    `(electricity ÷ COP ${cop}) vs ${avgEffectiveHeatCost.toFixed(1)}p/kWh average.`;
+
+  const commands: ScheduleWindowCommand[] = heatPumpDevices.map((device, i) => ({
+    commandId: `${planId}-hp-preheat-${i}`,
+    deviceId: device.deviceId,
+    issuedAt: generatedAt,
+    type: "schedule_window",
+    window: { startAt: firstSlot.startAt, endAt: lastSlot.endAt },
+    targetMode: "boost",
+    effectiveWindow: { startAt: firstSlot.startAt, endAt: lastSlot.endAt },
+    reason,
+  }));
+
+  return {
+    commands,
+    event: {
+      timeRangeLabel,
+      effectiveHeatCostPencePerKwh: Number(avgWindowCost.toFixed(1)),
+      savedPence: Math.round(savedPence),
+      hotWaterSavingsPounds,
+    },
+  };
+}
+
+function isFiniteTimestamp(timestamp: string | undefined): boolean {  if (!timestamp) {
     return false;
   }
 
@@ -108,8 +215,35 @@ export function optimize(input: OptimizerInput): OptimizerOutput {
     return buildBlockedOutput(input);
   }
 
-  const result = buildCanonicalRuntimeResult(input);
-  const explanation = buildOptimizerExplanation(input, result);
+  // If the caller supplied a real-world consumption profile, overlay those
+  // values onto the simulated householdLoadKwh forecast so every downstream
+  // planner automatically benefits from the real data.
+  const resolvedInput: OptimizerInput =
+    input.typicalLoadKwhPerSlot && input.typicalLoadKwhPerSlot.length === 48
+      ? {
+          ...input,
+          forecasts: {
+            ...input.forecasts,
+            householdLoadKwh: input.forecasts.householdLoadKwh.map((point, index) => {
+              const slotIndex =
+                new Date(point.startAt).getUTCHours() * 2 +
+                Math.floor(new Date(point.startAt).getUTCMinutes() / 30);
+              const profileValue = input.typicalLoadKwhPerSlot![slotIndex];
+              return profileValue != null && Number.isFinite(profileValue)
+                ? { ...point, value: profileValue, confidence: 0.85 }
+                : point;
+            }),
+          },
+        }
+      : input;
+
+  const result = buildCanonicalRuntimeResult(resolvedInput);
+  const heatPumpSchedule = buildHeatPumpPreHeatSchedule(
+    resolvedInput,
+    result.planId,
+    result.generatedAt,
+  );
+  const explanation = buildOptimizerExplanation(resolvedInput, result);
   const warningCodes = explanation.diagnostics
     .filter((diagnostic) => diagnostic.severity === "warning")
     .map((diagnostic) => diagnostic.code);
@@ -127,7 +261,9 @@ export function optimize(input: OptimizerInput): OptimizerOutput {
     status,
     headline: explanation.headline,
     decisions: result.decisions,
-    recommendedCommands: result.recommendedCommands,
+    recommendedCommands: heatPumpSchedule
+      ? [...result.recommendedCommands, ...heatPumpSchedule.commands]
+      : result.recommendedCommands,
     opportunities: result.opportunities,
     summary: result.summary,
     diagnostics: explanation.diagnostics,
@@ -147,5 +283,6 @@ export function optimize(input: OptimizerInput): OptimizerOutput {
     assumptions: result.assumptions,
     warnings: mergedWarnings,
     confidence: explanation.confidence,
+    heatPumpPreHeatEvent: heatPumpSchedule?.event ?? null,
   };
 }
