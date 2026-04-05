@@ -480,6 +480,8 @@ function EnergyFlowSVG({
   gridW,
   isCharging,
   isExporting,
+  evSocPercent,
+  evCharging,
 }: {
   hasSolar: boolean;
   hasBattery: boolean;
@@ -491,6 +493,8 @@ function EnergyFlowSVG({
   gridW: number;
   isCharging: boolean;
   isExporting: boolean;
+  evSocPercent: number;
+  evCharging: boolean;
 }) {
   const HOME = { x: 170, y: 128 };
   const SOLAR = { x: 170, y: 26 };
@@ -503,7 +507,7 @@ function EnergyFlowSVG({
   const solarOn = hasSolar && solarW > 100;
   const batteryChargeOn = hasBattery && isCharging;
   const batteryDischargeOn = hasBattery && !isCharging && batteryPct > 20;
-  const evOn = hasEV;
+  const evOn = hasEV && evCharging;
   const gridImport = hasGrid && !isExporting;
   const gridExport = hasGrid && isExporting;
 
@@ -566,11 +570,11 @@ function EnergyFlowSVG({
           radius={nodeRadius}
           active={evOn}
           color={ENERGY_COLORS.ev}
-          value="38%"
+          value={`${evSocPercent}%`}
           valueFontSize={10}
           valueActiveColor={ENERGY_COLORS.ev}
           valueInactiveColor={ENERGY_COLORS.ev}
-          label="EV"
+          label={evCharging ? "EV charging" : "EV"}
         />
       )}
 
@@ -804,6 +808,8 @@ export default function HomeTab({
   }, []);
 
   const hasRealPlanData = hasStoredUserId && Boolean(latestResult);
+  const demoEvSocPercent = SANDBOX.ev?.socPercent ?? 67;
+  const demoEvChargingNow = SANDBOX.ev?.isCharging ?? true;
 
   // ── Tonight's Plan — skip state ──────────────────────────────────────────
   const todayKey = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
@@ -947,9 +953,20 @@ export default function HomeTab({
           /* ── Normal / edit states ── */
           <>
             {!hasRealPlanData ? (
-              <div style={{ fontSize: 13, lineHeight: 1.45, color: "#6B7280", marginBottom: 12 }}>
-                Aveum calculates tonight's plan using live Agile prices. Check back after 10pm.
-              </div>
+              isDemo ? (
+                <>
+                  <div style={{ fontSize: 14, color: "#E5EDF9", fontWeight: 600, marginBottom: 6 }}>
+                    01:30 - 04:00 · Charge EV · ~£1.82 · saves 41%
+                  </div>
+                  <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 12 }}>
+                    17:00 - 19:00 · Discharge battery · avoids 34p peak
+                  </div>
+                </>
+              ) : (
+                <div style={{ fontSize: 13, lineHeight: 1.45, color: "#6B7280", marginBottom: 12 }}>
+                  Aveum calculates tonight's plan using live Agile prices. Check back after 10pm.
+                </div>
+              )
             ) : topActionWindow ? (
               <>
                 <div style={{ fontSize: 14, color: "#E5EDF9", fontWeight: 600, marginBottom: 6 }}>{topActionWindow.line}</div>
@@ -1204,6 +1221,8 @@ export default function HomeTab({
           gridW={s.gridW}
           isCharging={isCharging}
           isExporting={isExporting}
+          evSocPercent={demoEvSocPercent}
+          evCharging={demoEvChargingNow || isCharging}
         />
       </div>
 

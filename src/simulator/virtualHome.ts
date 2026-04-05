@@ -80,6 +80,14 @@ export interface LegacySandboxData {
   earnedToday: number;
   allTime: number;
   allTimeSince: string;
+  ev: {
+    socPercent: number;
+    chargingWindow: string;
+    chargingRatePencePerKwh: number;
+    departureTime: string;
+    targetSocPercent: number;
+    isCharging: boolean;
+  };
   solar: {
     w: number;
     batteryPct: number;
@@ -524,12 +532,33 @@ export function createLegacySandboxSnapshot(
   const averageSolar = forecasts.solarGenerationKwh.reduce((sum, point) => sum + point.value, 0) / forecasts.solarGenerationKwh.length;
   const totalForecastSolar = forecasts.solarGenerationKwh.reduce((sum, point) => sum + point.value, 0);
   const currentCarbonIntensity = forecasts.carbonIntensity?.map((point) => Math.round(point.value)) ?? [];
+  const baseChargeSessions = buildChargeSessions(now, config);
+  const demoChargeSessions: LegacyChargeSession[] = [
+    {
+      date: "Today",
+      startTime: "01:30",
+      endTime: "04:00",
+      kwh: 6.5,
+      cost: 1.82,
+      avgPence: 2.8,
+      carbonG: 412,
+    },
+    ...baseChargeSessions.filter((session) => session.date !== "Today"),
+  ];
 
   return {
-    savedToday: todayMetrics.savedToday,
-    earnedToday: todayMetrics.exportRevenue,
-    allTime: Number((560 + now.getFullYear() - 2024 * 1 + now.getDate() * 4.3).toFixed(2)),
+    savedToday: 3.21,
+    earnedToday: 0.82,
+    allTime: 574.9,
     allTimeSince: "March 2024",
+    ev: {
+      socPercent: 67,
+      chargingWindow: "01:30-04:00",
+      chargingRatePencePerKwh: 2.8,
+      departureTime: "08:00",
+      targetSocPercent: 80,
+      isCharging: true,
+    },
     solar: {
       w: systemState.solarGenerationW,
       batteryPct: systemState.batterySocPercent ?? config.battery.initialSocPercent,
@@ -558,7 +587,7 @@ export function createLegacySandboxSnapshot(
     ],
     history: buildHistory(now, config),
     carbonIntensity: currentCarbonIntensity,
-    chargeSessions: buildChargeSessions(now, config),
+    chargeSessions: demoChargeSessions,
     deviceHealth: {
       solar: { lastSeen: 1, ok: true },
       battery: { lastSeen: 1, ok: true },

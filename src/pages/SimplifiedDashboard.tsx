@@ -789,7 +789,7 @@ export default function SimplifiedDashboard() {
 
   const { selectedIds, teslaConnected } = useMemo(() => {
     const params = new URLSearchParams(window.location.search);
-    const devices = params.get("devices")?.split(",").filter(Boolean) || ["solar", "battery"];
+    const devices = params.get("devices")?.split(",").filter(Boolean) || ["solar", "battery", "ev", "grid"];
     const connected = params.get("tesla_connected") === "true";
 
     return {
