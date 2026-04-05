@@ -91,6 +91,20 @@ export interface DailySavingsReport {
    */
   heatPumpPreHeatEvent?: HeatPumpPreHeatEvent | null;
   /**
+   * Estimated savings in pounds from negative-price import slots where Aveum
+   * maximised consumption to earn from the grid.
+   */
+  negativePriceSavingsPounds?: number;
+  /**
+   * Estimated profit in pounds from Flux three-window arbitrage.
+   */
+  fluxArbitrageProfitPounds?: number;
+  /**
+   * Effective battery degradation cost used in this optimisation run (pence/kWh).
+   * Present when dynamically derived from battery telemetry.
+   */
+  degradationCostPencePerKwh?: number;
+  /**
    * A single-sentence plain-English summary of what Aveum achieved today.
    * Example: "Aveum charged your battery at 2.3p and discharged at 34p, saving you £1.23 today."
    */
@@ -321,6 +335,19 @@ export function buildDailySavingsReport(input: DailySavingsReportInput): DailySa
     powerUpOvernightSummary: null,
     savingSessionOvernightSummary: null,
     heatPumpPreHeatEvent: optimizerOutput.heatPumpPreHeatEvent ?? null,
+    negativePriceSavingsPounds:
+      (optimizerOutput.negativePriceOpportunitySlots?.length ?? 0) > 0
+        ? Number(
+            (
+              (optimizerOutput.negativePriceOpportunitySlots ?? []).reduce(
+                (s, slot) => s + slot.savingPencePerKwh,
+                0,
+              ) / 100
+            ).toFixed(2),
+          )
+        : undefined,
+    fluxArbitrageProfitPounds: optimizerOutput.fluxArbitrageProfitPounds,
+    degradationCostPencePerKwh: optimizerOutput.degradationCostPencePerKwh,
     oneLiner,
     nightlyNarrative,
   };

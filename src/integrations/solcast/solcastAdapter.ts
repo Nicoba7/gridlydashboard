@@ -120,6 +120,28 @@ export function mapSolcastForecastToForecastPoints(
 }
 
 /**
+ * Converts an array of ForecastPoint values into a 48-element slot array
+ * indexed by half-hourly slot from midnight (slot 0 = 00:00–00:30, slot 47 = 23:30–00:00).
+ *
+ * Points whose startAt falls outside the 48-slot grid are silently ignored.
+ * Slots with no matching point retain their initialValue (default 0).
+ */
+export function forecastPointsToSlotArray(
+  points: ForecastPoint[],
+  initialValue = 0,
+): number[] {
+  const slots = Array.from<number>({ length: 48 }).fill(initialValue);
+  for (const point of points) {
+    const d = new Date(point.startAt);
+    const slotIndex = d.getUTCHours() * 2 + Math.floor(d.getUTCMinutes() / 30);
+    if (slotIndex >= 0 && slotIndex < 48 && Number.isFinite(point.value)) {
+      slots[slotIndex] = point.value;
+    }
+  }
+  return slots;
+}
+
+/**
  * Fetches a solar generation forecast from the Solcast Rooftop Sites API and
  * returns it as an array of ForecastPoint values ready for the Aveum optimizer.
  *

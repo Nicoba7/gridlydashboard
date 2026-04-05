@@ -99,6 +99,34 @@ export interface OptimizerInput {
    * overnight window. Default: 2.0.
    */
   hotWaterPreHeatBudgetKwh?: number;
+  /**
+   * Optional 48-element array of actual or forecast solar generation in kWh per
+   * half-hourly slot, indexed from midnight (slot 0 = 00:00–00:30).
+   * When provided, overrides the simulated solarGenerationKwh forecast values.
+   */
+  solarForecastKwhPerSlot?: number[];
+  /**
+   * Optional 48-element array of outdoor temperature (°C) per half-hourly slot,
+   * indexed from midnight. Used to compute a per-slot heat pump COP adjustment.
+   */
+  outdoorTemperatureForecastC?: number[];
+  /**
+   * Tariff product currently active for this site. Enables tariff-specific
+   * optimisation passes (e.g. Flux three-window arbitrage, Octopus Go off-peak).
+   */
+  tariffType?: 'agile' | 'flux' | 'go' | 'standard';
+  /**
+   * Mean departure time for the EV, in minutes from midnight, learned from
+   * historical plugged-in/out events. When provided together with
+   * learnedDepartureMinutesStdDev, Aveum uses mean − stdDev as the effective
+   * EV ready-by time, providing a safety margin for variability.
+   */
+  learnedDepartureMinutesMean?: number;
+  /**
+   * Standard deviation of observed departure times in minutes.
+   * Used with learnedDepartureMinutesMean to compute a robust ready-by deadline.
+   */
+  learnedDepartureMinutesStdDev?: number;
 }
 
 /**
@@ -323,4 +351,32 @@ export interface OptimizerOutput {
   confidence: number;
   /** Heat pump pre-heat event scheduled during a cheap electricity window, if any. */
   heatPumpPreHeatEvent?: HeatPumpPreHeatEvent | null;
+  /**
+   * Slots where the import tariff rate was negative — Aveum maximises consumption
+   * in these slots to earn by drawing from the grid.
+   */
+  negativePriceOpportunitySlots?: NegativePriceSlot[];
+  /**
+   * Effective battery degradation cost used for this optimisation run, in pence
+   * per kWh. Derived dynamically from cycle count and health when telemetry is
+   * available; otherwise falls back to the constraint default.
+   */
+  degradationCostPencePerKwh?: number;
+  /**
+   * Estimated profit in pounds from Flux three-window arbitrage (charge off-peak,
+   * discharge at peak rate). Populated when tariffType === 'flux'.
+   */
+  fluxArbitrageProfitPounds?: number;
+}
+
+/**
+ * A single negative-price import slot identified during optimisation.
+ */
+export interface NegativePriceSlot {
+  startAt: string;
+  endAt: string;
+  /** Import rate (negative value, pence/kWh). */
+  ratePencePerKwh: number;
+  /** Estimated saving in pence from drawing 1 kWh in this slot. */
+  savingPencePerKwh: number;
 }

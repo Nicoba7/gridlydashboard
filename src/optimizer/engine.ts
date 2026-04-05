@@ -1,7 +1,8 @@
-import type { HeatPumpPreHeatEvent, OptimizerInput, OptimizerOutput } from "../domain";
+import type { HeatPumpPreHeatEvent, NegativePriceSlot, OptimizerInput, OptimizerOutput } from "../domain";
 import type { ScheduleWindowCommand } from "../domain/device";
 import { buildOptimizerExplanation } from "./explain";
 import { buildCanonicalRuntimeResult } from "./runtimeCoreMapper";
+import { adjustCopForTemperature } from "../integrations/weather/weatherService";
 
 // ── Heat pump scheduling ───────────────────────────────────────────────────────
 
@@ -50,13 +51,25 @@ function buildHeatPumpPreHeatSchedule(
   const avgEffectiveHeatCost = avgRate / cop;
 
   // Collect slots where effective heat cost is below the daily average, sorted cheapest first.
+  // When outdoor temperature data is available, apply a per-slot COP adjustment.
   const cheapSlots = importRates
-    .map((rate, i) => ({
-      index: i,
-      effectiveCost: rate.unitRatePencePerKwh / cop,
-      startAt: rate.startAt,
-      endAt: rate.endAt,
-    }))
+    .map((rate, i) => {
+      const slotIndex =
+        new Date(rate.startAt).getUTCHours() * 2 +
+        Math.floor(new Date(rate.startAt).getUTCMinutes() / 30);
+      const slotCop =
+        input.outdoorTemperatureForecastC &&
+        input.outdoorTemperatureForecastC.length === 48 &&
+        Number.isFinite(input.outdoorTemperatureForecastC[slotIndex])
+          ? adjustCopForTemperature(cop, input.outdoorTemperatureForecastC[slotIndex])
+          : cop;
+      return {
+        index: i,
+        effectiveCost: rate.unitRatePencePerKwh / slotCop,
+        startAt: rate.startAt,
+        endAt: rate.endAt,
+      };
+    })
     .filter((s) => s.effectiveCost < avgEffectiveHeatCost)
     .sort((a, b) => a.effectiveCost - b.effectiveCost);
 
@@ -215,27 +228,107 @@ export function optimize(input: OptimizerInput): OptimizerOutput {
     return buildBlockedOutput(input);
   }
 
+  // ── Learned EV departure override ─────────────────────────────────────────
+  // When departure learning data is present, compute mean − stdDev as a robust
+  // ready-by deadline and inject it into constraints (unless the caller already
+  // set a tighter evReadyBy).
+  let resolvedInput: OptimizerInput = input;
+  if (
+    input.learnedDepartureMinutesMean != null &&
+    input.learnedDepartureMinutesStdDev != null &&
+    !input.constraints.evReadyBy
+  ) {
+    const safeMinutes = Math.max(
+      0,
+      input.learnedDepartureMinutesMean - input.learnedDepartureMinutesStdDev,
+    );
+    const referenceDate = input.systemState.capturedAt
+      ? new Date(input.systemState.capturedAt)
+      : new Date();
+    const midnight = new Date(referenceDate);
+    midnight.setUTCHours(0, 0, 0, 0);
+    const evReadyBy = new Date(midnight.getTime() + safeMinutes * 60_000).toISOString();
+    resolvedInput = {
+      ...input,
+      constraints: { ...input.constraints, evReadyBy },
+    };
+  }
+
+  // ── Dynamic battery degradation cost ─────────────────────────────────────
+  // When a battery device reports health/cycle telemetry via systemState, derive
+  // an elevated degradation cost and inject it into constraints so the planner
+  // avoids arbitrage that doesn't justify the wear cost.
+  let derivedDegradationCost: number | undefined;
+  {
+    const batteryDevices = resolvedInput.systemState.devices.filter(
+      (d) => d.kind === "battery",
+    );
+    if (batteryDevices.length > 0) {
+      // Extract the worst health and highest cycle count reported across all battery devices.
+      const minHealth = Math.min(
+        ...batteryDevices.map((d) => (d.metadata as Record<string, unknown>)?.batteryHealthPercent as number ?? 100),
+      );
+      const maxCycles = Math.max(
+        ...batteryDevices.map((d) => (d.metadata as Record<string, unknown>)?.batteryCycleCount as number ?? 0),
+      );
+      // Base cost 1.5p/kWh; increases by 0.02p per 100 cycles above 500;
+      // adds 0.5p penalty when health drops below 80%.
+      const cyclePenalty = maxCycles > 500 ? ((maxCycles - 500) / 100) * 0.02 : 0;
+      const healthPenalty = minHealth < 80 ? 0.5 : 0;
+      const dynamicCost = Math.max(1.5, 1.5 + cyclePenalty + healthPenalty);
+      derivedDegradationCost = Number(dynamicCost.toFixed(3));
+      resolvedInput = {
+        ...resolvedInput,
+        constraints: {
+          ...resolvedInput.constraints,
+          batteryDegradationCostPencePerKwh:
+            resolvedInput.constraints.batteryDegradationCostPencePerKwh ?? derivedDegradationCost,
+        },
+      };
+    }
+  }
+
+  // ── Real solar forecast overlay ─────────────────────────────────────────
+  // If the caller supplied a real-world solar forecast, overlay those values
+  // onto the simulated solarGenerationKwh forecast per slot.
+  if (resolvedInput.solarForecastKwhPerSlot && resolvedInput.solarForecastKwhPerSlot.length === 48) {
+    resolvedInput = {
+      ...resolvedInput,
+      forecasts: {
+        ...resolvedInput.forecasts,
+        solarGenerationKwh: resolvedInput.forecasts.solarGenerationKwh.map((point) => {
+          const slotIndex =
+            new Date(point.startAt).getUTCHours() * 2 +
+            Math.floor(new Date(point.startAt).getUTCMinutes() / 30);
+          const forecastValue = resolvedInput.solarForecastKwhPerSlot![slotIndex];
+          return forecastValue != null && Number.isFinite(forecastValue)
+            ? { ...point, value: forecastValue, confidence: 0.9 }
+            : point;
+        }),
+      },
+    };
+  }
+
   // If the caller supplied a real-world consumption profile, overlay those
   // values onto the simulated householdLoadKwh forecast so every downstream
   // planner automatically benefits from the real data.
-  const resolvedInput: OptimizerInput =
-    input.typicalLoadKwhPerSlot && input.typicalLoadKwhPerSlot.length === 48
-      ? {
-          ...input,
-          forecasts: {
-            ...input.forecasts,
-            householdLoadKwh: input.forecasts.householdLoadKwh.map((point, index) => {
-              const slotIndex =
-                new Date(point.startAt).getUTCHours() * 2 +
-                Math.floor(new Date(point.startAt).getUTCMinutes() / 30);
-              const profileValue = input.typicalLoadKwhPerSlot![slotIndex];
-              return profileValue != null && Number.isFinite(profileValue)
-                ? { ...point, value: profileValue, confidence: 0.85 }
-                : point;
-            }),
-          },
-        }
-      : input;
+  if (resolvedInput.typicalLoadKwhPerSlot && resolvedInput.typicalLoadKwhPerSlot.length === 48) {
+    resolvedInput = {
+      ...resolvedInput,
+      forecasts: {
+        ...resolvedInput.forecasts,
+        householdLoadKwh: resolvedInput.forecasts.householdLoadKwh.map((point) => {
+          const slotIndex =
+            new Date(point.startAt).getUTCHours() * 2 +
+            Math.floor(new Date(point.startAt).getUTCMinutes() / 30);
+          const profileValue = resolvedInput.typicalLoadKwhPerSlot![slotIndex];
+          return profileValue != null && Number.isFinite(profileValue)
+            ? { ...point, value: profileValue, confidence: 0.85 }
+            : point;
+        }),
+      },
+    };
+  }
 
   const result = buildCanonicalRuntimeResult(resolvedInput);
   const heatPumpSchedule = buildHeatPumpPreHeatSchedule(
@@ -251,6 +344,55 @@ export function optimize(input: OptimizerInput): OptimizerOutput {
   const hasCritical = explanation.diagnostics.some((diagnostic) => diagnostic.severity === "critical");
   const status = hasCritical ? "blocked" : hasWarnings ? "degraded" : "ok";
   const mergedWarnings = [...new Set([...result.warnings, ...warningCodes])];
+
+  // ── Negative-price slot detection ────────────────────────────────────────
+  // Identify import slots where the tariff rate is negative. In these slots
+  // Aveum maximises consumption (battery charging, EV charging, heat pump boost)
+  // to earn by drawing from the grid.
+  const avgImportRate =
+    resolvedInput.tariffSchedule.importRates.reduce(
+      (s, r) => s + r.unitRatePencePerKwh,
+      0,
+    ) / Math.max(1, resolvedInput.tariffSchedule.importRates.length);
+
+  const negativePriceOpportunitySlots: NegativePriceSlot[] = resolvedInput.tariffSchedule.importRates
+    .filter((r) => r.unitRatePencePerKwh < 0)
+    .map((r) => ({
+      startAt: r.startAt,
+      endAt: r.endAt,
+      ratePencePerKwh: r.unitRatePencePerKwh,
+      savingPencePerKwh: Number((Math.abs(r.unitRatePencePerKwh) + Math.max(0, avgImportRate)).toFixed(3)),
+    }));
+
+  // ── Flux three-window arbitrage estimate ─────────────────────────────────
+  // When the site is on Octopus Flux, compute the estimated profit from the
+  // fixed three-window structure: off-peak 02:00–05:00 (charge), standard all
+  // day, peak 16:00–19:00 (discharge).
+  let fluxArbitrageProfitPounds: number | undefined;
+  if (resolvedInput.tariffType === "flux") {
+    const offPeakRates = resolvedInput.tariffSchedule.importRates.filter((r) => {
+      const h = new Date(r.startAt).getUTCHours();
+      return h >= 2 && h < 5;
+    });
+    const peakExportRates = (resolvedInput.tariffSchedule.exportRates ?? resolvedInput.tariffSchedule.importRates).filter(
+      (r) => {
+        const h = new Date(r.startAt).getUTCHours();
+        return h >= 16 && h < 19;
+      },
+    );
+    if (offPeakRates.length > 0 && peakExportRates.length > 0) {
+      const avgOffPeak =
+        offPeakRates.reduce((s, r) => s + r.unitRatePencePerKwh, 0) / offPeakRates.length;
+      const avgPeakExport =
+        peakExportRates.reduce((s, r) => s + r.unitRatePencePerKwh, 0) / peakExportRates.length;
+      // Assume a typical 5 kWh cycle (3-hour off-peak window at 2 kW average charge).
+      const cycleKwh = 5;
+      const profitPence = (avgPeakExport - avgOffPeak) * cycleKwh;
+      if (profitPence > 0) {
+        fluxArbitrageProfitPounds = Number((profitPence / 100).toFixed(2));
+      }
+    }
+  }
 
   return {
     schemaVersion: result.schemaVersion,
@@ -284,5 +426,8 @@ export function optimize(input: OptimizerInput): OptimizerOutput {
     warnings: mergedWarnings,
     confidence: explanation.confidence,
     heatPumpPreHeatEvent: heatPumpSchedule?.event ?? null,
+    negativePriceOpportunitySlots: negativePriceOpportunitySlots.length > 0 ? negativePriceOpportunitySlots : undefined,
+    degradationCostPencePerKwh: derivedDegradationCost,
+    fluxArbitrageProfitPounds,
   };
 }

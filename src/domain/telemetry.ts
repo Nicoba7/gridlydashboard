@@ -14,5 +14,9 @@ export interface CanonicalDeviceTelemetry {
   solarGenerationW?: number;
   gridImportPowerW?: number;
   gridExportPowerW?: number;
+  /** Battery state-of-health as a percentage of original capacity, 0–100. */
+  batteryHealthPercent?: number;
+  /** Cumulative full-cycle equivalent count reported by the battery BMS. */
+  batteryCycleCount?: number;
   schemaVersion: string;
 }

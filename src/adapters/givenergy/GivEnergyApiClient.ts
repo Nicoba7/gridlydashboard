@@ -19,6 +19,10 @@ export interface GivEnergySystemDataPayload {
   solarPowerW: number;
   /** Net grid power in watts: positive = importing. */
   gridPowerW: number;
+  /** Battery state of health as a percentage, if reported by the API. */
+  batteryHealthPercent?: number;
+  /** Cumulative full-cycle equivalent count from the battery BMS, if reported. */
+  batteryCycleCount?: number;
 }
 
 export interface GivEnergyCommandResult {

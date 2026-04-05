@@ -27,6 +27,15 @@ import {
   getUpcomingSavingSessions,
   joinSavingSession,
 } from "../src/features/savingSessions/savingSessionsService";
+import {
+  fetchSolcastForecast,
+  forecastPointsToSlotArray,
+} from "../src/integrations/solcast/solcastAdapter";
+import { getOutdoorTemperatureForecast } from "../src/integrations/weather/weatherService";
+import {
+  getLearnedDepartureDistribution,
+  recordDeparture,
+} from "../src/features/learning/departureLearner";
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
@@ -398,6 +407,41 @@ async function runForUser(config: UserConfig, now: Date): Promise<UserRunResult>
       config.octopusAccountNumber,
     );
     const hasHeatPump = snapshot.systemState.devices.some((d) => d.kind === "heat_pump");
+
+    // Feature 1: Solcast solar forecast
+    let solarForecastKwhPerSlot: number[] | undefined;
+    const solcastApiKey = process.env.SOLCAST_API_KEY?.trim();
+    const solcastResourceId = process.env.SOLCAST_RESOURCE_ID?.trim();
+    if (solcastApiKey && solcastResourceId) {
+      try {
+        const points = await fetchSolcastForecast({ apiKey: solcastApiKey, resourceId: solcastResourceId });
+        solarForecastKwhPerSlot = forecastPointsToSlotArray(points);
+      } catch {
+        // Best-effort; continue without forecast.
+      }
+    }
+
+    // Feature 2: Weather outdoor temperature for COP adjustment
+    let outdoorTemperatureForecastC: number[] | undefined;
+    const weatherLat = process.env.WEATHER_LAT ? parseFloat(process.env.WEATHER_LAT) : undefined;
+    const weatherLon = process.env.WEATHER_LON ? parseFloat(process.env.WEATHER_LON) : undefined;
+    if (hasHeatPump && weatherLat != null && weatherLon != null && Number.isFinite(weatherLat) && Number.isFinite(weatherLon)) {
+      const forecast = await getOutdoorTemperatureForecast(weatherLat, weatherLon);
+      outdoorTemperatureForecastC = forecast ?? undefined;
+    }
+
+    // Feature 6: EV departure time learning
+    let learnedDepartureMinutesMean: number | undefined;
+    let learnedDepartureMinutesStdDev: number | undefined;
+    const hasEv = snapshot.systemState.devices.some((d) => d.kind === "ev_charger");
+    if (hasEv) {
+      const dist = await getLearnedDepartureDistribution(config.userId, redis).catch(() => null);
+      if (dist) {
+        learnedDepartureMinutesMean = dist.mean;
+        learnedDepartureMinutesStdDev = dist.stdDev;
+      }
+    }
+
     const optimizerOutput = optimize({
       systemState: snapshot.systemState,
       forecasts: snapshot.forecasts,
@@ -413,6 +457,11 @@ async function runForUser(config: UserConfig, now: Date): Promise<UserRunResult>
       },
       typicalLoadKwhPerSlot,
       ...(hasHeatPump ? { heatPumpCop: 3.5, thermalCoastHours: 3, hotWaterPreHeatBudgetKwh: 2.0 } : {}),
+      ...(solarForecastKwhPerSlot ? { solarForecastKwhPerSlot } : {}),
+      ...(outdoorTemperatureForecastC ? { outdoorTemperatureForecastC } : {}),
+      ...(learnedDepartureMinutesMean != null && learnedDepartureMinutesStdDev != null
+        ? { learnedDepartureMinutesMean, learnedDepartureMinutesStdDev }
+        : {}),
     });
 
     const dailySavingsReport = buildDailySavingsReport({
@@ -534,6 +583,35 @@ async function runForUser(config: UserConfig, now: Date): Promise<UserRunResult>
       // Best-effort enrichment only.
     }
 
+    // Feature 7: Track cumulative battery cycle count and inject milestone notes
+    // into the report before sending the email.
+    let cyclesMilestoneNote: string | undefined;
+    try {
+      const cyclesKey = `aveum:battery:${config.userId}:cycles`;
+      const estimatedNewCycles = optimizerOutput.summary.expectedBatteryCycles ?? 0;
+      if (estimatedNewCycles > 0) {
+        const storedRaw = await redis.get<string>(cyclesKey);
+        const previousCycles = storedRaw ? parseFloat(storedRaw) : 0;
+        const updatedCycles = previousCycles + estimatedNewCycles;
+        await redis.set(cyclesKey, String(updatedCycles.toFixed(2)));
+
+        if (previousCycles < 500 && updatedCycles >= 500) {
+          cyclesMilestoneNote = `Battery milestone: your battery has now completed 500 full charge-discharge cycles. Aveum will begin applying a modest wear adjustment to protect long-term capacity.`;
+        } else if (previousCycles < 1000 && updatedCycles >= 1000) {
+          cyclesMilestoneNote = `Battery milestone: 1,000 cycles reached. Aveum has raised the degradation threshold — only high-value arbitrage windows will trigger battery cycling from here.`;
+        }
+      }
+    } catch {
+      // Best-effort.
+    }
+
+    if (cyclesMilestoneNote) {
+      reportForEmail = {
+        ...reportForEmail,
+        nightlyNarrative: `${cyclesMilestoneNote} ${reportForEmail.nightlyNarrative}`,
+      };
+    }
+
     // Send email if SMTP is configured for this user (falls back to global env vars)
     const smtpHost = config.smtpHost || process.env.AVEUM_SMTP_HOST;
     const smtpUser = config.smtpUser || process.env.AVEUM_SMTP_USER;
@@ -562,6 +640,18 @@ async function runForUser(config: UserConfig, now: Date): Promise<UserRunResult>
     const netCostPence =
       optimizerOutput.summary.expectedImportCostPence -
       optimizerOutput.summary.expectedExportRevenuePence;
+
+    // Feature 6: Record observed EV departure when a departure time is configured.
+    if (hasEv && config.departureTime) {
+      try {
+        const [hours, minutes] = config.departureTime.split(":").map(Number);
+        if (Number.isFinite(hours) && Number.isFinite(minutes)) {
+          await recordDeparture(config.userId, hours * 60 + minutes, redis);
+        }
+      } catch {
+        // Best-effort.
+      }
+    }
 
     const trackingOutcome = await trackDailyResult({
       userName: config.userName,

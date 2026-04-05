@@ -139,6 +139,27 @@ function buildBullets(report: DailySavingsReport): string[] {
     );
   }
 
+  if (report.negativePriceSavingsPounds != null && report.negativePriceSavingsPounds > 0) {
+    bullets.push(
+      `Earned ${formatPounds(report.negativePriceSavingsPounds * 100)} during negative-price slots — Aveum maximised consumption while the grid paid you to draw power`,
+    );
+  }
+
+  if (report.fluxArbitrageProfitPounds != null && report.fluxArbitrageProfitPounds > 0) {
+    bullets.push(
+      `Flux arbitrage: estimated ${formatPounds(report.fluxArbitrageProfitPounds * 100)} profit from charging off-peak and exporting at peak rate`,
+    );
+  }
+
+  if (
+    report.degradationCostPencePerKwh != null &&
+    report.degradationCostPencePerKwh > 2.0
+  ) {
+    bullets.push(
+      `Battery wear threshold raised to ${report.degradationCostPencePerKwh.toFixed(2)}p/kWh — some arbitrage opportunities were skipped to protect long-term battery health`,
+    );
+  }
+
   if (report.earnedFromExportPence > 1) {
     bullets.push(`Earned ${formatPounds(report.earnedFromExportPence)} exporting solar surplus to the grid`);
   }

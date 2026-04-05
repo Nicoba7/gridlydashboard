@@ -142,6 +142,8 @@ export class GivEnergyAdapter extends BaseRealDeviceAdapter<
         solarGenerationW: payload.solarPowerW,
         gridImportPowerW,
         gridExportPowerW,
+        batteryHealthPercent: payload.batteryHealthPercent,
+        batteryCycleCount: payload.batteryCycleCount,
         schemaVersion: "telemetry.v1",
       },
     ];
