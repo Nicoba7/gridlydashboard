@@ -4,7 +4,7 @@ import type { DeviceAdapterExecutionContext } from "../deviceAdapter";
 import { BaseRealDeviceAdapter, type AdapterOperation, type CanonicalAdapterCommandResult, type CanonicalAdapterError } from "../realDeviceAdapterContract";
 import { WallboxTransportError, type WallboxApiClient, type WallboxCommandResult, type WallboxRemoteAction, type WallboxStatusPayload } from "./WallboxApiClient";
 
-export type WallboxCapability = "read_power" | "schedule_window" | "vehicle_to_home";
+export type WallboxCapability = "read_power" | "read_soc" | "schedule_window" | "vehicle_to_home" | "v2g_discharge" | "v2h_discharge";
 
 export interface WallboxAdapterConfig {
   deviceId: string;
@@ -16,7 +16,7 @@ export interface WallboxAdapterConfig {
 
 export class WallboxAdapter extends BaseRealDeviceAdapter<WallboxCommandResult, WallboxStatusPayload, WallboxTransportError> {
   readonly adapterId = "wallbox-adapter.v1";
-  readonly capabilities: WallboxCapability[] = ["read_power", "schedule_window", "vehicle_to_home"];
+  readonly capabilities: WallboxCapability[] = ["read_power", "read_soc", "schedule_window", "vehicle_to_home", "v2g_discharge", "v2h_discharge"];
 
   private readonly deviceId: string;
   private readonly email: string;
@@ -43,12 +43,25 @@ export class WallboxAdapter extends BaseRealDeviceAdapter<WallboxCommandResult, 
 
   async dispatchVendorCommand(command: CanonicalDeviceCommand, _context?: DeviceAdapterExecutionContext): Promise<WallboxCommandResult> {
     if (!this.canHandle(command.targetDeviceId)) {
-      throw new WallboxTransportError("UNSUPPORTED_DEVICE", `Wallbox adapter does not handle device \"${command.targetDeviceId}\".`);
+      throw new WallboxTransportError("UNSUPPORTED_DEVICE", `Wallbox adapter does not handle device "${command.targetDeviceId}".`);
     }
 
     const token = await this.ensureToken();
     if (command.kind !== "schedule_window") {
-      return { success: true, message: `Command kind \"${command.kind}\" acknowledged but not actioned by Wallbox adapter.` };
+      // Handle V2H local-load discharge (Quasar 2): routes EV energy to home circuit.
+      if (command.kind === "set_mode" && command.mode === "vehicle_to_home") {
+        return this.client.setLocalLoadMode(token, this.chargerId, true);
+      }
+      // Handle V2G discharge for Quasar 2: set_mode(discharge) → enable V2G.
+      if (command.kind === "set_mode" && command.mode === "discharge") {
+        return this.client.setDischargeMode(token, this.chargerId, true);
+      }
+      // set_mode(hold/charge) → disable both V2G and V2H.
+      if (command.kind === "set_mode" && (command.mode === "hold" || command.mode === "charge")) {
+        await this.client.setDischargeMode(token, this.chargerId, false);
+        return this.client.setLocalLoadMode(token, this.chargerId, false);
+      }
+      return { success: true, message: `Command kind "${command.kind}" acknowledged but not actioned by Wallbox adapter.` };
     }
 
     const startMs = new Date(command.effectiveWindow.startAt).getTime();
@@ -65,7 +78,16 @@ export class WallboxAdapter extends BaseRealDeviceAdapter<WallboxCommandResult, 
   }
 
   mapVendorTelemetryToCanonicalTelemetry(status: WallboxStatusPayload): CanonicalDeviceTelemetry[] {
-    return [{ deviceId: this.deviceId, timestamp: new Date().toISOString(), evChargingPowerW: status.powerW, evConnected: true, chargingState: status.charging ? "charging" : "idle", schemaVersion: "telemetry.v1" }];
+    const isDischarging = status.v2gDischargeActive || status.localLoadActive;
+    return [{
+      deviceId: this.deviceId,
+      timestamp: new Date().toISOString(),
+      evChargingPowerW: isDischarging ? -(status.powerW) : status.powerW,
+      evConnected: true,
+      batterySocPercent: status.socPercent,
+      chargingState: isDischarging ? "discharging" as const : status.charging ? "charging" as const : "idle" as const,
+      schemaVersion: "telemetry.v1",
+    }];
   }
 
   mapVendorErrorToCanonical(error: WallboxTransportError, operation: AdapterOperation): CanonicalAdapterError {

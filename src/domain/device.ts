@@ -27,7 +27,9 @@ export type DeviceCommandType =
   | "set_power_limit"
   | "set_target_soc"
   | "set_reserve_soc"
+  | "set_charge_rate"
   | "schedule_window"
+  | "v2g_discharge"
   | "refresh_state";
 
 export type DeviceMode =
@@ -38,7 +40,8 @@ export type DeviceMode =
   | "hold"
   | "eco"
   | "boost"
-  | "stop";
+  | "stop"
+  | "vehicle_to_home";
 
 export type CommandStatus =
   | "accepted"
@@ -59,6 +62,7 @@ export type DeviceCapability =
   | "set_power_limit"
   | "schedule_window"
   | "vehicle_to_home"
+  | "v2g_discharge"
   | "divert_solar";
 
 /**
@@ -162,6 +166,20 @@ export interface RefreshStateCommand extends BaseDeviceCommand {
   type: "refresh_state";
 }
 
+export interface SetChargeRateCommand extends BaseDeviceCommand {
+  type: "set_charge_rate";
+  /** Target charging current in amps. */
+  amps: number;
+}
+
+export interface V2gDischargeCommand extends BaseDeviceCommand {
+  type: "v2g_discharge";
+  /** Whether V2G discharge to grid should be enabled (true) or disabled (false). */
+  enabled: boolean;
+  /** Maximum discharge power in watts, when the charger supports it. */
+  maxPowerW?: number;
+}
+
 /**
  * Strongly typed command union dispatched by the control loop.
  */
@@ -173,6 +191,8 @@ export type DeviceCommand =
   | SetTargetSocCommand
   | SetReserveSocCommand
   | ScheduleWindowCommand
+  | SetChargeRateCommand
+  | V2gDischargeCommand
   | RefreshStateCommand;
 
 /**

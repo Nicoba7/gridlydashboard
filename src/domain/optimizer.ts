@@ -127,6 +127,13 @@ export interface OptimizerInput {
    * Used with learnedDepartureMinutesMean to compute a robust ready-by deadline.
    */
   learnedDepartureMinutesStdDev?: number;
+  /**
+   * 70th-percentile export price from the most recent 30 days of history
+   * (pence/kWh). When provided, the optimizer only exports battery energy to the
+   * grid when today's peak export rate exceeds this threshold; below it, stored
+   * energy is held for self-consumption.
+   */
+  exportPriceP70PencePerKwh?: number;
 }
 
 /**
@@ -367,6 +374,38 @@ export interface OptimizerOutput {
    * discharge at peak rate). Populated when tariffType === 'flux'.
    */
   fluxArbitrageProfitPounds?: number;
+  /**
+   * Exportable kWh after reserving enough stored energy to meet the evening home
+   * load. The optimizer only exports energy above this reserve to prevent running
+   * out of stored energy before the next cheap overnight window.
+   */
+  partialExportKwh?: number;
+  /**
+   * Human-readable reason why a battery export was skipped (e.g. today's export
+   * rate is below the 70th percentile of the last 30 days).
+   */
+  exportSkippedReason?: string;
+  /**
+   * Estimated profit in pounds from a V2G (vehicle-to-grid) discharge cycle.
+   * Populated when a V2G-capable EV charger is present and arbitrage is viable.
+   */
+  v2gDischargeProfitPounds?: number;
+  /**
+   * Estimated kWh discharged to the grid via V2G during this optimisation run.
+   */
+  v2gDischargeKwh?: number;
+  /**
+   * Estimated savings in pounds from a V2H (vehicle-to-home) discharge cycle.
+   * The EV powers the home circuit during peak import pricing, avoiding grid import.
+   * No export licence required. Populated separately from v2gDischargeProfitPounds.
+   */
+  v2hDischargeSavingsPounds?: number;
+  /**
+   * 70th-percentile export price threshold (pence/kWh) from the last 30 days,
+   * used to gate export decisions. Populated when export price learning data
+   * is available.
+   */
+  exportPriceP70PencePerKwh?: number;
 }
 
 /**

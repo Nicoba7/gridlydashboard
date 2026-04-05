@@ -151,6 +151,12 @@ function buildBullets(report: DailySavingsReport): string[] {
     );
   }
 
+  if (report.v2gDischargeProfitPounds != null && report.v2gDischargeKwh != null && report.v2gDischargeProfitPounds > 0) {
+    bullets.push(
+      `EV exported ${report.v2gDischargeKwh.toFixed(1)}kWh to the grid — earned £${report.v2gDischargeProfitPounds.toFixed(2)} from V2G discharge`,
+    );
+  }
+
   if (
     report.degradationCostPencePerKwh != null &&
     report.degradationCostPencePerKwh > 2.0

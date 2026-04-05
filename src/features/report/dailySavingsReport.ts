@@ -105,6 +105,16 @@ export interface DailySavingsReport {
    */
   degradationCostPencePerKwh?: number;
   /**
+   * Estimated profit in pounds earned from discharging the EV to the grid (V2G).
+   * Present when a V2G discharge was scheduled.
+   */
+  v2gDischargeProfitPounds?: number;
+  /**
+   * Estimated energy discharged to the grid from the EV (kWh).
+   * Present when a V2G discharge was scheduled.
+   */
+  v2gDischargeKwh?: number;
+  /**
    * A single-sentence plain-English summary of what Aveum achieved today.
    * Example: "Aveum charged your battery at 2.3p and discharged at 34p, saving you £1.23 today."
    */
@@ -348,6 +358,8 @@ export function buildDailySavingsReport(input: DailySavingsReportInput): DailySa
         : undefined,
     fluxArbitrageProfitPounds: optimizerOutput.fluxArbitrageProfitPounds,
     degradationCostPencePerKwh: optimizerOutput.degradationCostPencePerKwh,
+    v2gDischargeProfitPounds: optimizerOutput.v2gDischargeProfitPounds,
+    v2gDischargeKwh: optimizerOutput.v2gDischargeKwh,
     oneLiner,
     nightlyNarrative,
   };

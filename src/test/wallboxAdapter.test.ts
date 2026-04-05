@@ -16,8 +16,11 @@ const scheduleCommand = { kind: "schedule_window" as const, targetDeviceId: DEVI
 function makeClient(overrides: Partial<WallboxApiClient> = {}): WallboxApiClient {
   return {
     login: vi.fn(async () => TOKEN),
+    getChargers: vi.fn(async () => []),
     getChargerStatus: vi.fn(async () => statusPayload),
     setChargerAction: vi.fn(async () => ({ success: true })),
+    setChargingCurrent: vi.fn(async () => ({ success: true })),
+    setDischargeMode: vi.fn(async () => ({ success: true })),
     ...overrides,
   };
 }
@@ -37,7 +40,7 @@ describe("WallboxAdapter", () => {
 
   it("declares capabilities", () => {
     const adapter = new WallboxAdapter({ deviceId: DEVICE_ID, email: EMAIL, password: PASSWORD, chargerId: CHARGER_ID, client: makeClient() });
-    expect(adapter.capabilities).toEqual(["read_power", "schedule_window", "vehicle_to_home"]);
+    expect(adapter.capabilities).toEqual(["read_power", "read_soc", "schedule_window", "vehicle_to_home", "v2g_discharge"]);
   });
 
   it("reads telemetry", async () => {
@@ -97,6 +100,110 @@ describe("WallboxAdapter", () => {
   it("maps unknown error", () => {
     const adapter = new WallboxAdapter({ deviceId: DEVICE_ID, email: EMAIL, password: PASSWORD, chargerId: CHARGER_ID, client: makeClient() });
     expect(adapter.mapVendorErrorToCanonical(new WallboxTransportError("NETWORK_ERROR", "x"), "command_dispatch").code).toBe("UNKNOWN");
+  });
+
+  it("set_mode(discharge) triggers setDischargeMode(true)", async () => {
+    const client = makeClient();
+    const adapter = new WallboxAdapter({ deviceId: DEVICE_ID, email: EMAIL, password: PASSWORD, chargerId: CHARGER_ID, client });
+    await adapter.dispatchVendorCommand({ kind: "set_mode", targetDeviceId: DEVICE_ID, mode: "discharge" });
+    expect(client.setDischargeMode).toHaveBeenCalledWith(TOKEN, CHARGER_ID, true);
+  });
+
+  it("set_mode(hold) triggers setDischargeMode(false)", async () => {
+    const client = makeClient();
+    const adapter = new WallboxAdapter({ deviceId: DEVICE_ID, email: EMAIL, password: PASSWORD, chargerId: CHARGER_ID, client });
+    await adapter.dispatchVendorCommand({ kind: "set_mode", targetDeviceId: DEVICE_ID, mode: "hold" });
+    expect(client.setDischargeMode).toHaveBeenCalledWith(TOKEN, CHARGER_ID, false);
+  });
+
+  it("set_mode(charge) triggers setDischargeMode(false)", async () => {
+    const client = makeClient();
+    const adapter = new WallboxAdapter({ deviceId: DEVICE_ID, email: EMAIL, password: PASSWORD, chargerId: CHARGER_ID, client });
+    await adapter.dispatchVendorCommand({ kind: "set_mode", targetDeviceId: DEVICE_ID, mode: "charge" });
+    expect(client.setDischargeMode).toHaveBeenCalledWith(TOKEN, CHARGER_ID, false);
+  });
+
+  it("maps socPercent to batterySocPercent", async () => {
+    const payloadWithSoc: WallboxStatusPayload = { chargerId: CHARGER_ID, charging: true, powerW: 7000, socPercent: 72, v2gDischargeActive: false, raw: {} };
+    const adapter = new WallboxAdapter({ deviceId: DEVICE_ID, email: EMAIL, password: PASSWORD, chargerId: CHARGER_ID, client: makeClient({ getChargerStatus: vi.fn(async () => payloadWithSoc) }) });
+    const telemetry = await adapter.readTelemetry();
+    expect(telemetry[0].batterySocPercent).toBe(72);
+  });
+
+  it("maps v2gDischargeActive to negative power and discharging state", async () => {
+    const payloadV2g: WallboxStatusPayload = { chargerId: CHARGER_ID, charging: false, powerW: 5000, v2gDischargeActive: true, raw: {} };
+    const adapter = new WallboxAdapter({ deviceId: DEVICE_ID, email: EMAIL, password: PASSWORD, chargerId: CHARGER_ID, client: makeClient({ getChargerStatus: vi.fn(async () => payloadV2g) }) });
+    const telemetry = await adapter.readTelemetry();
+    expect(telemetry[0].evChargingPowerW).toBe(-5000);
+    expect(telemetry[0].chargingState).toBe("discharging");
+  });
+
+  it("idle state when not charging and not discharging", async () => {
+    const payloadIdle: WallboxStatusPayload = { chargerId: CHARGER_ID, charging: false, powerW: 0, v2gDischargeActive: false, raw: {} };
+    const adapter = new WallboxAdapter({ deviceId: DEVICE_ID, email: EMAIL, password: PASSWORD, chargerId: CHARGER_ID, client: makeClient({ getChargerStatus: vi.fn(async () => payloadIdle) }) });
+    const telemetry = await adapter.readTelemetry();
+    expect(telemetry[0].chargingState).toBe("idle");
+  });
+});
+
+describe("WallboxHttpApiClient (V2G endpoints)", () => {
+  beforeEach(() => vi.restoreAllMocks());
+
+  it("getChargers endpoint path", async () => {
+    const fetchFn = vi.fn().mockResolvedValueOnce({ ok: true, status: 200, json: async () => [] });
+    const client = new WallboxHttpApiClient({ fetchFn: fetchFn as unknown as typeof fetch });
+    await client.getChargers(TOKEN);
+    const url = String((fetchFn as ReturnType<typeof vi.fn>).mock.calls[0][0]);
+    expect(url).toContain("/v2/charger");
+  });
+
+  it("getChargers maps charger fields", async () => {
+    const item = { id: "99", name: "Quasar", status: 2, maxChargingCurrent: 16, v2gCapable: true };
+    const fetchFn = vi.fn().mockResolvedValueOnce({ ok: true, status: 200, json: async () => [item] });
+    const client = new WallboxHttpApiClient({ fetchFn: fetchFn as unknown as typeof fetch });
+    const chargers = await client.getChargers(TOKEN);
+    expect(chargers[0].id).toBe("99");
+    expect(chargers[0].v2gCapable).toBe(true);
+    expect(chargers[0].maxChargingCurrent).toBe(16);
+  });
+
+  it("setChargingCurrent uses PUT with maxChargingCurrent body", async () => {
+    const fetchFn = vi.fn().mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) });
+    const client = new WallboxHttpApiClient({ fetchFn: fetchFn as unknown as typeof fetch });
+    await client.setChargingCurrent(TOKEN, CHARGER_ID, 16);
+    const init = (fetchFn as ReturnType<typeof vi.fn>).mock.calls[0][1] as RequestInit;
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(init.body as string)).toMatchObject({ maxChargingCurrent: 16 });
+  });
+
+  it("setDischargeMode enable sends supplyCurrent -1", async () => {
+    const fetchFn = vi.fn().mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) });
+    const client = new WallboxHttpApiClient({ fetchFn: fetchFn as unknown as typeof fetch });
+    await client.setDischargeMode(TOKEN, CHARGER_ID, true);
+    const init = (fetchFn as ReturnType<typeof vi.fn>).mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(init.body as string)).toMatchObject({ supplyCurrent: -1 });
+  });
+
+  it("setDischargeMode disable sends supplyCurrent 0", async () => {
+    const fetchFn = vi.fn().mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) });
+    const client = new WallboxHttpApiClient({ fetchFn: fetchFn as unknown as typeof fetch });
+    await client.setDischargeMode(TOKEN, CHARGER_ID, false);
+    const init = (fetchFn as ReturnType<typeof vi.fn>).mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(init.body as string)).toMatchObject({ supplyCurrent: 0 });
+  });
+
+  it("getChargerStatus parses socPercent from soc field", async () => {
+    const fetchFn = vi.fn().mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ status: "charging", charging_power: 7000, soc: 80 }) });
+    const client = new WallboxHttpApiClient({ fetchFn: fetchFn as unknown as typeof fetch });
+    const result = await client.getChargerStatus(TOKEN, CHARGER_ID);
+    expect(result.socPercent).toBe(80);
+  });
+
+  it("getChargerStatus detects v2g active when supplyCurrent is negative", async () => {
+    const fetchFn = vi.fn().mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ status: "discharging", charging_power: 5000, supplyCurrent: -10 }) });
+    const client = new WallboxHttpApiClient({ fetchFn: fetchFn as unknown as typeof fetch });
+    const result = await client.getChargerStatus(TOKEN, CHARGER_ID);
+    expect(result.v2gDischargeActive).toBe(true);
   });
 });
 

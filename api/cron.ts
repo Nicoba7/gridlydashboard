@@ -36,6 +36,10 @@ import {
   getLearnedDepartureDistribution,
   recordDeparture,
 } from "../src/features/learning/departureLearner";
+import {
+  getExportPricePercentile,
+  recordExportPrice,
+} from "../src/features/learning/exportPriceLearner";
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
@@ -390,6 +394,16 @@ async function runForUser(config: UserConfig, now: Date): Promise<UserRunResult>
       // continue without export rates
     }
 
+    // Feature 4: Record today's peak export rate for 30-day P70 learning.
+    if (exportResults.length > 0) {
+      const peakExportRatePence = Math.max(...exportResults.map((r) => r.value_inc_vat));
+      try {
+        await recordExportPrice(config.userId, peakExportRatePence, redis);
+      } catch {
+        // best-effort
+      }
+    }
+
     const tariffSchedule: TariffSchedule = {
       tariffId: `octopus-agile-${region.toLowerCase()}`,
       provider: "Octopus",
@@ -442,6 +456,15 @@ async function runForUser(config: UserConfig, now: Date): Promise<UserRunResult>
       }
     }
 
+    // Feature 4: Read 70th-percentile export price for gating low-value export days.
+    let exportPriceP70PencePerKwh: number | undefined;
+    try {
+      const p70 = await getExportPricePercentile(config.userId, 70, redis);
+      exportPriceP70PencePerKwh = p70 ?? undefined;
+    } catch {
+      // best-effort
+    }
+
     const optimizerOutput = optimize({
       systemState: snapshot.systemState,
       forecasts: snapshot.forecasts,
@@ -462,6 +485,7 @@ async function runForUser(config: UserConfig, now: Date): Promise<UserRunResult>
       ...(learnedDepartureMinutesMean != null && learnedDepartureMinutesStdDev != null
         ? { learnedDepartureMinutesMean, learnedDepartureMinutesStdDev }
         : {}),
+      ...(exportPriceP70PencePerKwh != null ? { exportPriceP70PencePerKwh } : {}),
     });
 
     const dailySavingsReport = buildDailySavingsReport({
