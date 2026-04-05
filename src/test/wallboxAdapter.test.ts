@@ -10,7 +10,7 @@ const PASSWORD = "secret";
 const CHARGER_ID = "12345";
 const TOKEN = "wb-token";
 
-const statusPayload: WallboxStatusPayload = { chargerId: CHARGER_ID, charging: true, powerW: 6800, raw: {} };
+const statusPayload: WallboxStatusPayload = { chargerId: CHARGER_ID, charging: true, powerW: 6800, v2gDischargeActive: false, localLoadActive: false, raw: {} };
 const scheduleCommand = { kind: "schedule_window" as const, targetDeviceId: DEVICE_ID, effectiveWindow: { startAt: "2026-04-02T00:30:00.000Z", endAt: "2026-04-02T03:30:00.000Z" } };
 
 function makeClient(overrides: Partial<WallboxApiClient> = {}): WallboxApiClient {
@@ -21,6 +21,7 @@ function makeClient(overrides: Partial<WallboxApiClient> = {}): WallboxApiClient
     setChargerAction: vi.fn(async () => ({ success: true })),
     setChargingCurrent: vi.fn(async () => ({ success: true })),
     setDischargeMode: vi.fn(async () => ({ success: true })),
+    setLocalLoadMode: vi.fn(async () => ({ success: true })),
     ...overrides,
   };
 }
@@ -40,7 +41,7 @@ describe("WallboxAdapter", () => {
 
   it("declares capabilities", () => {
     const adapter = new WallboxAdapter({ deviceId: DEVICE_ID, email: EMAIL, password: PASSWORD, chargerId: CHARGER_ID, client: makeClient() });
-    expect(adapter.capabilities).toEqual(["read_power", "read_soc", "schedule_window", "vehicle_to_home", "v2g_discharge"]);
+    expect(adapter.capabilities).toEqual(["read_power", "read_soc", "schedule_window", "vehicle_to_home", "v2g_discharge", "v2h_discharge"]);
   });
 
   it("reads telemetry", async () => {
@@ -124,14 +125,14 @@ describe("WallboxAdapter", () => {
   });
 
   it("maps socPercent to batterySocPercent", async () => {
-    const payloadWithSoc: WallboxStatusPayload = { chargerId: CHARGER_ID, charging: true, powerW: 7000, socPercent: 72, v2gDischargeActive: false, raw: {} };
+    const payloadWithSoc: WallboxStatusPayload = { chargerId: CHARGER_ID, charging: true, powerW: 7000, socPercent: 72, v2gDischargeActive: false, localLoadActive: false, raw: {} };
     const adapter = new WallboxAdapter({ deviceId: DEVICE_ID, email: EMAIL, password: PASSWORD, chargerId: CHARGER_ID, client: makeClient({ getChargerStatus: vi.fn(async () => payloadWithSoc) }) });
     const telemetry = await adapter.readTelemetry();
     expect(telemetry[0].batterySocPercent).toBe(72);
   });
 
   it("maps v2gDischargeActive to negative power and discharging state", async () => {
-    const payloadV2g: WallboxStatusPayload = { chargerId: CHARGER_ID, charging: false, powerW: 5000, v2gDischargeActive: true, raw: {} };
+    const payloadV2g: WallboxStatusPayload = { chargerId: CHARGER_ID, charging: false, powerW: 5000, v2gDischargeActive: true, localLoadActive: false, raw: {} };
     const adapter = new WallboxAdapter({ deviceId: DEVICE_ID, email: EMAIL, password: PASSWORD, chargerId: CHARGER_ID, client: makeClient({ getChargerStatus: vi.fn(async () => payloadV2g) }) });
     const telemetry = await adapter.readTelemetry();
     expect(telemetry[0].evChargingPowerW).toBe(-5000);
@@ -139,10 +140,90 @@ describe("WallboxAdapter", () => {
   });
 
   it("idle state when not charging and not discharging", async () => {
-    const payloadIdle: WallboxStatusPayload = { chargerId: CHARGER_ID, charging: false, powerW: 0, v2gDischargeActive: false, raw: {} };
+    const payloadIdle: WallboxStatusPayload = { chargerId: CHARGER_ID, charging: false, powerW: 0, v2gDischargeActive: false, localLoadActive: false, raw: {} };
     const adapter = new WallboxAdapter({ deviceId: DEVICE_ID, email: EMAIL, password: PASSWORD, chargerId: CHARGER_ID, client: makeClient({ getChargerStatus: vi.fn(async () => payloadIdle) }) });
     const telemetry = await adapter.readTelemetry();
     expect(telemetry[0].chargingState).toBe("idle");
+  });
+});
+
+describe("WallboxAdapter V2H", () => {
+  beforeEach(() => vi.useRealTimers());
+
+  it("set_mode(vehicle_to_home) triggers setLocalLoadMode(true)", async () => {
+    const client = makeClient();
+    const adapter = new WallboxAdapter({ deviceId: DEVICE_ID, email: EMAIL, password: PASSWORD, chargerId: CHARGER_ID, client });
+    await adapter.dispatchVendorCommand({ kind: "set_mode", targetDeviceId: DEVICE_ID, mode: "vehicle_to_home" });
+    expect(client.setLocalLoadMode).toHaveBeenCalledWith(TOKEN, CHARGER_ID, true);
+    expect(client.setDischargeMode).not.toHaveBeenCalled();
+  });
+
+  it("set_mode(hold) disables both V2G and V2H", async () => {
+    const client = makeClient();
+    const adapter = new WallboxAdapter({ deviceId: DEVICE_ID, email: EMAIL, password: PASSWORD, chargerId: CHARGER_ID, client });
+    await adapter.dispatchVendorCommand({ kind: "set_mode", targetDeviceId: DEVICE_ID, mode: "hold" });
+    expect(client.setDischargeMode).toHaveBeenCalledWith(TOKEN, CHARGER_ID, false);
+    expect(client.setLocalLoadMode).toHaveBeenCalledWith(TOKEN, CHARGER_ID, false);
+  });
+
+  it("set_mode(charge) disables both V2G and V2H", async () => {
+    const client = makeClient();
+    const adapter = new WallboxAdapter({ deviceId: DEVICE_ID, email: EMAIL, password: PASSWORD, chargerId: CHARGER_ID, client });
+    await adapter.dispatchVendorCommand({ kind: "set_mode", targetDeviceId: DEVICE_ID, mode: "charge" });
+    expect(client.setDischargeMode).toHaveBeenCalledWith(TOKEN, CHARGER_ID, false);
+    expect(client.setLocalLoadMode).toHaveBeenCalledWith(TOKEN, CHARGER_ID, false);
+  });
+
+  it("set_mode(vehicle_to_home) does not call setDischargeMode", async () => {
+    const client = makeClient();
+    const adapter = new WallboxAdapter({ deviceId: DEVICE_ID, email: EMAIL, password: PASSWORD, chargerId: CHARGER_ID, client });
+    await adapter.dispatchVendorCommand({ kind: "set_mode", targetDeviceId: DEVICE_ID, mode: "vehicle_to_home" });
+    expect(client.setDischargeMode).not.toHaveBeenCalled();
+  });
+
+  it("localLoadActive maps to negative power", async () => {
+    const payloadV2h: WallboxStatusPayload = { chargerId: CHARGER_ID, charging: false, powerW: 4000, v2gDischargeActive: false, localLoadActive: true, raw: {} };
+    const adapter = new WallboxAdapter({ deviceId: DEVICE_ID, email: EMAIL, password: PASSWORD, chargerId: CHARGER_ID, client: makeClient({ getChargerStatus: vi.fn(async () => payloadV2h) }) });
+    const telemetry = await adapter.readTelemetry();
+    expect(telemetry[0].evChargingPowerW).toBe(-4000);
+  });
+
+  it("localLoadActive maps to discharging state", async () => {
+    const payloadV2h: WallboxStatusPayload = { chargerId: CHARGER_ID, charging: false, powerW: 4000, v2gDischargeActive: false, localLoadActive: true, raw: {} };
+    const adapter = new WallboxAdapter({ deviceId: DEVICE_ID, email: EMAIL, password: PASSWORD, chargerId: CHARGER_ID, client: makeClient({ getChargerStatus: vi.fn(async () => payloadV2h) }) });
+    const telemetry = await adapter.readTelemetry();
+    expect(telemetry[0].chargingState).toBe("discharging");
+  });
+
+  it("v2gDischargeActive and localLoadActive both map to discharging state", async () => {
+    const payloadBoth: WallboxStatusPayload = { chargerId: CHARGER_ID, charging: false, powerW: 3000, v2gDischargeActive: true, localLoadActive: true, raw: {} };
+    const adapter = new WallboxAdapter({ deviceId: DEVICE_ID, email: EMAIL, password: PASSWORD, chargerId: CHARGER_ID, client: makeClient({ getChargerStatus: vi.fn(async () => payloadBoth) }) });
+    const telemetry = await adapter.readTelemetry();
+    expect(telemetry[0].chargingState).toBe("discharging");
+    expect(telemetry[0].evChargingPowerW).toBe(-3000);
+  });
+
+  it("vehicle_to_home result is accepted", async () => {
+    const adapter = new WallboxAdapter({ deviceId: DEVICE_ID, email: EMAIL, password: PASSWORD, chargerId: CHARGER_ID, client: makeClient() });
+    const result = adapter.mapVendorCommandResultToCanonical(
+      { kind: "set_mode", targetDeviceId: DEVICE_ID, mode: "vehicle_to_home" },
+      { success: true, message: "V2H enabled" },
+    );
+    expect(result.status).toBe("accepted");
+  });
+
+  it("vehicle_to_home result rejected on failure", async () => {
+    const adapter = new WallboxAdapter({ deviceId: DEVICE_ID, email: EMAIL, password: PASSWORD, chargerId: CHARGER_ID, client: makeClient() });
+    const result = adapter.mapVendorCommandResultToCanonical(
+      { kind: "set_mode", targetDeviceId: DEVICE_ID, mode: "vehicle_to_home" },
+      { success: false, message: "local load not available" },
+    );
+    expect(result.status).toBe("rejected");
+  });
+
+  it("v2h_discharge appears in capabilities", () => {
+    const adapter = new WallboxAdapter({ deviceId: DEVICE_ID, email: EMAIL, password: PASSWORD, chargerId: CHARGER_ID, client: makeClient() });
+    expect(adapter.capabilities).toContain("v2h_discharge");
   });
 });
 
@@ -190,6 +271,45 @@ describe("WallboxHttpApiClient (V2G endpoints)", () => {
     await client.setDischargeMode(TOKEN, CHARGER_ID, false);
     const init = (fetchFn as ReturnType<typeof vi.fn>).mock.calls[0][1] as RequestInit;
     expect(JSON.parse(init.body as string)).toMatchObject({ supplyCurrent: 0 });
+  });
+
+  it("setLocalLoadMode enable sends PUT with localLoad 1", async () => {
+    const fetchFn = vi.fn().mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) });
+    const client = new WallboxHttpApiClient({ fetchFn: fetchFn as unknown as typeof fetch });
+    await client.setLocalLoadMode(TOKEN, CHARGER_ID, true);
+    const init = (fetchFn as ReturnType<typeof vi.fn>).mock.calls[0][1] as RequestInit;
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(init.body as string)).toMatchObject({ localLoad: 1 });
+  });
+
+  it("setLocalLoadMode disable sends PUT with localLoad 0", async () => {
+    const fetchFn = vi.fn().mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) });
+    const client = new WallboxHttpApiClient({ fetchFn: fetchFn as unknown as typeof fetch });
+    await client.setLocalLoadMode(TOKEN, CHARGER_ID, false);
+    const init = (fetchFn as ReturnType<typeof vi.fn>).mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(init.body as string)).toMatchObject({ localLoad: 0 });
+  });
+
+  it("setLocalLoadMode uses charger path", async () => {
+    const fetchFn = vi.fn().mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) });
+    const client = new WallboxHttpApiClient({ fetchFn: fetchFn as unknown as typeof fetch });
+    await client.setLocalLoadMode(TOKEN, CHARGER_ID, true);
+    const url = String((fetchFn as ReturnType<typeof vi.fn>).mock.calls[0][0]);
+    expect(url).toContain(`/v2/charger/${CHARGER_ID}`);
+  });
+
+  it("getChargerStatus parses localLoadActive when localLoad positive", async () => {
+    const fetchFn = vi.fn().mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ status: "discharging", charging_power: 4000, localLoad: 3 }) });
+    const client = new WallboxHttpApiClient({ fetchFn: fetchFn as unknown as typeof fetch });
+    const result = await client.getChargerStatus(TOKEN, CHARGER_ID);
+    expect(result.localLoadActive).toBe(true);
+  });
+
+  it("getChargerStatus parses localLoadActive false when localLoad zero", async () => {
+    const fetchFn = vi.fn().mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ status: "charging", charging_power: 7000, localLoad: 0 }) });
+    const client = new WallboxHttpApiClient({ fetchFn: fetchFn as unknown as typeof fetch });
+    const result = await client.getChargerStatus(TOKEN, CHARGER_ID);
+    expect(result.localLoadActive).toBe(false);
   });
 
   it("getChargerStatus parses socPercent from soc field", async () => {

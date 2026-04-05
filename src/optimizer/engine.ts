@@ -1,5 +1,5 @@
 import type { HeatPumpPreHeatEvent, NegativePriceSlot, OptimizerInput, OptimizerOutput } from "../domain";
-import type { ScheduleWindowCommand, V2gDischargeCommand } from "../domain/device";
+import type { ScheduleWindowCommand, SetModeCommand, V2gDischargeCommand } from "../domain/device";
 import { buildOptimizerExplanation } from "./explain";
 import { buildCanonicalRuntimeResult } from "./runtimeCoreMapper";
 import { adjustCopForTemperature } from "../integrations/weather/weatherService";
@@ -162,33 +162,87 @@ function toDeterministicBlockedPlanId(input: OptimizerInput, generatedAt: string
     .join("-");
 }
 
-// ── V2G discharge scheduling ───────────────────────────────────────────────────
+// ── V2G / V2H discharge scheduling ────────────────────────────────────────────
 
-interface V2GDischargeResult {
-  command: V2gDischargeCommand;
-  v2gDischargeProfitPounds: number;
-  v2gDischargeKwh: number;
-  peakExportRatePencePerKwh: number;
-}
+type EVDischargeResult =
+  | {
+      mode: "v2h";
+      command: SetModeCommand;
+      v2hDischargeSavingsPounds: number;
+      v2hDischargeKwh: number;
+      peakImportRatePencePerKwh: number;
+    }
+  | {
+      mode: "v2g";
+      command: V2gDischargeCommand;
+      v2gDischargeProfitPounds: number;
+      v2gDischargeKwh: number;
+      peakExportRatePencePerKwh: number;
+    };
 
 function scheduleV2GDischarge(
   input: OptimizerInput,
   planId: string,
   generatedAt: string,
-): V2GDischargeResult | null {
-  const evCharger = input.systemState.devices.find(
+): EVDischargeResult | null {
+  // Prefer V2H (vehicle-to-home) — no export licence required.
+  const v2hCharger = input.systemState.devices.find(
+    (d) =>
+      d.kind === "ev_charger" &&
+      (d.connectionStatus === "online" || d.connectionStatus === "degraded") &&
+      (d.capabilities as string[]).includes("v2h_discharge"),
+  );
+
+  if (v2hCharger) {
+    const evSoc = v2hCharger.stateOfChargePercent ?? 0;
+    const v2hMinSoc =
+      ((v2hCharger.metadata as Record<string, unknown>)?.v2hMinSocPercent as number | undefined) ?? 30;
+
+    if (evSoc > v2hMinSoc + 10) {
+      const importRates = input.tariffSchedule.importRates;
+      if (importRates.length > 0) {
+        const peakImportRate = Math.max(...importRates.map((r) => r.unitRatePencePerKwh));
+        const capacityKwh = v2hCharger.capacityKwh ?? 40;
+        const dischargeKwh = Math.min(
+          capacityKwh * 0.5,
+          ((evSoc - v2hMinSoc) / 100) * capacityKwh,
+        );
+        const efficiency = 0.9;
+        const savingsPence = peakImportRate * dischargeKwh * efficiency;
+
+        if (savingsPence / 100 >= 0.5) {
+          return {
+            mode: "v2h",
+            command: {
+              commandId: `${planId}-v2h-discharge`,
+              deviceId: v2hCharger.deviceId,
+              issuedAt: generatedAt,
+              type: "set_mode",
+              mode: "vehicle_to_home",
+              reason: `V2H: EV powers home at peak ${peakImportRate.toFixed(1)}p/kWh — est. saving £${(savingsPence / 100).toFixed(2)}.`,
+            },
+            v2hDischargeSavingsPounds: Number((savingsPence / 100).toFixed(2)),
+            v2hDischargeKwh: Number(dischargeKwh.toFixed(2)),
+            peakImportRatePencePerKwh: peakImportRate,
+          };
+        }
+      }
+    }
+  }
+
+  // Fall back to V2G (vehicle-to-grid) — requires export licence but earns revenue.
+  const v2gCharger = input.systemState.devices.find(
     (d) =>
       d.kind === "ev_charger" &&
       (d.connectionStatus === "online" || d.connectionStatus === "degraded") &&
       (d.capabilities as string[]).includes("v2g_discharge"),
   );
-  if (!evCharger) return null;
+  if (!v2gCharger) return null;
 
-  const evSoc = evCharger.stateOfChargePercent ?? 0;
+  const evSoc = v2gCharger.stateOfChargePercent ?? 0;
   const v2gMinSoc =
-    ((evCharger.metadata as Record<string, unknown>)?.v2hMinSocPercent as number | undefined) ?? 30;
+    ((v2gCharger.metadata as Record<string, unknown>)?.v2hMinSocPercent as number | undefined) ?? 30;
 
-  // Require at least 10% SoC buffer above the minimum before discharging.
   if (evSoc <= v2gMinSoc + 10) return null;
 
   const exportRates = input.tariffSchedule.exportRates ?? input.tariffSchedule.importRates;
@@ -199,8 +253,7 @@ function scheduleV2GDischarge(
     input.tariffSchedule.importRates.reduce((s, r) => s + r.unitRatePencePerKwh, 0) /
     Math.max(1, input.tariffSchedule.importRates.length);
 
-  const capacityKwh = evCharger.capacityKwh ?? 40;
-  // Discharge at most half capacity or the buffer above the minimum, whichever is smaller.
+  const capacityKwh = v2gCharger.capacityKwh ?? 40;
   const dischargeKwh = Math.min(
     capacityKwh * 0.5,
     ((evSoc - v2gMinSoc) / 100) * capacityKwh,
@@ -211,13 +264,13 @@ function scheduleV2GDischarge(
   const profitPence =
     (peakExportRate - avgImportRate - degradationCost) * dischargeKwh * efficiency;
 
-  // Only dispatch V2G if the cycle earns at least £0.50 after wear costs.
   if (profitPence / 100 < 0.5) return null;
 
   return {
+    mode: "v2g",
     command: {
       commandId: `${planId}-v2g-discharge`,
-      deviceId: evCharger.deviceId,
+      deviceId: v2gCharger.deviceId,
       issuedAt: generatedAt,
       type: "v2g_discharge",
       enabled: true,
@@ -484,8 +537,8 @@ export function optimize(input: OptimizerInput): OptimizerOutput {
     }
   }
 
-  // ── V2G discharge scheduling ─────────────────────────────────────────────────
-  const v2gResult = scheduleV2GDischarge(resolvedInput, result.planId, result.generatedAt);
+  // ── V2G / V2H discharge scheduling ──────────────────────────────────────────
+  const evResult = scheduleV2GDischarge(resolvedInput, result.planId, result.generatedAt);
 
   // ── Export price gating ───────────────────────────────────────────────────────
   // When the export P70 benchmark is provided, skip export if today's peak rate
@@ -517,7 +570,7 @@ export function optimize(input: OptimizerInput): OptimizerOutput {
     decisions: result.decisions,
     recommendedCommands: [
       ...(heatPumpSchedule ? [...result.recommendedCommands, ...heatPumpSchedule.commands] : result.recommendedCommands),
-      ...(v2gResult ? [v2gResult.command] : []),
+      ...(evResult ? [evResult.command] : []),
     ],
     opportunities: result.opportunities,
     summary: result.summary,
@@ -544,8 +597,9 @@ export function optimize(input: OptimizerInput): OptimizerOutput {
     fluxArbitrageProfitPounds,
     partialExportKwh,
     exportSkippedReason,
-    v2gDischargeProfitPounds: v2gResult?.v2gDischargeProfitPounds,
-    v2gDischargeKwh: v2gResult?.v2gDischargeKwh,
+    v2gDischargeProfitPounds: evResult?.mode === "v2g" ? evResult.v2gDischargeProfitPounds : undefined,
+    v2gDischargeKwh: evResult?.mode === "v2g" ? evResult.v2gDischargeKwh : undefined,
+    v2hDischargeSavingsPounds: evResult?.mode === "v2h" ? evResult.v2hDischargeSavingsPounds : undefined,
     exportPriceP70PencePerKwh,
   };
 }

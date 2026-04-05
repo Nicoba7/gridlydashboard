@@ -105,6 +105,11 @@ export interface DailySavingsReport {
    */
   degradationCostPencePerKwh?: number;
   /**
+   * Estimated savings in pounds from V2H (vehicle-to-home) discharge.
+   * The EV powered the home during peak import pricing.
+   */
+  v2hDischargeSavingsPounds?: number;
+  /**
    * Estimated profit in pounds earned from discharging the EV to the grid (V2G).
    * Present when a V2G discharge was scheduled.
    */
@@ -358,6 +363,7 @@ export function buildDailySavingsReport(input: DailySavingsReportInput): DailySa
         : undefined,
     fluxArbitrageProfitPounds: optimizerOutput.fluxArbitrageProfitPounds,
     degradationCostPencePerKwh: optimizerOutput.degradationCostPencePerKwh,
+    v2hDischargeSavingsPounds: optimizerOutput.v2hDischargeSavingsPounds,
     v2gDischargeProfitPounds: optimizerOutput.v2gDischargeProfitPounds,
     v2gDischargeKwh: optimizerOutput.v2gDischargeKwh,
     oneLiner,

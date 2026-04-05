@@ -151,6 +151,12 @@ function buildBullets(report: DailySavingsReport): string[] {
     );
   }
 
+  if (report.v2hDischargeSavingsPounds != null && report.v2hDischargeSavingsPounds > 0) {
+    bullets.push(
+      `EV powered home during peak — saved £${report.v2hDischargeSavingsPounds.toFixed(2)} by avoiding grid import`,
+    );
+  }
+
   if (report.v2gDischargeProfitPounds != null && report.v2gDischargeKwh != null && report.v2gDischargeProfitPounds > 0) {
     bullets.push(
       `EV exported ${report.v2gDischargeKwh.toFixed(1)}kWh to the grid — earned £${report.v2gDischargeProfitPounds.toFixed(2)} from V2G discharge`,
