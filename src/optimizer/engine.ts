@@ -108,8 +108,30 @@ export function optimize(input: OptimizerInput): OptimizerOutput {
     return buildBlockedOutput(input);
   }
 
-  const result = buildCanonicalRuntimeResult(input);
-  const explanation = buildOptimizerExplanation(input, result);
+  // If the caller supplied a real-world consumption profile, overlay those
+  // values onto the simulated householdLoadKwh forecast so every downstream
+  // planner automatically benefits from the real data.
+  const resolvedInput: OptimizerInput =
+    input.typicalLoadKwhPerSlot && input.typicalLoadKwhPerSlot.length === 48
+      ? {
+          ...input,
+          forecasts: {
+            ...input.forecasts,
+            householdLoadKwh: input.forecasts.householdLoadKwh.map((point, index) => {
+              const slotIndex =
+                new Date(point.startAt).getUTCHours() * 2 +
+                Math.floor(new Date(point.startAt).getUTCMinutes() / 30);
+              const profileValue = input.typicalLoadKwhPerSlot![slotIndex];
+              return profileValue != null && Number.isFinite(profileValue)
+                ? { ...point, value: profileValue, confidence: 0.85 }
+                : point;
+            }),
+          },
+        }
+      : input;
+
+  const result = buildCanonicalRuntimeResult(resolvedInput);
+  const explanation = buildOptimizerExplanation(resolvedInput, result);
   const warningCodes = explanation.diagnostics
     .filter((diagnostic) => diagnostic.severity === "warning")
     .map((diagnostic) => diagnostic.code);

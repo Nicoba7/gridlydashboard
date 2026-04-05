@@ -78,6 +78,12 @@ export interface OptimizerInput {
   tariffSchedule: TariffSchedule;
   /** Product and customer guardrails used during optimization. */
   constraints: Constraints;
+  /**
+   * Optional 48-element array of typical half-hourly household load in kWh,
+   * indexed by slot from midnight (slot 0 = 00:00–00:30, slot 47 = 23:30–00:00).
+   * When provided, this overrides the simulated household load in forecasts.
+   */
+  typicalLoadKwhPerSlot?: number[];
 }
 
 /**
