@@ -8,6 +8,7 @@ import { Redis } from "@upstash/redis";
 import { optimize } from "../src/optimizer/engine";
 import { getCanonicalSimulationSnapshot } from "../src/simulator";
 import { buildDailySavingsReport } from "../src/features/report/dailySavingsReport";
+import type { DailySavingsReport } from "../src/features/report/dailySavingsReport";
 import { sendMorningReport } from "../src/features/notifications/morningEmailReport";
 import { trackDailyResult } from "../src/features/analytics/userTracker";
 import type { OptimizationMode, TariffSchedule } from "../src/domain";
@@ -233,6 +234,83 @@ async function sendSavingSessionEmail(config: UserConfig, html: string): Promise
   return true;
 }
 
+    text: "Saving Session joined. Aveum has scheduled your battery and EV actions automatically.",
+    html,
+  });
+
+  return true;
+}
+
+async function sendAdapterFailureEmail(config: UserConfig, deviceLabel: string): Promise<void> {
+  const smtpHost = config.smtpHost || process.env.AVEUM_SMTP_HOST;
+  const smtpUser = config.smtpUser || process.env.AVEUM_SMTP_USER;
+  const smtpPass = config.smtpPass || process.env.AVEUM_SMTP_PASS;
+  const notifyEmail = config.notifyEmail || process.env.AVEUM_NOTIFY_EMAIL;
+  if (!smtpHost || !smtpUser || !smtpPass || !notifyEmail) return;
+
+  const smtpPort = config.smtpPort ?? parseInt(process.env.AVEUM_SMTP_PORT ?? "587", 10);
+  const fromEmail = config.fromEmail || process.env.AVEUM_FROM_EMAIL || smtpUser;
+  const transporter = nodemailer.createTransport({
+    host: smtpHost,
+    port: Number.isFinite(smtpPort) ? smtpPort : 587,
+    secure: smtpPort === 465,
+    auth: { user: smtpUser, pass: smtpPass },
+  });
+  await transporter.sendMail({
+    from: `"Aveum" <${fromEmail}>`,
+    to: notifyEmail,
+    subject: `Aveum — Connection issue with your ${deviceLabel}`,
+    text: `We had trouble connecting to your ${deviceLabel} tonight. Your optimisation plan may not have run fully. Check your credentials in Settings → Devices.`,
+    html: `<p>We had trouble connecting to your <strong>${deviceLabel}</strong> tonight. Your optimisation plan may not have run fully. Check your credentials in <em>Settings → Devices</em>.</p>`,
+  });
+}
+
+async function sendWinterComingEmail(config: UserConfig, avgDailySavingsPounds: number): Promise<void> {
+  const smtpHost = config.smtpHost || process.env.AVEUM_SMTP_HOST;
+  const smtpUser = config.smtpUser || process.env.AVEUM_SMTP_USER;
+  const smtpPass = config.smtpPass || process.env.AVEUM_SMTP_PASS;
+  const notifyEmail = config.notifyEmail || process.env.AVEUM_NOTIFY_EMAIL;
+  if (!smtpHost || !smtpUser || !smtpPass || !notifyEmail) return;
+
+  const smtpPort = config.smtpPort ?? parseInt(process.env.AVEUM_SMTP_PORT ?? "587", 10);
+  const fromEmail = config.fromEmail || process.env.AVEUM_FROM_EMAIL || smtpUser;
+  const transporter = nodemailer.createTransport({
+    host: smtpHost,
+    port: Number.isFinite(smtpPort) ? smtpPort : 587,
+    secure: smtpPort === 465,
+    auth: { user: smtpUser, pass: smtpPass },
+  });
+
+  const savingsContext = avgDailySavingsPounds > 0.5
+    ? `Based on your savings so far, you've been averaging £${avgDailySavingsPounds.toFixed(2)}/day — winter typically delivers 2–3x more.`
+    : `Platform users typically see 2–3x more saving in winter than summer.`;
+
+  const text = [
+    "Winter is coming — and so are the best Agile prices of the year.",
+    "",
+    "Peak winter prices regularly hit 40p+ per kWh, making Aveum's optimisation 2–3× more valuable than summer. Here's what to expect over the next 4 months:",
+    "",
+    "• Cheaper overnight windows drop to 2–5p/kWh while peak slots hit 30–45p — the spread Aveum lives in.",
+    "• Battery and EV arbitrage opportunities multiply. Daily savings regularly exceed £2–5.",
+    "• Export earnings increase as solar generation drops off — high prices mean your stored energy is worth more.",
+    "",
+    savingsContext,
+    "",
+    "No action needed — Aveum is already optimising for winter conditions automatically.",
+    "",
+    "─────────────────────────────────────────────────",
+    "Aveum is running automatically — nothing to do.",
+  ].join("\n");
+
+  await transporter.sendMail({
+    from: `"Aveum" <${fromEmail}>`,
+    to: notifyEmail,
+    subject: "Aveum — Winter is coming 🌬️ Your best savings are ahead",
+    text,
+    html: `<p>${text.replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br>")}</p>`,
+  });
+}
+
 function buildPowerUpChargeCommands(
   config: UserConfig,
   event: OctopusPowerUpEvent,
@@ -381,6 +459,38 @@ function applyUserEvConfiguration(snapshot: ReturnType<typeof getCanonicalSimula
 
 async function runForUser(config: UserConfig, now: Date): Promise<UserRunResult> {
   const accountRef = config.octopusAccountNumber;
+  const todayIso = now.toISOString().slice(0, 10);
+
+  // Check if user has requested to skip tonight's optimisation
+  try {
+    const skipValue = await redis.get<string>(`aveum:skip:${config.userId}:${todayIso}`);
+    if (skipValue) {
+      console.log(`[Aveum] User ${config.userId} skipped tonight's optimisation.`);
+      await trackDailyResult({
+        userName: config.userName,
+        notifyEmail: config.notifyEmail,
+        dateIso: todayIso,
+        report: {
+          savedTodayPence: 0,
+          earnedFromExportPence: 0,
+          cheapestSlotUsed: null,
+          evChargedAt: null,
+          batteryDischargedAt: null,
+          v2hDischargeEvent: null,
+          oneLiner: "User skipped tonight — no optimisation ran.",
+          nightlyNarrative: "Optimisation paused at user's request.",
+        } as DailySavingsReport,
+        netCostPence: 0,
+        evTargetAchieved: null,
+        emailSent: false,
+        savingSessionLog: "User skipped tonight.",
+      }).catch(() => undefined);
+      return { octopusAccountNumber: accountRef, status: "ok", optimizerStatus: "skipped_by_user" };
+    }
+  } catch {
+    // Skip check failure is non-blocking — proceed with the full run
+  }
+
   try {
     const region = config.region?.trim() || "C";
     const optimizationMode = toOptimizationMode(config.optimizationMode);
@@ -636,6 +746,69 @@ async function runForUser(config: UserConfig, now: Date): Promise<UserRunResult>
       };
     }
 
+    // Feature: Summer tariff suggestion (May–September, low weekly savings)
+    const runMonth = now.getMonth() + 1;
+    if (runMonth >= 5 && runMonth <= 9) {
+      try {
+        const recentRaw = await redis.lrange<string>(`aveum:results:${config.userId}`, 0, 6);
+        const recentResults = recentRaw.map((e) =>
+          typeof e === "string" ? (JSON.parse(e) as { savedTodayPence: number; earnedFromExportPence: number }) : e,
+        );
+        if (recentResults.length >= 5) {
+          const weeklyPounds =
+            recentResults.reduce((s, r) => s + r.savedTodayPence + r.earnedFromExportPence, 0) / 100;
+          if (weeklyPounds < 2) {
+            const hasBatteryDevice = config.devices?.includes("battery") ?? false;
+            const hasEvDevice = config.devices?.includes("ev") ?? false;
+            const suggestedTariff = hasEvDevice
+              ? "Octopus Intelligent Go"
+              : hasBatteryDevice
+                ? "Octopus Flux"
+                : "Octopus Go";
+            // Estimate extra annual saving: compare avg overnight Agile rate vs flat Go rate (9p)
+            const nightSlots = importResults.filter((r) => {
+              const h = new Date(r.valid_from).getUTCHours();
+              return h >= 0 && h < 6;
+            });
+            const avgNightAgile =
+              nightSlots.length > 0
+                ? nightSlots.reduce((s, r) => s + r.value_inc_vat, 0) / nightSlots.length
+                : 15;
+            const dailyChargeKwh = typicalLoadKwhPerSlot
+              ? typicalLoadKwhPerSlot.slice(0, 12).reduce((s, v) => s + v, 0)
+              : 5;
+            const dailyExtraSavingPence = Math.max(0, (avgNightAgile - 9) * dailyChargeKwh);
+            const annualExtra = Math.round((dailyExtraSavingPence * 365) / 100);
+            if (annualExtra > 50) {
+              reportForEmail = {
+                ...reportForEmail,
+                nightlyNarrative: `${reportForEmail.nightlyNarrative}\n\nSummer Agile prices are flatter than winter — this is normal. While you're here, switching to ${suggestedTariff} could increase your annual saving by £${annualExtra}. Switch now → octopus.energy/aveum`,
+              };
+            }
+          }
+        }
+      } catch {
+        // Best-effort
+      }
+    }
+
+    // Read cumulative totals for the email footer
+    let cumulativeSummary: { savedPounds: number; earnedPounds: number } | undefined;
+    try {
+      const allRaw = await redis.lrange<string>(`aveum:results:${config.userId}`, 0, -1);
+      if (allRaw.length > 0) {
+        const allResults = allRaw.map((e) =>
+          typeof e === "string" ? (JSON.parse(e) as { savedTodayPence: number; earnedFromExportPence: number }) : e,
+        );
+        cumulativeSummary = {
+          savedPounds: allResults.reduce((s, r) => s + r.savedTodayPence, 0) / 100,
+          earnedPounds: allResults.reduce((s, r) => s + r.earnedFromExportPence, 0) / 100,
+        };
+      }
+    } catch {
+      // Best-effort
+    }
+
     // Send email if SMTP is configured for this user (falls back to global env vars)
     const smtpHost = config.smtpHost || process.env.AVEUM_SMTP_HOST;
     const smtpUser = config.smtpUser || process.env.AVEUM_SMTP_USER;
@@ -656,6 +829,7 @@ async function runForUser(config: UserConfig, now: Date): Promise<UserRunResult>
         reportForEmail,
         now.toISOString().slice(0, 10),
         smtpConfig,
+        cumulativeSummary,
       );
       emailSent = result.sent;
     }
@@ -720,10 +894,38 @@ async function runForUser(config: UserConfig, now: Date): Promise<UserRunResult>
       tracked: trackingOutcome.tracked,
     };
   } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    const isTransportError = /ECONNREFUSED|ECONNRESET|ETIMEDOUT|ENOTFOUND|EHOSTUNREACH|fetch.*failed|network|socket|connect/i.test(errMsg);
+    if (isTransportError) {
+      const deviceParts: string[] = [];
+      if (config.devices?.includes("ev")) deviceParts.push("EV charger");
+      if (config.devices?.includes("solar") || config.devices?.includes("battery")) deviceParts.push("inverter");
+      const deviceLabel = deviceParts.length > 0 ? deviceParts.join(" and ") : "devices";
+      sendAdapterFailureEmail(config, deviceLabel).catch(() => undefined);
+      await trackDailyResult({
+        userName: config.userName,
+        notifyEmail: config.notifyEmail,
+        dateIso: now.toISOString().slice(0, 10),
+        report: {
+          savedTodayPence: 0,
+          earnedFromExportPence: 0,
+          cheapestSlotUsed: null,
+          evChargedAt: null,
+          batteryDischargedAt: null,
+          v2hDischargeEvent: null,
+          oneLiner: "Optimisation failed — adapter connection error.",
+          nightlyNarrative: `Connection error: ${errMsg.slice(0, 200)}`,
+        } as DailySavingsReport,
+        netCostPence: 0,
+        evTargetAchieved: null,
+        emailSent: false,
+        savingSessionLog: `adapterFailure: true. Error: ${errMsg.slice(0, 500)}`,
+      }).catch(() => undefined);
+    }
     return {
       octopusAccountNumber: accountRef,
       status: "error",
-      error: err instanceof Error ? err.message : String(err),
+      error: errMsg,
     };
   }
 }
@@ -763,6 +965,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const result = await runForUser(config, now);
     results.push(result);
+  }
+
+  // Fix 6: October 1st — send winter re-engagement email to all users
+  if (now.getMonth() === 9 && now.getDate() === 1) {
+    for (const config of userConfigs) {
+      try {
+        let avgDailySavingsPounds = 0;
+        try {
+          const allRaw = await redis.lrange<string>(`aveum:results:${config.userId}`, 0, -1);
+          if (allRaw.length >= 5) {
+            const allResults = allRaw.map((e) =>
+              typeof e === "string"
+                ? (JSON.parse(e) as { savedTodayPence: number; earnedFromExportPence: number })
+                : e,
+            );
+            avgDailySavingsPounds =
+              allResults.reduce((s, r) => s + r.savedTodayPence + r.earnedFromExportPence, 0) /
+              allResults.length /
+              100;
+          }
+        } catch { /* use zero default */ }
+        await sendWinterComingEmail(config, avgDailySavingsPounds);
+      } catch { /* best-effort — don't block the cron response */ }
+    }
   }
 
   const okCount = results.filter((r) => r.status === "ok").length;

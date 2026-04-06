@@ -146,6 +146,22 @@ function Field({ label, placeholder, hint, link, value, onChange, secret, type }
   );
 }
 
+function CredentialReassurance({ variant }: { variant: "api" | "device" }) {
+  const message =
+    variant === "api"
+      ? "Read-only access only — Aveum cannot make payments or change your tariff."
+      : "Aveum uses your credentials to send optimisation commands only. We never store passwords in plain text.";
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 8, background: "#0F1923", border: "1px solid #1F2937", borderRadius: 8, padding: "10px 12px", marginTop: 4, marginBottom: 12 }}>
+      <Lock size={13} color="#6B7280" style={{ marginTop: 2, flexShrink: 0 }} />
+      <div>
+        <span style={{ fontSize: 11, color: "#9CA3AF", lineHeight: "1.5" }}>{message}{" "}</span>
+        <a href="/privacy" style={{ fontSize: 11, color: "#6B7280", textDecoration: "none" }}>How we protect your data →</a>
+      </div>
+    </div>
+  );
+}
+
 // ── OCTOPUS FORM ──────────────────────────────────────────────────────────
 const UK_REGIONS = [
   { value: "A", label: "East England" },
@@ -290,6 +306,7 @@ function OctopusForm({ creds, setCreds, skipped, onSkip, onUnskip }: { creds: an
           <>
             <Field label="ACCESS KEY" placeholder="octopus_access_xxxxxxxxx" hint="Account → Personal details → API access" link={{ text: "Open Octopus", url: "https://octopus.energy/dashboard/new/accounts/personal-details/" }} value={creds.apiKey} onChange={v => setCreds((c: any) => ({ ...c, apiKey: v }))} secret /> {/* // gitleaks:allow */}
             <Field label="ACCOUNT NUMBER" placeholder="A-XXXXXXXX" hint="Format: A- followed by 8 characters" value={creds.accountNumber} onChange={v => setCreds((c: any) => ({ ...c, accountNumber: v }))} />
+            <CredentialReassurance variant="api" />
             <button onClick={onSkip} style={{ background: "none", border: "none", color: "#4B5563", fontSize: 12, cursor: "pointer", padding: "2px 0 8px", fontFamily: "inherit", display: "block" }}>
               Skip for now
             </button>
@@ -715,6 +732,7 @@ function EVForm({ creds, setCreds }: { creds: any; setCreds: any }) {
           {selectedBrand.note && (
             <p style={{ fontSize: 11, color: "#4B5563", marginTop: 6, lineHeight: 1.5 }}>{selectedBrand.note}</p>
           )}
+          {selectedBrand.fields.length > 0 && <CredentialReassurance variant="device" />}
         </div>
       )}
     </div>
@@ -1012,6 +1030,15 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             </>
           )}
 
+          <div style={{ background: "#120B00", border: "1px solid #78350F40", borderRadius: 10, padding: "12px 14px", marginBottom: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#F59E0B", marginBottom: 6 }}>⚠ Clear any existing schedules first</div>
+            <p style={{ fontSize: 12, color: "#D97706", margin: "0 0 8px", lineHeight: 1.5 }}>
+              If your devices have existing charging schedules, please clear them before Aveum takes over. Two schedules running simultaneously can conflict and reduce your savings.
+            </p>
+            <a href="/help/clear-schedules" style={{ fontSize: 12, color: "#F59E0B", textDecoration: "none" }}>
+              Here&apos;s how →
+            </a>
+          </div>
           <button onClick={() => setStep(4)} style={{ background: "none", border: "none", color: "#4B5563", fontSize: 12, cursor: "pointer", padding: "6px 0", fontFamily: "inherit", display: "block" }}>
             Skip — use demo data instead
           </button>
@@ -1042,6 +1069,19 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               <span style={{ fontSize: 12, color: "#4B5563" }}>+£{d.saves}/yr locked</span>
             </div>
           ))}
+          <div style={{ width: "100%", marginTop: 20, background: "#0B1120", border: "1px solid #1F2937", borderRadius: 12, padding: "14px 16px" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", letterSpacing: 0.5, marginBottom: 10 }}>WHAT TO EXPECT</div>
+            {[
+              "Aveum works best in winter when Agile prices are most volatile — summer savings are smaller but still real.",
+              "Your first morning email arrives tomorrow — it shows exactly what Aveum did overnight and why.",
+              "If nothing was optimised on a quiet night, the email will say so honestly — no invented savings.",
+            ].map((point, i) => (
+              <div key={i} style={{ display: "flex", gap: 8, ...(i < 2 ? { marginBottom: 8 } : {}) }}>
+                <span style={{ color: "#6B7280", fontSize: 12, flexShrink: 0 }}>·</span>
+                <span style={{ fontSize: 12, color: "#9CA3AF", lineHeight: 1.5 }}>{point}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

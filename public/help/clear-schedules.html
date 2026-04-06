@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>How to clear existing schedules — Aveum</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 24px 20px 60px;
+      background: #111827;
+      color: #F9FAFB;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    a { color: #93C5FD; }
+    h1 { font-size: 22px; font-weight: 700; margin: 0 0 8px; }
+    .subtitle { font-size: 13px; color: #9CA3AF; margin: 0 0 28px; line-height: 1.5; }
+    .warning {
+      background: #120B00;
+      border: 1px solid #78350F60;
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 24px;
+      font-size: 13px;
+      color: #D97706;
+      line-height: 1.5;
+    }
+    .warning strong { color: #F59E0B; }
+    .device { margin-bottom: 28px; }
+    .device-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: #F9FAFB;
+      margin: 0 0 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .badge {
+      font-size: 10px;
+      font-weight: 700;
+      color: #22C55E;
+      background: #22C55E20;
+      border: 1px solid #22C55E33;
+      border-radius: 999px;
+      padding: 2px 7px;
+    }
+    ol {
+      margin: 0;
+      padding-left: 20px;
+      color: #D1D5DB;
+      font-size: 13px;
+      line-height: 1.8;
+    }
+    .nav {
+      margin-bottom: 24px;
+      font-size: 12px;
+    }
+    .nav a { text-decoration: none; }
+  </style>
+</head>
+<body>
+  <p class="nav"><a href="/onboarding">← Back to Onboarding</a></p>
+
+  <h1>Clear existing schedules before Aveum takes over</h1>
+  <p class="subtitle">
+    If your EV charger or battery inverter already has a charging schedule set in its own app,
+    Aveum and the device will both try to control charging at the same time. This causes conflicts
+    that reduce savings. Take two minutes to clear any existing schedules first.
+  </p>
+
+  <div class="warning">
+    <strong>Why this matters:</strong> Two conflicting schedules can cause your battery to charge
+    at peak prices or your EV to ignore Aveum's cheaper window. Clearing existing schedules is the
+    single most impactful step before going live.
+  </div>
+
+  <!-- OHME -->
+  <div class="device">
+    <div class="device-name">Ohme <span class="badge">✓ Supported</span></div>
+    <ol>
+      <li>Open the Ohme app and tap <strong>Schedule</strong>.</li>
+      <li>Tap the schedule you want to remove and select <strong>Delete</strong>.</li>
+      <li>Repeat for any secondary or recurring schedules listed.</li>
+      <li>Confirm the schedule list is empty before returning to Aveum.</li>
+    </ol>
+  </div>
+
+  <!-- Zappi -->
+  <div class="device">
+    <div class="device-name">myenergi Zappi <span class="badge">✓ Supported</span></div>
+    <ol>
+      <li>Open the myenergi app and tap your Zappi device.</li>
+      <li>Select <strong>Schedule</strong> or <strong>Boost schedule</strong>.</li>
+      <li>Tap each schedule entry and choose <strong>Remove</strong>.</li>
+      <li>Set Zappi to <strong>Eco+</strong> mode — Aveum will manage charge timing from here.</li>
+    </ol>
+  </div>
+
+  <!-- Easee -->
+  <div class="device">
+    <div class="device-name">Easee <span class="badge">✓ Supported</span></div>
+    <ol>
+      <li>Open the Easee app and select your charger.</li>
+      <li>Tap <strong>Smart Charging</strong> and disable any active schedules or Smart Charging profiles.</li>
+      <li>Set the charger to <strong>Manual</strong> mode — Aveum will take over from here.</li>
+    </ol>
+  </div>
+
+  <!-- Hypervolt -->
+  <div class="device">
+    <div class="device-name">Hypervolt <span class="badge">✓ Supported</span></div>
+    <ol>
+      <li>Open the Hypervolt app and go to <strong>Schedule</strong>.</li>
+      <li>Disable or delete all existing scheduled charge windows.</li>
+      <li>Leave the charger in <strong>Ready</strong> state — Aveum controls timing.</li>
+    </ol>
+  </div>
+
+  <!-- Wallbox -->
+  <div class="device">
+    <div class="device-name">Wallbox <span class="badge">✓ Supported</span></div>
+    <ol>
+      <li>Open the myWallbox app and tap your charger.</li>
+      <li>Go to <strong>Schedule</strong> and delete any existing charge programmes.</li>
+      <li>Ensure <strong>Smart Charging</strong> is turned off in the charger settings — Aveum manages this.</li>
+    </ol>
+  </div>
+
+  <!-- Pod Point -->
+  <div class="device">
+    <div class="device-name">Pod Point <span class="badge">✓ Supported</span></div>
+    <ol>
+      <li>Open the Pod Point app and navigate to <strong>Schedules</strong>.</li>
+      <li>Delete all existing schedules.</li>
+      <li>Set your charger to <strong>Anytime</strong> mode so Aveum can override it freely.</li>
+    </ol>
+  </div>
+
+  <!-- Indra -->
+  <div class="device">
+    <div class="device-name">Indra <span class="badge">✓ Supported</span></div>
+    <ol>
+      <li>Open the Indra app and select <strong>Smart Schedules</strong>.</li>
+      <li>Delete all existing schedules.</li>
+      <li>Confirm the charger shows <strong>Ready</strong> before proceeding.</li>
+    </ol>
+  </div>
+
+  <!-- GivEnergy -->
+  <div class="device">
+    <div class="device-name">GivEnergy Battery <span class="badge">✓ Supported</span></div>
+    <ol>
+      <li>Log into <a href="https://givenergy.cloud" rel="noreferrer">givenergy.cloud</a>.</li>
+      <li>Go to <strong>My Devices</strong> → your inverter → <strong>Inverter Settings</strong>.</li>
+      <li>Under <strong>Schedule</strong>, clear or disable any Charge / Discharge / Export schedules.</li>
+      <li>Set the inverter to <strong>Eco</strong> mode — Aveum will programme charge windows via the API.</li>
+    </ol>
+  </div>
+
+  <!-- Tesla -->
+  <div class="device">
+    <div class="device-name">Tesla (via OAuth) <span class="badge">✓ Supported</span></div>
+    <ol>
+      <li>In the Tesla app, tap your car → <strong>Charging</strong>.</li>
+      <li>Select <strong>Scheduled Charging</strong> and turn it <strong>Off</strong>.</li>
+      <li>Select <strong>Scheduled Departure</strong> and turn it <strong>Off</strong>.</li>
+      <li>Aveum will now manage your car's charge timing directly.</li>
+    </ol>
+  </div>
+
+  <p style="font-size: 12px; color: #4B5563; margin-top: 32px; line-height: 1.6;">
+    Once you've cleared existing schedules, return to Aveum onboarding to complete setup.
+    If you have questions, contact us at <a href="mailto:hello@aveum.co.uk">hello@aveum.co.uk</a>.
+  </p>
+</body>
+</html>

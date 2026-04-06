@@ -822,6 +822,17 @@ export default function HomeTab({
   function skipTonight() {
     try { window.localStorage.setItem("aveum_skip_tonight", todayKey); } catch { /* noop */ }
     setSkippedDate(todayKey);
+    // Persist to Redis so the overnight cron honours the skip
+    try {
+      const userId = window.localStorage.getItem("aveum_user_id");
+      if (userId) {
+        fetch("/api/skip", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId, date: todayKey }),
+        }).catch(() => { /* best-effort */ });
+      }
+    } catch { /* noop */ }
   }
 
   function resumeTonight() {

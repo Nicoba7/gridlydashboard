@@ -186,6 +186,7 @@ function buildBullets(report: DailySavingsReport): string[] {
 export function buildMorningEmailContent(
   report: DailySavingsReport,
   dateIso: string,
+  cumulativeSummary?: { savedPounds: number; earnedPounds: number },
 ): MorningEmailContent {
   const dateLabel = formatDateLabel(dateIso);
   const subject = `Aveum — your energy summary for ${dateLabel}`;
@@ -197,6 +198,9 @@ export function buildMorningEmailContent(
 
   const bullets = buildBullets(report);
   const footer = "Aveum is running automatically — nothing to do.";
+  const cumulativeLine = cumulativeSummary
+    ? `Total saved with Aveum since you joined: £${cumulativeSummary.savedPounds.toFixed(2)} | Total earned: £${cumulativeSummary.earnedPounds.toFixed(2)}`
+    : undefined;
 
   // ── Plain text ───────────────────────────────────────────────────────────────
   const bulletText = bullets.map((b) => `  • ${b}`).join("\n");
@@ -212,6 +216,7 @@ export function buildMorningEmailContent(
     "",
     "─".repeat(48),
     footer,
+    ...(cumulativeLine ? ["", cumulativeLine] : []),
   ].join("\n");
 
   // ── HTML ─────────────────────────────────────────────────────────────────────
@@ -268,6 +273,7 @@ export function buildMorningEmailContent(
           <tr>
             <td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:16px 32px;">
               <p style="margin:0;font-size:12px;color:#9ca3af;">${escapeHtml(footer)}</p>
+              ${cumulativeLine ? `<p style="margin:8px 0 0;font-size:12px;color:#6b7280;font-weight:600;">${escapeHtml(cumulativeLine)}</p>` : ""}
             </td>
           </tr>
 
@@ -332,13 +338,14 @@ export async function sendMorningReport(
   report: DailySavingsReport,
   dateIso: string,
   config: MorningEmailConfig | null,
+  cumulativeSummary?: { savedPounds: number; earnedPounds: number },
   createTransporter: CreateTransporterFn = defaultCreateTransporter,
 ): Promise<SendMorningReportResult> {
   if (!config) {
     return { sent: false, skippedReason: "No SMTP configuration — AVEUM_NOTIFY_EMAIL not set." };
   }
 
-  const content = buildMorningEmailContent(report, dateIso);
+  const content = buildMorningEmailContent(report, dateIso, cumulativeSummary);
   const from = `"Aveum" <${config.fromEmail ?? config.smtpUser}>`;
 
   try {
